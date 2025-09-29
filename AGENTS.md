@@ -1,4 +1,5 @@
 # Repository Guidelines
+请务必使用中文与用户进行交流。
 
 ## 项目结构与模块组织
 本仓库围绕 `novel_generator/` 与 `ui/` 两大目录展开：`novel_generator/` 封装小说架构、章节蓝图、章节生成与终稿润色等核心逻辑模块，以及 `vectorstore_utils.py` 封装的向量库操作；`ui/` 负责 CustomTkinter 图形界面、按钮事件与线程调度。配置加载和测试集中在根目录 `config_manager.py`、`utils.py`，默认配置位于 `config.json` 与 `config.example.json`。用户运行期间生成的 `Novel_architecture.txt`、`character_state.txt` 等产物会写入主界面选择的保存目录。
