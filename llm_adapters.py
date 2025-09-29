@@ -11,7 +11,9 @@ from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.inference.models import SystemMessage, UserMessage
 from openai import OpenAI
-import requests
+
+from langchain_core.messages import SystemMessage as LCSystemMessage, HumanMessage
+from prompt_definitions import GLOBAL_SYSTEM_PROMPT
 
 
 def check_base_url(url: str) -> str:
@@ -62,7 +64,11 @@ class DeepSeekAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str) -> str:
-        response = self._client.invoke(prompt)
+        if GLOBAL_SYSTEM_PROMPT.strip():
+            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+            response = self._client.invoke(messages)
+        else:
+            response = self._client.invoke(prompt)
         if not response:
             logging.warning("No response from DeepSeekAdapter.")
             return ""
@@ -90,7 +96,11 @@ class OpenAIAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str) -> str:
-        response = self._client.invoke(prompt)
+        if GLOBAL_SYSTEM_PROMPT.strip():
+            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+            response = self._client.invoke(messages)
+        else:
+            response = self._client.invoke(prompt)
         if not response:
             logging.warning("No response from OpenAIAdapter.")
             return ""
@@ -113,7 +123,7 @@ class GeminiAdapter(BaseLLMAdapter):
         genai.configure(api_key=self.api_key)
         
         # 创建生成模型实例
-        self._model = genai.GenerativeModel(model_name=self.model_name)
+        self._model = genai.GenerativeModel(model_name=self.model_name, system_instruction=(GLOBAL_SYSTEM_PROMPT if GLOBAL_SYSTEM_PROMPT.strip() else None))
 
     def invoke(self, prompt: str) -> str:
         try:
@@ -169,7 +179,11 @@ class AzureOpenAIAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str) -> str:
-        response = self._client.invoke(prompt)
+        if GLOBAL_SYSTEM_PROMPT.strip():
+            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+            response = self._client.invoke(messages)
+        else:
+            response = self._client.invoke(prompt)
         if not response:
             logging.warning("No response from AzureOpenAIAdapter.")
             return ""
@@ -200,7 +214,11 @@ class OllamaAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str) -> str:
-        response = self._client.invoke(prompt)
+        if GLOBAL_SYSTEM_PROMPT.strip():
+            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+            response = self._client.invoke(messages)
+        else:
+            response = self._client.invoke(prompt)
         if not response:
             logging.warning("No response from OllamaAdapter.")
             return ""
@@ -226,7 +244,11 @@ class MLStudioAdapter(BaseLLMAdapter):
 
     def invoke(self, prompt: str) -> str:
         try:
-            response = self._client.invoke(prompt)
+            if GLOBAL_SYSTEM_PROMPT.strip():
+                messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+                response = self._client.invoke(messages)
+            else:
+                response = self._client.invoke(prompt)
             if not response:
                 logging.warning("No response from MLStudioAdapter.")
                 return ""
@@ -272,7 +294,7 @@ class AzureAIAdapter(BaseLLMAdapter):
         try:
             response = self._client.complete(
                 messages=[
-                    SystemMessage("You are a helpful assistant."),
+                    SystemMessage(GLOBAL_SYSTEM_PROMPT or "You are a helpful assistant."),
                     UserMessage(prompt)
                 ]
             )
@@ -305,7 +327,7 @@ class VolcanoEngineAIAdapter(BaseLLMAdapter):
             response = self._client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "你是DeepSeek，是一个 AI 人工智能助手"},
+                    {"role": "system", "content": GLOBAL_SYSTEM_PROMPT or "你是DeepSeek，是一个 AI 人工智能助手"},
                     {"role": "user", "content": prompt},
                 ],
                 timeout=self.timeout  # 添加超时参数
@@ -337,7 +359,7 @@ class SiliconFlowAdapter(BaseLLMAdapter):
             response = self._client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "你是DeepSeek，是一个 AI 人工智能助手"},
+                    {"role": "system", "content": GLOBAL_SYSTEM_PROMPT or "你是DeepSeek，是一个 AI 人工智能助手"},
                     {"role": "user", "content": prompt},
                 ],
                 timeout=self.timeout  # 添加超时参数
@@ -373,7 +395,7 @@ class GrokAdapter(BaseLLMAdapter):
             response = self._client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "You are Grok, created by xAI."},
+                    {"role": "system", "content": GLOBAL_SYSTEM_PROMPT or "You are Grok, created by xAI."},
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=self.max_tokens,
