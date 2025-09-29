@@ -144,25 +144,31 @@ def split_by_length(text: str, max_length: int = 500):
         start_idx = end_idx
     return segments
 
+
+
 def split_text_for_vectorstore(chapter_text: str, max_length: int = 500, similarity_threshold: float = 0.7):
     """
     对新的章节文本进行分段后,再用于存入向量库。
-    使用 embedding 进行文本相似度计算。
+    强依赖 NLTK 分句：程序启动与此处都会确保 punkt / punkt_tab 存在；若缺失则尝试下载。
+    下载失败将抛出异常以便用户修复网络/代理。
     """
     if not chapter_text.strip():
         return []
-    
-    # nltk.download('punkt', quiet=True)
-    # nltk.download('punkt_tab', quiet=True)
+
+    # Ensure NLTK resources are available (punkt / punkt_tab)
+    from nltk_setup import ensure_nltk_punkt_resources
+    ensure_nltk_punkt_resources()
+
+    import nltk
     sentences = nltk.sent_tokenize(chapter_text)
     if not sentences:
         return []
-    
+
     # 直接按长度分段,不做相似度合并
     final_segments = []
     current_segment = []
     current_length = 0
-    
+
     for sentence in sentences:
         sentence_length = len(sentence)
         if current_length + sentence_length > max_length:
@@ -173,12 +179,11 @@ def split_text_for_vectorstore(chapter_text: str, max_length: int = 500, similar
         else:
             current_segment.append(sentence)
             current_length += sentence_length
-    
+
     if current_segment:
         final_segments.append(" ".join(current_segment))
-    
-    return final_segments
 
+    return final_segments
 def update_vector_store(embedding_adapter, new_chapter: str, filepath: str):
     """
     将最新章节文本插入到向量库中。
@@ -248,3 +253,6 @@ def _get_sentence_transformer(model_name: str = 'paraphrase-MiniLM-L6-v2'):
         logging.error(f"Failed to load sentence transformer model: {e}")
         traceback.print_exc()
         return None
+
+
+
