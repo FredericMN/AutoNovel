@@ -1,5 +1,7 @@
 # consistency_checker.py
 # -*- coding: utf-8 -*-
+from typing import Optional
+
 from llm_adapters import create_llm_adapter
 
 # ============== 增加对“剧情要点/未解决冲突”进行检查的可选引导 ==============
@@ -35,7 +37,8 @@ def check_consistency(
     plot_arcs: str = "",
     interface_format: str = "OpenAI",
     max_tokens: int = 2048,
-    timeout: int = 600
+    timeout: int = 600,
+    system_prompt: Optional[str] = None
 ) -> str:
     """
     调用模型做简单的一致性检查。可扩展更多提示或校验规则。
@@ -59,13 +62,17 @@ def check_consistency(
         timeout=timeout
     )
 
-    # 调试日志
-    print("\n[ConsistencyChecker] Prompt >>>", prompt)
+    active_system_prompt = (system_prompt or "").strip()
 
-    response = llm_adapter.invoke(prompt)
+    # 调试日志
+    if active_system_prompt:
+        print("[ConsistencyChecker] System Prompt >>>", active_system_prompt)
+    print("[ConsistencyChecker] Prompt >>>", prompt)
+
+    response = llm_adapter.invoke(prompt, system_prompt=active_system_prompt)
     if not response:
         return "审校Agent无回复"
-    
+
     # 调试日志
     print("[ConsistencyChecker] Response <<<", response)
 

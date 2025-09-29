@@ -7,7 +7,7 @@ import os
 import logging
 from llm_adapters import create_llm_adapter
 from embedding_adapters import create_embedding_adapter
-from prompt_definitions import summary_prompt, update_character_state_prompt
+from prompt_definitions import summary_prompt, update_character_state_prompt, resolve_global_system_prompt
 from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
 from novel_generator.vectorstore_utils import update_vector_store
@@ -32,7 +32,8 @@ def finalize_chapter(
     embedding_model_name: str,
     interface_format: str,
     max_tokens: int,
-    timeout: int = 600
+    timeout: int = 600,
+    use_global_system_prompt: bool = False
 ):
     """
     对指定章节做最终处理：更新前文摘要、更新角色状态、插入向量库等。
@@ -59,12 +60,13 @@ def finalize_chapter(
         max_tokens=max_tokens,
         timeout=timeout
     )
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
 
     prompt_summary = summary_prompt.format(
         chapter_text=chapter_text,
         global_summary=old_global_summary
     )
-    new_global_summary = invoke_with_cleaning(llm_adapter, prompt_summary)
+    new_global_summary = invoke_with_cleaning(llm_adapter, prompt_summary, system_prompt=system_prompt)
     if not new_global_summary.strip():
         new_global_summary = old_global_summary
 
@@ -72,7 +74,7 @@ def finalize_chapter(
         chapter_text=chapter_text,
         old_state=old_character_state
     )
-    new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state)
+    new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state, system_prompt=system_prompt)
     if not new_char_state.strip():
         new_char_state = old_character_state
 
@@ -103,7 +105,8 @@ def enrich_chapter_text(
     temperature: float,
     interface_format: str,
     max_tokens: int,
-    timeout: int=600
+    timeout: int = 600,
+    use_global_system_prompt: bool = False
 ) -> str:
     """
     对章节文本进行扩写，使其更接近 word_number 字数，保持剧情连贯。
@@ -117,9 +120,10 @@ def enrich_chapter_text(
         max_tokens=max_tokens,
         timeout=timeout
     )
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
     prompt = f"""以下章节文本较短，请在保持剧情连贯的前提下进行扩写，使其更充实，接近 {word_number} 字左右，仅给出最终文本，不要解释任何内容。：
 原内容：
 {chapter_text}
 """
-    enriched_text = invoke_with_cleaning(llm_adapter, prompt)
+    enriched_text = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
     return enriched_text if enriched_text else chapter_text

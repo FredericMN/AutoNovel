@@ -14,7 +14,8 @@ from prompt_definitions import (
     character_dynamics_prompt,
     world_building_prompt,
     plot_architecture_prompt,
-    create_character_state_prompt
+    create_character_state_prompt,
+    resolve_global_system_prompt
 )
 logging.basicConfig(
     filename='app.log',      # 日志文件名
@@ -63,6 +64,7 @@ def Novel_architecture_generate(
     word_number: int,
     filepath: str,
     user_guidance: str = "",  # 新增参数
+    use_global_system_prompt: bool = False,
     temperature: float = 0.7,
     max_tokens: int = 2048,
     timeout: int = 600
@@ -92,6 +94,7 @@ def Novel_architecture_generate(
         max_tokens=max_tokens,
         timeout=timeout
     )
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
     # Step1: 核心种子
     if "core_seed_result" not in partial_data:
         logging.info("Step1: Generating core_seed_prompt (核心种子) ...")
@@ -102,7 +105,7 @@ def Novel_architecture_generate(
             word_number=word_number,
             user_guidance=user_guidance  # 修复：添加内容指导
         )
-        core_seed_result = invoke_with_cleaning(llm_adapter, prompt_core)
+        core_seed_result = invoke_with_cleaning(llm_adapter, prompt_core, system_prompt=system_prompt)
         if not core_seed_result.strip():
             logging.warning("core_seed_prompt generation failed and returned empty.")
             save_partial_architecture_data(filepath, partial_data)
@@ -118,7 +121,7 @@ def Novel_architecture_generate(
             core_seed=partial_data["core_seed_result"].strip(),
             user_guidance=user_guidance
         )
-        character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character)
+        character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character, system_prompt=system_prompt)
         if not character_dynamics_result.strip():
             logging.warning("character_dynamics_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
@@ -133,7 +136,7 @@ def Novel_architecture_generate(
         prompt_char_state_init = create_character_state_prompt.format(
             character_dynamics=partial_data["character_dynamics_result"].strip()
         )
-        character_state_init = invoke_with_cleaning(llm_adapter, prompt_char_state_init)
+        character_state_init = invoke_with_cleaning(llm_adapter, prompt_char_state_init, system_prompt=system_prompt)
         if not character_state_init.strip():
             logging.warning("create_character_state_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
@@ -151,7 +154,7 @@ def Novel_architecture_generate(
             core_seed=partial_data["core_seed_result"].strip(),
             user_guidance=user_guidance  # 修复：添加用户指导
         )
-        world_building_result = invoke_with_cleaning(llm_adapter, prompt_world)
+        world_building_result = invoke_with_cleaning(llm_adapter, prompt_world, system_prompt=system_prompt)
         if not world_building_result.strip():
             logging.warning("world_building_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
@@ -169,7 +172,7 @@ def Novel_architecture_generate(
             world_building=partial_data["world_building_result"].strip(),
             user_guidance=user_guidance  # 修复：添加用户指导
         )
-        plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot)
+        plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot, system_prompt=system_prompt)
         if not plot_arch_result.strip():
             logging.warning("plot_architecture_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)

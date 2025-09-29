@@ -14,13 +14,14 @@ from prompt_definitions import Character_Import_Prompt
 DEFAULT_FONT = ("Microsoft YaHei", 12)
 
 class RoleLibrary:
-    def __init__(self, master, save_path, llm_adapter):  # 新增llm_adapter参数
+    def __init__(self, master, save_path, llm_adapter, system_prompt: str = ""):  # 新增llm_adapter参数
         self.master = master
         self.save_path = os.path.join(save_path, "角色库")
         self.selected_category = None
         self.current_roles = []
         self.selected_del = []
         self.llm_adapter = llm_adapter  # 保存LLM适配器实例
+        self.system_prompt = system_prompt
 
         # 初始化窗口
         self.window = ctk.CTkToplevel(master)
@@ -377,7 +378,8 @@ class RoleLibrary:
             prompt = f"{Character_Import_Prompt}\n<<待分析小说文本开始>>\n{content}\n<<待分析小说文本结束>>"
             response = invoke_with_cleaning(
                 self.llm_adapter,
-                prompt
+                prompt,
+                system_prompt=self.system_prompt
             )
             
             # 解析LLM响应

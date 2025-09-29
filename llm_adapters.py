@@ -13,8 +13,6 @@ from azure.ai.inference.models import SystemMessage, UserMessage
 from openai import OpenAI
 
 from langchain_core.messages import SystemMessage as LCSystemMessage, HumanMessage
-from prompt_definitions import GLOBAL_SYSTEM_PROMPT
-
 
 def check_base_url(url: str) -> str:
     """
@@ -39,7 +37,7 @@ class BaseLLMAdapter:
     """
     统一的 LLM 接口基类，为不同后端（OpenAI、Ollama、ML Studio、Gemini等）提供一致的方法签名。
     """
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         raise NotImplementedError("Subclasses must implement .invoke(prompt) method.")
 
 class DeepSeekAdapter(BaseLLMAdapter):
@@ -63,9 +61,10 @@ class DeepSeekAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
-        if GLOBAL_SYSTEM_PROMPT.strip():
-            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        active_system_prompt = (system_prompt or "").strip()
+        if active_system_prompt:
+            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
             response = self._client.invoke(messages)
         else:
             response = self._client.invoke(prompt)
@@ -95,9 +94,10 @@ class OpenAIAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
-        if GLOBAL_SYSTEM_PROMPT.strip():
-            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        active_system_prompt = (system_prompt or "").strip()
+        if active_system_prompt:
+            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
             response = self._client.invoke(messages)
         else:
             response = self._client.invoke(prompt)
@@ -123,30 +123,34 @@ class GeminiAdapter(BaseLLMAdapter):
         genai.configure(api_key=self.api_key)
         
         # 创建生成模型实例
-        self._model = genai.GenerativeModel(model_name=self.model_name, system_instruction=(GLOBAL_SYSTEM_PROMPT if GLOBAL_SYSTEM_PROMPT.strip() else None))
+        self._model_kwargs = {"model_name": self.model_name}
+        self._default_model = genai.GenerativeModel(**self._model_kwargs)
 
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
-            # 设置生成配置
+            active_system_prompt = (system_prompt or "").strip()
+            model = self._default_model
+            if active_system_prompt:
+                model = genai.GenerativeModel(**{**self._model_kwargs, "system_instruction": active_system_prompt})
+
             generation_config = genai.types.GenerationConfig(
                 max_output_tokens=self.max_tokens,
                 temperature=self.temperature,
             )
-            
-            # 生成内容
-            response = self._model.generate_content(
+
+            response = model.generate_content(
                 prompt,
                 generation_config=generation_config
             )
-            
+
             if response and response.text:
                 return response.text
-            else:
-                logging.warning("No text response from Gemini API.")
-                return ""
+            logging.warning("No text response from Gemini API.")
+            return ""
         except Exception as e:
             logging.error(f"Gemini API 调用失败: {e}")
             return ""
+
 
 class AzureOpenAIAdapter(BaseLLMAdapter):
     """
@@ -178,9 +182,10 @@ class AzureOpenAIAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
-        if GLOBAL_SYSTEM_PROMPT.strip():
-            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        active_system_prompt = (system_prompt or "").strip()
+        if active_system_prompt:
+            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
             response = self._client.invoke(messages)
         else:
             response = self._client.invoke(prompt)
@@ -213,9 +218,10 @@ class OllamaAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
-        if GLOBAL_SYSTEM_PROMPT.strip():
-            messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        active_system_prompt = (system_prompt or "").strip()
+        if active_system_prompt:
+            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
             response = self._client.invoke(messages)
         else:
             response = self._client.invoke(prompt)
@@ -242,10 +248,11 @@ class MLStudioAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
-            if GLOBAL_SYSTEM_PROMPT.strip():
-                messages = [LCSystemMessage(content=GLOBAL_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+            active_system_prompt = (system_prompt or "").strip()
+            if active_system_prompt:
+                messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
                 response = self._client.invoke(messages)
             else:
                 response = self._client.invoke(prompt)
@@ -256,6 +263,7 @@ class MLStudioAdapter(BaseLLMAdapter):
         except Exception as e:
             logging.error(f"ML Studio API 调用超时或失败: {e}")
             return ""
+
 
 class AzureAIAdapter(BaseLLMAdapter):
     """
@@ -290,22 +298,25 @@ class AzureAIAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
+            active_system_prompt = (system_prompt or "").strip()
+            messages = []
+            if active_system_prompt:
+                messages.append(SystemMessage(active_system_prompt))
+            messages.append(UserMessage(prompt))
+
             response = self._client.complete(
-                messages=[
-                    SystemMessage(GLOBAL_SYSTEM_PROMPT or "You are a helpful assistant."),
-                    UserMessage(prompt)
-                ]
+                messages=messages
             )
             if response and response.choices:
                 return response.choices[0].message.content
-            else:
-                logging.warning("No response from AzureAIAdapter.")
-                return ""
+            logging.warning("No response from AzureAIAdapter.")
+            return ""
         except Exception as e:
             logging.error(f"Azure AI Inference API 调用失败: {e}")
             return ""
+
 
 # 火山引擎实现
 class VolcanoEngineAIAdapter(BaseLLMAdapter):
@@ -322,15 +333,18 @@ class VolcanoEngineAIAdapter(BaseLLMAdapter):
             api_key=api_key,
             timeout=timeout  # 添加超时配置
         )
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
+            active_system_prompt = (system_prompt or "").strip()
+            messages = []
+            if active_system_prompt:
+                messages.append({"role": "system", "content": active_system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
             response = self._client.chat.completions.create(
                 model=self.model_name,
-                messages=[
-                    {"role": "system", "content": GLOBAL_SYSTEM_PROMPT or "你是DeepSeek，是一个 AI 人工智能助手"},
-                    {"role": "user", "content": prompt},
-                ],
-                timeout=self.timeout  # 添加超时参数
+                messages=messages,
+                timeout=self.timeout
             )
             if not response:
                 logging.warning("No response from DeepSeekAdapter.")
@@ -339,6 +353,7 @@ class VolcanoEngineAIAdapter(BaseLLMAdapter):
         except Exception as e:
             logging.error(f"火山引擎API调用超时或失败: {e}")
             return ""
+
 
 class SiliconFlowAdapter(BaseLLMAdapter):
     def __init__(self, api_key: str, base_url: str, model_name: str, max_tokens: int, temperature: float = 0.7, timeout: Optional[int] = 600):
@@ -354,15 +369,18 @@ class SiliconFlowAdapter(BaseLLMAdapter):
             api_key=api_key,
             timeout=timeout  # 添加超时配置
         )
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
+            active_system_prompt = (system_prompt or "").strip()
+            messages = []
+            if active_system_prompt:
+                messages.append({"role": "system", "content": active_system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
             response = self._client.chat.completions.create(
                 model=self.model_name,
-                messages=[
-                    {"role": "system", "content": GLOBAL_SYSTEM_PROMPT or "你是DeepSeek，是一个 AI 人工智能助手"},
-                    {"role": "user", "content": prompt},
-                ],
-                timeout=self.timeout  # 添加超时参数
+                messages=messages,
+                timeout=self.timeout
             )
             if not response:
                 logging.warning("No response from DeepSeekAdapter.")
@@ -371,7 +389,8 @@ class SiliconFlowAdapter(BaseLLMAdapter):
         except Exception as e:
             logging.error(f"硅基流动API调用超时或失败: {e}")
             return ""
-# grok實現
+
+
 class GrokAdapter(BaseLLMAdapter):
     """
     适配 xAI Grok API
@@ -390,26 +409,29 @@ class GrokAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
+            active_system_prompt = (system_prompt or "").strip()
+            messages = []
+            if active_system_prompt:
+                messages.append({"role": "system", "content": active_system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
             response = self._client.chat.completions.create(
                 model=self.model_name,
-                messages=[
-                    {"role": "system", "content": GLOBAL_SYSTEM_PROMPT or "You are Grok, created by xAI."},
-                    {"role": "user", "content": prompt},
-                ],
+                messages=messages,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 timeout=self.timeout
             )
             if response and response.choices:
                 return response.choices[0].message.content
-            else:
-                logging.warning("No response from GrokAdapter.")
-                return ""
+            logging.warning("No response from GrokAdapter.")
+            return ""
         except Exception as e:
             logging.error(f"Grok API 调用失败: {e}")
             return ""
+
 
 def create_llm_adapter(
     interface_format: str,
@@ -426,25 +448,24 @@ def create_llm_adapter(
     fmt = interface_format.strip().lower()
     if fmt == "deepseek":
         return DeepSeekAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "openai":
+    if fmt == "openai":
         return OpenAIAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "azure openai":
+    if fmt == "azure openai":
         return AzureOpenAIAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "azure ai":
+    if fmt == "azure ai":
         return AzureAIAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "ollama":
+    if fmt == "ollama":
         return OllamaAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "ml studio":
+    if fmt == "ml studio":
         return MLStudioAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "gemini":
+    if fmt == "gemini":
         return GeminiAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "阿里云百炼":
+    if fmt == "阿里云百炼":
         return OpenAIAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "火山引擎":
+    if fmt == "火山引擎":
         return VolcanoEngineAIAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "硅基流动":
+    if fmt == "硅基流动":
         return SiliconFlowAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    elif fmt == "grok":
+    if fmt == "grok":
         return GrokAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
-    else:
-        raise ValueError(f"Unknown interface_format: {interface_format}")
+    raise ValueError(f"Unknown interface_format: {interface_format}")

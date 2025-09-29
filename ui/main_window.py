@@ -10,6 +10,8 @@ from tkinter import filedialog, messagebox
 from .role_library import RoleLibrary
 from llm_adapters import create_llm_adapter
 
+from prompt_definitions import resolve_global_system_prompt
+
 from config_manager import load_config, save_config, test_llm_config, test_embedding_config
 from utils import read_file, save_string_to_txt, clear_file_content
 from tooltips import tooltips
@@ -110,7 +112,7 @@ class NovelGeneratorGUI:
         self.max_tokens_var = ctk.IntVar(value=llm_conf.get("max_tokens", 8192))
         self.timeout_var = ctk.IntVar(value=llm_conf.get("timeout", 600))
         self.interface_config_var = ctk.StringVar(value=next(iter(self.loaded_config["llm_configs"])))
-
+        self.global_system_prompt_var = ctk.BooleanVar(value=False)
 
 
         # -- Embedding相关 --
@@ -377,7 +379,9 @@ class NovelGeneratorGUI:
             if self._role_lib.window and self._role_lib.window.winfo_exists():
                 self._role_lib.window.destroy()
         
-        self._role_lib = RoleLibrary(self.master, save_path, llm_adapter)  # 新增参数
+        system_prompt = resolve_global_system_prompt(self.global_system_prompt_var.get())
+
+        self._role_lib = RoleLibrary(self.master, save_path, llm_adapter, system_prompt=system_prompt)
 
     # ----------------- 将导入的各模块函数直接赋给类方法 -----------------
     generate_novel_architecture_ui = generate_novel_architecture_ui

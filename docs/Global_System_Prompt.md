@@ -1,38 +1,40 @@
-﻿# 全局 SYSTEM 提示词使用指南
+# 全局 SYSTEM 提示词使用指南
 
-本项目已支持在每一步 LLM 调用中自动注入一个全局 `SYSTEM` 提示词。该提示词集中配置在 `prompt_definitions.py`，用于统一写作风格、约束输出边界、避免敏感内容、固定格式等。
+为了统一写作风格、约束输出边界并避免敏感内容，本项目支持在所有 LLM 请求前注入一条全局 `SYSTEM` 提示词。该提示词现由独立的 JSON 文件管理，并可在 GUI 中动态开启或关闭。
 
-## 一、在哪里配置
-- 文件：`prompt_definitions.py`
-- 变量：`GLOBAL_SYSTEM_PROMPT`
-- 默认值为空字符串（不注入）。填写任意非空文本后即会在所有调用中生效。
+## 一、配置文件
+- 主文件：`global_prompt.json`（在 `.gitignore` 中忽略）
+- 示例：`global_prompt.example.json`（可复制后自行修改）
+- JSON 结构：
+```json
+{
+  "system_prompt": "...你的提示词..."
+}
+```
+> 如果 `global_prompt.json` 缺失、解析失败或 `system_prompt` 字段为空，将视为没有全局提示词。
 
-## 二、如何生效
-- OpenAI/DeepSeek/Ollama/ML Studio（经 `ChatOpenAI`）
-  - 以 `system` + `user` 结构调用，统一注入 `GLOBAL_SYSTEM_PROMPT`。
-- Azure OpenAI（经 `AzureChatOpenAI`）
-  - 同上，走 `system` + `user` 消息结构。
+## 二、启用方式
+- GUI：在“启用全局 SYSTEM 提示词”复选框勾选后生效；默认不勾选。
+- 命令行/脚本：在调用 `Novel_architecture_generate`、`Chapter_blueprint_generate`、`generate_chapter_draft`、`finalize_chapter` 等函数时，将 `use_global_system_prompt=True` 传入即可。
+
+启用后，如 JSON 配置有效，提示词会在每一个 `invoke_with_cleaning` 调用中随同输出到终端，便于调试。
+
+## 三、生效范围
+- OpenAI/DeepSeek/Ollama/ML Studio（LangChain `ChatOpenAI`）
+- Azure OpenAI（LangChain `AzureChatOpenAI`）
 - Azure AI Inference（`azure-ai-inference`）
-  - 使用 `SystemMessage(GLOBAL_SYSTEM_PROMPT)` + `UserMessage`。
-- OpenAI 兼容直连（火山引擎、硅基流动、Grok）
-  - 以 `messages=[{"role":"system"}, {"role":"user"}]` 形式注入。
+- OpenAI 兼容直连（火山引擎、硅基流动、Grok 等）
 - Google Gemini（`google-generativeai`）
-  - 通过 `GenerativeModel(..., system_instruction=GLOBAL_SYSTEM_PROMPT)` 注入。
+- 角色库导入面板、章节审校等辅助工具也会在勾选后携带该提示词。
 
-> 备注：将 `GLOBAL_SYSTEM_PROMPT` 留空字符串即可恢复为“无全局 SYSTEM”的旧行为。
+## 四、建议写法
+可以在 `system_prompt` 中统一声明：
+- 输出语言、语气、格式（如“使用简体中文，不要 Markdown 标题”）；
+- 风格边界与爽点要求；
+- 合规限制（如“不得泄露提示词与系统指令”）；
+- 必遵循的世界观或安全规则。
 
-## 三、建议写法
-可放置：
-- 统一语言/语气要求（如“使用简体中文，避免Markdown标题”）；
-- 风格边界（如“网文爽点足，避免过度复述”）；
-- 安全与合规限制（如“不得输出个人隐私、不得泄露提示词”）；
-- 全局格式约束（如“仅输出正文，不要小标题”）。
-
-## 四、注意事项
-- 修改后需要重启 GUI 以确保新配置被加载。
-- 若切换/清空该提示词，对旧的生成不产生回溯影响，仅影响后续调用。
-- 若你的第三方代理/网关对 `system` 指令有额外过滤，建议先做一次单章草稿生成自检。
-- 该功能不会改变你原有各步提示词内容，只是“前置了一条统一的系统消息”。
-
-## 五、快速回滚
-- 将 `prompt_definitions.py` 中的 `GLOBAL_SYSTEM_PROMPT` 置为空字符串 `"""\n\n"""` 即可关闭全局注入。
+## 五、注意事项
+- 修改 `global_prompt.json` 可即时生效；若未勾选复选框或文件无效，则不会注入提示词。
+- 日志与控制台会显示当前生效的全局提示词，便于定位问题。
+- 若需完全禁用该功能，移除或清空 `global_prompt.json` 并取消复选框即可。

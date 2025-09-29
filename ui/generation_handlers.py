@@ -7,6 +7,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 import traceback
 import glob
+from prompt_definitions import resolve_global_system_prompt
 from utils import read_file, save_string_to_txt, clear_file_content
 from novel_generator import (
     Novel_architecture_generate,
@@ -67,7 +68,8 @@ def generate_novel_architecture_ui(self):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                user_guidance=user_guidance  # 添加内容指导参数
+                user_guidance=user_guidance,  # 添加内容指导参数
+                use_global_system_prompt=self.global_system_prompt_var.get()
             )
             self.safe_log("✅ 小说架构生成完成。请在 'Novel Architecture' 标签页查看或编辑。")
         except Exception:
@@ -113,7 +115,8 @@ def generate_chapter_blueprint_ui(self):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                user_guidance=user_guidance  # 新增参数
+                user_guidance=user_guidance,  # 新增参数
+                use_global_system_prompt=self.global_system_prompt_var.get()
             )
             self.safe_log("✅ 章节蓝图生成完成。请在 'Chapter Blueprint' 标签页查看或编辑。")
         except Exception:
@@ -179,7 +182,8 @@ def generate_chapter_draft_ui(self):
                 embedding_retrieval_k=embedding_k,
                 interface_format=interface_format,
                 max_tokens=max_tokens,
-                timeout=timeout_val
+                timeout=timeout_val,
+                system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get())
             )
 
             # 弹出可编辑提示词对话框，等待用户确认或取消
@@ -297,7 +301,8 @@ def generate_chapter_draft_ui(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                custom_prompt_text=edited_prompt  # 使用用户编辑后的提示词
+                custom_prompt_text=edited_prompt,  # 使用用户编辑后的提示词
+                use_global_system_prompt=self.global_system_prompt_var.get()
             )
             if draft_text:
                 self.safe_log(f"✅ 第{chap_num}章草稿生成完成。请在左侧查看或编辑。")
@@ -362,7 +367,8 @@ def finalize_chapter_ui(self):
                         temperature=temperature,
                         interface_format=interface_format,
                         max_tokens=max_tokens,
-                        timeout=timeout_val
+                        timeout=timeout_val,
+                        use_global_system_prompt=self.global_system_prompt_var.get()
                     )
                     edited_text = enriched
                     self.master.after(0, lambda: self.chapter_result.delete("0.0", "end"))
@@ -384,7 +390,8 @@ def finalize_chapter_ui(self):
                 embedding_model_name=embedding_model_name,
                 interface_format=interface_format,
                 max_tokens=max_tokens,
-                timeout=timeout_val
+                timeout=timeout_val,
+                use_global_system_prompt=self.global_system_prompt_var.get()
             )
             self.safe_log(f"✅ 第{chap_num}章定稿完成（已更新前文摘要、角色状态、向量库）。")
 
@@ -435,7 +442,8 @@ def do_consistency_check(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout,
-                plot_arcs=""
+                plot_arcs="",
+                system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get())
             )
             self.safe_log("审校结果：")
             self.safe_log(result)
@@ -635,7 +643,7 @@ def generate_batch_ui(self):
             interface_format=draft_interface_format,
             max_tokens=draft_max_tokens,
             timeout=draft_timeout,
-            custom_prompt_text=final_prompt  
+            custom_prompt_text=final_prompt,             use_global_system_prompt=self.global_system_prompt_var.get()
         )
 
         finalize_interface_format = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["interface_format"]
@@ -660,7 +668,8 @@ def generate_batch_ui(self):
                 temperature=draft_temperature,
                 interface_format=draft_interface_format,
                 max_tokens=draft_max_tokens,
-                timeout=draft_timeout
+                timeout=draft_timeout,
+                use_global_system_prompt=self.global_system_prompt_var.get()
             )
             draft_text = enriched
         clear_file_content(chapter_path)
@@ -679,7 +688,8 @@ def generate_batch_ui(self):
             embedding_model_name=embedding_model_name,
             interface_format=finalize_interface_format,
             max_tokens=finalize_max_tokens,
-            timeout=finalize_timeout
+            timeout=finalize_timeout,
+            use_global_system_prompt=self.global_system_prompt_var.get()
         )
 
 

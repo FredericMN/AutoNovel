@@ -101,7 +101,7 @@ def build_novel_params_area(self, start_row=1):
 def build_optional_buttons_area(self, start_row=2):
     self.optional_btn_frame = ctk.CTkFrame(self.right_frame)
     self.optional_btn_frame.grid(row=start_row, column=0, sticky="ew", padx=5, pady=5)
-    self.optional_btn_frame.columnconfigure((0, 1, 2, 3, 4), weight=1)
+    self.optional_btn_frame.columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
 
     self.btn_check_consistency = ctk.CTkButton(
         self.optional_btn_frame, text="一致性审校", command=self.do_consistency_check, 
@@ -133,6 +133,13 @@ def build_optional_buttons_area(self, start_row=2):
         font=("Microsoft YaHei", 12), width=100
     )
     self.role_library_btn.grid(row=0, column=4, padx=5, pady=5, sticky="ew")
+
+    self.global_system_prompt_checkbox = ctk.CTkCheckBox(
+        self.optional_btn_frame,
+        text="启用全局 SYSTEM 提示词",
+        variable=self.global_system_prompt_var
+    )
+    self.global_system_prompt_checkbox.grid(row=0, column=5, padx=5, pady=5, sticky="w")
 
 def create_label_with_help_for_novel_params(self, parent, label_text, tooltip_key, row, column, font=None, sticky="e", padx=5, pady=5):
     frame = ctk.CTkFrame(parent)

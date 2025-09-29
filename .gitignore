@@ -21,3 +21,4 @@ uv.lock
 pyproject.toml
 /venv
 
+global_prompt.json

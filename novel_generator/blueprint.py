@@ -8,7 +8,7 @@ import re
 import logging
 from novel_generator.common import invoke_with_cleaning
 from llm_adapters import create_llm_adapter
-from prompt_definitions import chapter_blueprint_prompt, chunked_chapter_blueprint_prompt
+from prompt_definitions import chapter_blueprint_prompt, chunked_chapter_blueprint_prompt, resolve_global_system_prompt
 from utils import read_file, clear_file_content, save_string_to_txt
 logging.basicConfig(
     filename='app.log',      # 日志文件名
@@ -55,6 +55,7 @@ def Chapter_blueprint_generate(
     filepath: str,
     number_of_chapters: int,
     user_guidance: str = "",  # 新增参数
+    use_global_system_prompt: bool = False,
     temperature: float = 0.7,
     max_tokens: int = 4096,
     timeout: int = 600
@@ -88,6 +89,8 @@ def Chapter_blueprint_generate(
         timeout=timeout
     )
 
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+
     filename_dir = os.path.join(filepath, "Novel_directory.txt")
     if not os.path.exists(filename_dir):
         open(filename_dir, "w", encoding="utf-8").close()
@@ -117,7 +120,7 @@ def Chapter_blueprint_generate(
                 user_guidance=user_guidance  # 新增参数
             )
             logging.info(f"Generating chapters [{current_start}..{current_end}] in a chunk...")
-            chunk_result = invoke_with_cleaning(llm_adapter, chunk_prompt)
+            chunk_result = invoke_with_cleaning(llm_adapter, chunk_prompt, system_prompt=system_prompt)
             if not chunk_result.strip():
                 logging.warning(f"Chunk generation for chapters [{current_start}..{current_end}] is empty.")
                 clear_file_content(filename_dir)
@@ -137,7 +140,7 @@ def Chapter_blueprint_generate(
             number_of_chapters=number_of_chapters,
             user_guidance=user_guidance  # 新增参数
         )
-        blueprint_text = invoke_with_cleaning(llm_adapter, prompt)
+        blueprint_text = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
         if not blueprint_text.strip():
             logging.warning("Chapter blueprint generation result is empty.")
             return
@@ -162,7 +165,7 @@ def Chapter_blueprint_generate(
             user_guidance=user_guidance  # 新增参数
         )
         logging.info(f"Generating chapters [{current_start}..{current_end}] in a chunk...")
-        chunk_result = invoke_with_cleaning(llm_adapter, chunk_prompt)
+        chunk_result = invoke_with_cleaning(llm_adapter, chunk_prompt, system_prompt=system_prompt)
         if not chunk_result.strip():
             logging.warning(f"Chunk generation for chapters [{current_start}..{current_end}] is empty.")
             clear_file_content(filename_dir)

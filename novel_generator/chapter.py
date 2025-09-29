@@ -13,7 +13,8 @@ from prompt_definitions import (
     next_chapter_draft_prompt, 
     summarize_recent_chapters_prompt,
     knowledge_filter_prompt,
-    knowledge_search_prompt
+    knowledge_search_prompt,
+    resolve_global_system_prompt
 )
 from chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
@@ -56,7 +57,8 @@ def summarize_recent_chapters(
     novel_number: int,            # 新增参数
     chapter_info: dict,           # 新增参数
     next_chapter_info: dict,      # 新增参数
-    timeout: int = 600
+    timeout: int = 600,
+    system_prompt: str = ""
 ) -> str:  # 修改返回值类型为 str，不再是 tuple
     """
     根据前三章内容生成当前章节的精准摘要。
@@ -106,7 +108,13 @@ def summarize_recent_chapters(
             next_chapter_plot_twist_level=next_chapter_info.get("plot_twist_level", "★☆☆☆☆")
         )
         
-        response_text = invoke_with_cleaning(llm_adapter, prompt)
+        active_system_prompt = system_prompt.strip()
+
+        response_text = invoke_with_cleaning(
+            llm_adapter,
+            prompt,
+            system_prompt=active_system_prompt
+        )
         summary = extract_summary_from_response(response_text)
         
         if not summary:
@@ -229,7 +237,8 @@ def get_filtered_knowledge_context(
     chapter_info: dict,
     retrieved_texts: list,
     max_tokens: int = 2048,
-    timeout: int = 600
+    timeout: int = 600,
+    system_prompt: str = ""
 ) -> str:
     """优化后的知识过滤处理"""
     if not retrieved_texts:
@@ -269,7 +278,7 @@ def get_filtered_knowledge_context(
             retrieved_texts="\n\n".join(formatted_texts) if formatted_texts else "（无检索结果）"
         )
         
-        filtered_content = invoke_with_cleaning(llm_adapter, prompt)
+        filtered_content = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
         return filtered_content if filtered_content else "（知识内容过滤失败）"
         
     except Exception as e:
@@ -296,7 +305,8 @@ def build_chapter_prompt(
     embedding_retrieval_k: int = 2,
     interface_format: str = "openai",
     max_tokens: int = 2048,
-    timeout: int = 600
+    timeout: int = 600,
+    system_prompt: str = ""
 ) -> str:
     """
     构造当前章节的请求提示词（完整实现版）
@@ -376,7 +386,8 @@ def build_chapter_prompt(
             novel_number=novel_number,
             chapter_info=chapter_info,
             next_chapter_info=next_chapter_info,
-            timeout=timeout
+            timeout=timeout,
+            system_prompt=system_prompt
         )
         logging.info("Summary generated successfully")
     except Exception as e:
@@ -417,7 +428,7 @@ def build_chapter_prompt(
             time_constraint=time_constraint
         )
         
-        search_response = invoke_with_cleaning(llm_adapter, search_prompt)
+        search_response = invoke_with_cleaning(llm_adapter, search_prompt, system_prompt=system_prompt)
         keyword_groups = parse_search_keywords(search_response)
 
         # 执行向量检索
@@ -479,7 +490,8 @@ def build_chapter_prompt(
             chapter_info=chapter_info_for_filter,
             retrieved_texts=processed_contexts,
             max_tokens=max_tokens,
-            timeout=timeout
+            timeout=timeout,
+            system_prompt=system_prompt
         )
         
     except Exception as e:
@@ -538,11 +550,14 @@ def generate_chapter_draft(
     interface_format: str = "openai",
     max_tokens: int = 2048,
     timeout: int = 600,
-    custom_prompt_text: str = None
+    custom_prompt_text: str = None,
+    use_global_system_prompt: bool = False
 ) -> str:
     """
     生成章节草稿，支持自定义提示词
     """
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+
     if custom_prompt_text is None:
         prompt_text = build_chapter_prompt(
             api_key=api_key,
@@ -564,7 +579,8 @@ def generate_chapter_draft(
             embedding_retrieval_k=embedding_retrieval_k,
             interface_format=interface_format,
             max_tokens=max_tokens,
-            timeout=timeout
+            timeout=timeout,
+            system_prompt=system_prompt
         )
     else:
         prompt_text = custom_prompt_text
@@ -582,7 +598,7 @@ def generate_chapter_draft(
         timeout=timeout
     )
 
-    chapter_content = invoke_with_cleaning(llm_adapter, prompt_text)
+    chapter_content = invoke_with_cleaning(llm_adapter, prompt_text, system_prompt=system_prompt)
     if not chapter_content.strip():
         logging.warning("Generated chapter draft is empty.")
     chapter_file = os.path.join(chapters_dir, f"chapter_{novel_number}.txt")
