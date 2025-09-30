@@ -21,6 +21,76 @@ from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
 from novel_generator.vectorstore_utils import load_vector_store
 from volume_utils import get_volume_number, is_volume_last_chapter  # 新增：分卷工具函数
+
+def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -> str:
+    """
+    从 Volume_architecture.txt 中提取指定卷的架构信息
+
+    Args:
+        volume_arch_text: Volume_architecture.txt 的完整内容
+        target_volume_num: 目标卷号（1-based）
+
+    Returns:
+        str: 该卷的架构文本，如果未找到则返回空字符串
+
+    支持格式：
+        ### **第一卷（第1-10章）**
+        ### **第1卷（第1-10章）**
+        ## 第二卷
+    """
+    import re
+
+    # 分割文本为卷块（通过标题行分割）
+    # 匹配任意组合的 #、*、-、空白 + "第X卷"
+    volume_header_pattern = re.compile(
+        r'^[#*\-\s]*第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
+        re.MULTILINE
+    )
+
+    matches = list(volume_header_pattern.finditer(volume_arch_text))
+    if not matches:
+        logging.warning("Volume_architecture.txt 中未找到卷标题")
+        return ""
+
+    # 转换中文数字
+    from chapter_directory_parser import _to_int_from_chinese
+
+    for i, match in enumerate(matches):
+        vol_num_str = match.group(1)
+        # 尝试数字转换
+        if vol_num_str.isdigit():
+            vol_num = int(vol_num_str)
+        else:
+            vol_num = _to_int_from_chinese(vol_num_str)
+
+        if vol_num == target_volume_num:
+            # 找到目标卷，提取从当前位置到下一个卷标题（或文件末尾）的内容
+            start_pos = match.start()
+
+            # 查找分隔符 "---" 或下一个卷标题
+            if i + 1 < len(matches):
+                end_pos = matches[i + 1].start()
+            else:
+                end_pos = len(volume_arch_text)
+
+            # 提取内容
+            content = volume_arch_text[start_pos:end_pos].strip()
+
+            # 移除开头和结尾的分隔符 "---"（支持前后都有的情况）
+            content = re.sub(r'^[\s\n]*-{3,}[\s\n]*', '', content)  # 移除开头
+            content = re.sub(r'[\s\n]*-{3,}[\s\n]*$', '', content)  # 移除结尾
+            content = content.strip()
+
+            if content:
+                logging.info(f"成功提取第{target_volume_num}卷架构，长度: {len(content)}字符")
+            else:
+                logging.warning(f"第{target_volume_num}卷架构提取后为空")
+            return content
+
+    logging.warning(f"Volume_architecture.txt 中未找到第{target_volume_num}卷")
+    return ""
+
+
 logging.basicConfig(
     filename='app.log',      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
@@ -701,7 +771,7 @@ def build_chapter_prompt(
     global_summary_text = read_file(global_summary_file)
     character_state_file = os.path.join(filepath, "character_state.txt")
     character_state_text = read_file(character_state_file)
-    
+
     # 获取章节信息
     chapter_info = get_chapter_info_from_blueprint(blueprint_text, novel_number)
     chapter_title = chapter_info["chapter_title"]
@@ -711,6 +781,22 @@ def build_chapter_prompt(
     foreshadowing = chapter_info["foreshadowing"]
     plot_twist_level = chapter_info["plot_twist_level"]
     chapter_summary = chapter_info["chapter_summary"]
+
+    # 提取卷信息（新增）
+    current_vol_num = chapter_info.get("volume_number")
+    current_vol_title = chapter_info.get("volume_title", "")
+
+    # 读取当前卷架构信息（新增）
+    current_volume_architecture = ""
+    if num_volumes > 1 and current_vol_num:
+        volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
+        if os.path.exists(volume_arch_file):
+            volume_arch_text = read_file(volume_arch_file).strip()
+            # 提取当前卷的架构信息
+            current_volume_architecture = extract_volume_architecture(
+                volume_arch_text,
+                current_vol_num
+            )
 
     # 获取下一章节信息
     next_chapter_number = novel_number + 1
@@ -723,6 +809,21 @@ def build_chapter_prompt(
     next_chapter_twist = next_chapter_info.get("plot_twist_level", "★☆☆☆☆")
     next_chapter_summary = next_chapter_info.get("chapter_summary", "衔接过渡内容")
 
+    # 提取下一章卷信息（新增）
+    next_vol_num = next_chapter_info.get("volume_number")
+    next_vol_title = next_chapter_info.get("volume_title", "")
+
+    # 构建卷信息展示字符串（新增）
+    if current_vol_num and current_vol_title:
+        current_volume_display = f"第{current_vol_num}卷：{current_vol_title}"
+    else:
+        current_volume_display = ""
+
+    if next_vol_num and next_vol_title:
+        next_volume_display = f"第{next_vol_num}卷：{next_vol_title}"
+    else:
+        next_volume_display = ""
+
     # 创建章节目录
     chapters_dir = os.path.join(filepath, "chapters")
     os.makedirs(chapters_dir, exist_ok=True)
@@ -730,6 +831,8 @@ def build_chapter_prompt(
     # 第一章特殊处理
     if novel_number == 1:
         return first_chapter_draft_prompt.format(
+            volume_display=current_volume_display,  # 新增：传递卷信息
+            volume_architecture=current_volume_architecture,  # 新增：传递卷架构
             novel_number=novel_number,
             word_number=word_number,
             chapter_title=chapter_title,
@@ -997,6 +1100,7 @@ def build_chapter_prompt(
         user_guidance=user_guidance if user_guidance else "无特殊指导",
         global_summary=global_summary_text,
         volume_info=volume_info_text,  # 新增：分卷信息
+        volume_architecture=current_volume_architecture,  # 新增：卷架构
         previous_chapter_excerpt=previous_excerpt,
         character_state=character_state_text,
         short_summary=short_summary,
@@ -1013,6 +1117,7 @@ def build_chapter_prompt(
         key_items=key_items,
         scene_location=scene_location,
         time_constraint=time_constraint,
+        current_volume_display=current_volume_display,  # 新增：当前卷展示
         next_chapter_number=next_chapter_number,
         next_chapter_title=next_chapter_title,
         next_chapter_role=next_chapter_role,
@@ -1021,6 +1126,7 @@ def build_chapter_prompt(
         next_chapter_foreshadowing=next_chapter_foreshadow,
         next_chapter_plot_twist_level=next_chapter_twist,
         next_chapter_summary=next_chapter_summary,
+        next_volume_display=next_volume_display,  # 新增：下一章卷展示
         filtered_context=filtered_context
     )
 

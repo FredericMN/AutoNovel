@@ -365,24 +365,28 @@ volume_chapter_blueprint_prompt = """\
 - 中间章：围绕本卷核心冲突逐步升级
 - 最后一章：本卷高潮与结局，留伏笔给下一卷（若不是最后一卷）
 
-输出格式示例：
-第n章 - [标题]
-本章定位：[角色/事件/主题/...]
-核心作用：[推进/转折/揭示/...]
-悬念密度：[紧凑/渐进/爆发/...]
-伏笔操作：埋设(A线索)→强化(B矛盾)...
-认知颠覆：★☆☆☆☆
-本章简述：[一句话概括]
+输出格式示例（必须包含卷标题）：
+### **第{volume_number}卷：[卷名]**
 
-第n+1章 - [标题]
-本章定位：[角色/事件/主题/...]
-核心作用：[推进/转折/揭示/...]
-悬念密度：[紧凑/渐进/爆发/...]
-伏笔操作：埋设(A线索)→强化(B矛盾)...
-认知颠覆：★☆☆☆☆
-本章简述：[一句话概括]
+**第{volume_start}章 - [标题]**
+**本章定位：** [角色/事件/主题/...]
+**核心作用：** [推进/转折/揭示/...]
+**悬念密度：** [紧凑/渐进/爆发/...]
+**伏笔操作：** 埋设(A线索)→强化(B矛盾)...
+**认知颠覆：** ★☆☆☆☆
+**本章简述：** [一句话概括]
+
+**第{volume_start}+1章 - [标题]**
+**本章定位：** [角色/事件/主题/...]
+**核心作用：** [推进/转折/揭示/...]
+**悬念密度：** [紧凑/渐进/爆发/...]
+**伏笔操作：** 埋设(A线索)→强化(B矛盾)...
+**认知颠覆：** ★☆☆☆☆
+**本章简述：** [一句话概括]
 
 要求：
+- 第一行必须是卷标题：### **第{volume_number}卷：[卷名]**
+- 卷名需要根据本卷架构和内容自拟，体现本卷核心主题
 - 使用精炼语言描述，每章字数控制在100字以内
 - 合理安排节奏，确保本卷内悬念曲线的连贯性
 - 章节编号必须连续，从第{volume_start}章到第{volume_end}章
@@ -650,7 +654,7 @@ update_character_state_prompt = """\
 
 # 8.1 第一章草稿提示
 first_chapter_draft_prompt = """\
-即将创作：第 {novel_number} 章《{chapter_title}》
+即将创作：【{volume_display}】第 {novel_number} 章《{chapter_title}》
 本章定位：{chapter_role}
 核心作用：{chapter_purpose}
 悬念密度：{suspense_level}
@@ -667,6 +671,9 @@ first_chapter_draft_prompt = """\
 参考文档：
 - 小说设定：
 {novel_setting}
+
+- 本卷架构（如有）：
+{volume_architecture}
 
 完成第 {novel_number} 章的正文，字数要求{word_number}字，至少设计下方2个或以上具有动态张力的场景：
 1. 对话场景：
@@ -705,6 +712,9 @@ next_chapter_draft_prompt = """\
 └── 分卷信息：
     {volume_info}
 
+└── 本卷架构（如有）：
+    {volume_architecture}
+
 └── 前章结尾段：
     {previous_chapter_excerpt}
 
@@ -718,6 +728,7 @@ next_chapter_draft_prompt = """\
     {short_summary}
 
 当前章节信息：
+【{current_volume_display}】
 第{novel_number}章《{chapter_title}》：
 ├── 章节定位：{chapter_role}
 ├── 核心作用：{chapter_purpose}
@@ -731,7 +742,8 @@ next_chapter_draft_prompt = """\
 ├── 场景地点：{scene_location}
 └── 时间压力：{time_constraint}
 
-下一章节目录
+下一章节目录：
+【{next_volume_display}】
 第{next_chapter_number}章《{next_chapter_title}》：
 ├── 章节定位：{next_chapter_role}
 ├── 核心作用：{next_chapter_purpose}
@@ -776,6 +788,7 @@ next_chapter_draft_prompt = """\
 -用户指导
 -当前章节摘要
 -当前章节信息
+-本卷架构（确保符合本卷的三幕式节奏和核心冲突）
 -无逻辑漏洞,
 确保章节内容与前文摘要、前章结尾段衔接流畅、下一章目录保证上下文完整性，
 

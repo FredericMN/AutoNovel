@@ -201,6 +201,10 @@ def generate_chapter_draft_ui(self):
             embedding_model_name = self.embedding_model_name_var.get().strip()
             embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
 
+            # 获取分卷参数（修复分卷架构信息传递）
+            num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+            total_chapters = self.safe_get_int(self.num_chapters_var, 0)
+
             # 调用新添加的 build_chapter_prompt 函数构造初始提示词（包含向量检索过程）
             prompt_text = build_chapter_prompt(
                 api_key=api_key,
@@ -224,6 +228,8 @@ def generate_chapter_draft_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get()),
+                num_volumes=num_volumes,  # 新增：传递分卷数量
+                total_chapters=total_chapters,  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调，向量检索信息会在这里输出
             )
 
@@ -973,6 +979,10 @@ def generate_single_chapter_batch(
     embedding_model_name = self.embedding_model_name_var.get().strip()
     embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
 
+    # 获取分卷参数（修复分卷架构信息传递）
+    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+    total_chapters = self.safe_get_int(self.num_chapters_var, 0)
+
     # ========== 阶段1: 构建提示词（含向量检索） ==========
     self.update_chapter_progress("准备中...", 0.0)
     self.safe_log("▶ [阶段1/3] 构建章节提示词")
@@ -999,6 +1009,8 @@ def generate_single_chapter_batch(
         max_tokens=draft_max_tokens,
         timeout=draft_timeout,
         system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get()),
+        num_volumes=num_volumes,  # 新增：传递分卷数量
+        total_chapters=total_chapters,  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调，显示向量检索详情
     )
 
