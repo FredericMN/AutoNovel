@@ -51,9 +51,15 @@ def generate_novel_architecture_ui(self):
             topic = self.topic_text.get("0.0", "end").strip()
             genre = self.genre_var.get().strip()
             num_chapters = self.safe_get_int(self.num_chapters_var, 10)
+            num_volumes = self.safe_get_int(self.num_volumes_var, 0)  # 新增：获取分卷数量
             word_number = self.safe_get_int(self.word_number_var, 3000)
             # 获取内容指导
             user_guidance = self.user_guide_text.get("0.0", "end").strip()
+
+            # 强制校验分卷配置
+            if not self.validate_volume_config():
+                self.enable_button_safe(self.btn_generate_architecture)
+                return
 
             Novel_architecture_generate(
                 interface_format=interface_format,
@@ -65,6 +71,7 @@ def generate_novel_architecture_ui(self):
                 number_of_chapters=num_chapters,
                 word_number=word_number,
                 filepath=filepath,
+                num_volumes=num_volumes,  # 新增：传递分卷数量
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
@@ -92,6 +99,7 @@ def generate_chapter_blueprint_ui(self):
         try:
 
             number_of_chapters = self.safe_get_int(self.num_chapters_var, 10)
+            num_volumes = self.safe_get_int(self.num_volumes_var, 0)  # 新增：获取分卷数量
 
             interface_format = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["interface_format"]
             api_key = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["api_key"]
@@ -104,12 +112,18 @@ def generate_chapter_blueprint_ui(self):
 
             user_guidance = self.user_guide_text.get("0.0", "end").strip()  # 新增获取用户指导
 
+            # 强制校验分卷配置
+            if not self.validate_volume_config():
+                self.enable_button_safe(self.btn_generate_directory)
+                return
+
             Chapter_blueprint_generate(
                 interface_format=interface_format,
                 api_key=api_key,
                 base_url=base_url,
                 llm_model=model_name,
                 number_of_chapters=number_of_chapters,
+                num_volumes=num_volumes,  # 新增：传递分卷数量
                 filepath=filepath,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -329,6 +343,8 @@ def generate_chapter_draft_ui(self):
                 timeout=timeout_val,
                 custom_prompt_text=edited_prompt,  # 使用用户编辑后的提示词
                 use_global_system_prompt=self.global_system_prompt_var.get(),
+                num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
+                total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
             if draft_text:
@@ -455,6 +471,8 @@ def finalize_chapter_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 use_global_system_prompt=self.global_system_prompt_var.get(),
+                num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
+                total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
 
@@ -1063,6 +1081,8 @@ def generate_single_chapter_batch(
         timeout=draft_timeout,
         custom_prompt_text=final_prompt,
         use_global_system_prompt=self.global_system_prompt_var.get(),
+        num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
+        total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调
     )
 
@@ -1117,6 +1137,8 @@ def generate_single_chapter_batch(
         max_tokens=finalize_max_tokens,
         timeout=finalize_timeout,
         use_global_system_prompt=self.global_system_prompt_var.get(),
+        num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
+        total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调
     )
 

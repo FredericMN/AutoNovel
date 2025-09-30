@@ -9,8 +9,8 @@ import logging
 import re  # 添加re模块导入
 from llm_adapters import create_llm_adapter
 from prompt_definitions import (
-    first_chapter_draft_prompt, 
-    next_chapter_draft_prompt, 
+    first_chapter_draft_prompt,
+    next_chapter_draft_prompt,
     summarize_recent_chapters_prompt,
     knowledge_filter_prompt,
     knowledge_search_prompt,
@@ -23,6 +23,7 @@ from novel_generator.vectorstore_utils import (
     get_relevant_context_from_vector_store,
     load_vector_store  # 添加导入
 )
+from volume_utils import get_volume_number, is_volume_last_chapter  # 新增：分卷工具函数
 logging.basicConfig(
     filename='app.log',      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
@@ -30,6 +31,93 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+def get_volume_context(
+    filepath: str,
+    novel_number: int,
+    num_volumes: int,
+    total_chapters: int  # 新增：实际总章节数
+) -> dict:
+    """
+    获取当前章节的分卷上下文信息
+
+    Args:
+        filepath: 小说保存路径
+        novel_number: 当前章节号
+        num_volumes: 总卷数（0或1表示不分卷）
+        total_chapters: 实际总章节数
+
+    Returns:
+        dict: 分卷上下文信息
+        {
+            "is_volume_mode": bool,           # 是否分卷模式
+            "volume_number": int,             # 当前卷号（1-based）
+            "is_volume_first_chapter": bool,  # 是否卷的第一章
+            "is_volume_last_chapter": bool,   # 是否卷的最后一章
+            "volume_summary": str,            # 前一卷的摘要（如果存在）
+            "current_volume_summary": str     # 当前卷的摘要（如果已完成部分章节）
+        }
+    """
+    from volume_utils import calculate_volume_ranges
+
+    # 非分卷模式
+    if num_volumes <= 1:
+        return {
+            "is_volume_mode": False,
+            "volume_number": 0,
+            "is_volume_first_chapter": False,
+            "is_volume_last_chapter": False,
+            "volume_summary": "",
+            "current_volume_summary": ""
+        }
+
+    # 分卷模式
+    volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+    volume_num = get_volume_number(novel_number, volume_ranges)
+
+    if volume_num == 0:
+        logging.warning(f"Chapter {novel_number} not found in volume ranges.")
+        return {
+            "is_volume_mode": True,
+            "volume_number": 0,
+            "is_volume_first_chapter": False,
+            "is_volume_last_chapter": False,
+            "volume_summary": "",
+            "current_volume_summary": ""
+        }
+
+    vol_start, vol_end = volume_ranges[volume_num - 1]
+    is_first = (novel_number == vol_start)
+    is_last = is_volume_last_chapter(novel_number, volume_ranges)
+
+    # 读取前一卷摘要
+    prev_volume_summary = ""
+    if volume_num > 1:
+        prev_vol_summary_file = os.path.join(filepath, f"volume_{volume_num - 1}_summary.txt")
+        if os.path.exists(prev_vol_summary_file):
+            prev_volume_summary = read_file(prev_vol_summary_file).strip()
+        else:
+            # 降级策略：如果前一卷摘要不存在，使用全局摘要
+            logging.warning(f"前一卷摘要文件不存在，尝试使用全局摘要降级")
+            global_summary_file = os.path.join(filepath, "global_summary.txt")
+            if os.path.exists(global_summary_file):
+                prev_volume_summary = read_file(global_summary_file).strip()
+                logging.info("已使用 global_summary.txt 作为前一卷摘要的降级替代")
+
+    # 读取当前卷摘要（如果卷已经完成并生成了摘要）
+    current_vol_summary = ""
+    current_vol_summary_file = os.path.join(filepath, f"volume_{volume_num}_summary.txt")
+    if os.path.exists(current_vol_summary_file):
+        current_vol_summary = read_file(current_vol_summary_file).strip()
+
+    return {
+        "is_volume_mode": True,
+        "volume_number": volume_num,
+        "is_volume_first_chapter": is_first,
+        "is_volume_last_chapter": is_last,
+        "volume_summary": prev_volume_summary,
+        "current_volume_summary": current_vol_summary
+    }
 
 def get_last_n_chapters_text(chapters_dir: str, current_chapter_num: int, n: int = 3) -> list:
     """
@@ -590,7 +678,9 @@ def build_chapter_prompt(
     max_tokens: int = 2048,
     timeout: int = 600,
     system_prompt: str = "",
-    gui_log_callback=None  # 新增GUI日志回调
+    num_volumes: int = 0,  # 新增：分卷数量
+    total_chapters: int = 0,  # 新增：总章节数
+    gui_log_callback=None
 ) -> str:
     """
     构造当前章节的请求提示词（完整实现版）
@@ -662,6 +752,38 @@ def build_chapter_prompt(
 
     # 获取前文内容和摘要
     recent_texts = get_last_n_chapters_text(chapters_dir, novel_number, n=3)
+
+    # 获取分卷上下文
+    volume_context = get_volume_context(filepath, novel_number, num_volumes, total_chapters)
+
+    # 构建分卷信息字符串
+    volume_info_text = ""
+    if volume_context["is_volume_mode"]:
+        vol_num = volume_context["volume_number"]
+        volume_info_parts = [f"当前卷号：第{vol_num}卷"]
+
+        if volume_context["is_volume_first_chapter"]:
+            volume_info_parts.append("章节定位：本卷首章")
+            if volume_context["volume_summary"]:
+                # 截取前500字符，避免过长
+                summary_preview = volume_context['volume_summary'][:500]
+                volume_info_parts.append(f"前一卷摘要：\n{summary_preview}{'...' if len(volume_context['volume_summary']) > 500 else ''}")
+        elif volume_context["is_volume_last_chapter"]:
+            volume_info_parts.append("章节定位：本卷末章（需为本卷收尾）")
+
+        volume_info_text = "\n".join(volume_info_parts)
+
+        # 如果是分卷模式，优先使用卷摘要而不是全局摘要
+        if volume_context["is_volume_first_chapter"] and volume_context["volume_summary"]:
+            # 卷首章使用前一卷摘要
+            global_summary_text = volume_context["volume_summary"]
+        elif volume_context["current_volume_summary"]:
+            # 卷内其他章节使用当前卷摘要（如果存在）
+            global_summary_text = volume_context["current_volume_summary"]
+        # 否则继续使用全局摘要
+    else:
+        # 非分卷模式：不显示分卷信息
+        volume_info_text = ""
     
     try:
         logging.info("Attempting to generate summary")
@@ -850,6 +972,7 @@ def build_chapter_prompt(
     return next_chapter_draft_prompt.format(
         user_guidance=user_guidance if user_guidance else "无特殊指导",
         global_summary=global_summary_text,
+        volume_info=volume_info_text,  # 新增：分卷信息
         previous_chapter_excerpt=previous_excerpt,
         character_state=character_state_text,
         short_summary=short_summary,
@@ -900,7 +1023,9 @@ def generate_chapter_draft(
     timeout: int = 600,
     custom_prompt_text: str = None,
     use_global_system_prompt: bool = False,
-    gui_log_callback=None  # 新增GUI日志回调
+    num_volumes: int = 0,  # 新增：分卷数量
+    total_chapters: int = 0,  # 新增：总章节数
+    gui_log_callback=None
 ) -> str:
     """
     生成章节草稿，支持自定义提示词
@@ -940,6 +1065,8 @@ def generate_chapter_draft(
             max_tokens=max_tokens,
             timeout=timeout,
             system_prompt=system_prompt,
+            num_volumes=num_volumes,  # 新增：传递分卷参数
+            total_chapters=total_chapters,  # 新增：传递总章节数
             gui_log_callback=gui_log_callback  # 传递回调
         )
     else:

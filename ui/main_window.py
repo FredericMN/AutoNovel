@@ -15,6 +15,7 @@ from prompt_definitions import resolve_global_system_prompt
 from config_manager import load_config, save_config, test_llm_config, test_embedding_config
 from utils import read_file, save_string_to_txt, clear_file_content
 from tooltips import tooltips
+from volume_utils import validate_volume_config as validate_vol_config, get_volume_info_text
 
 from ui.context_menu import TextWidgetContextMenu
 from ui.main_tab import build_main_tab, build_left_layout, build_right_layout
@@ -138,6 +139,7 @@ class NovelGeneratorGUI:
             self.topic_default = op.get("topic", "")
             self.genre_var = ctk.StringVar(value=op.get("genre", "玄幻"))
             self.num_chapters_var = ctk.StringVar(value=str(op.get("num_chapters", 10)))
+            self.num_volumes_var = ctk.StringVar(value=str(op.get("num_volumes", 0)))  # 新增：分卷数量
             self.word_number_var = ctk.StringVar(value=str(op.get("word_number", 3000)))
             self.filepath_var = ctk.StringVar(value=op.get("filepath", ""))
             self.chapter_num_var = ctk.StringVar(value=str(op.get("chapter_num", "1")))
@@ -154,6 +156,7 @@ class NovelGeneratorGUI:
             self.topic_default = ""
             self.genre_var = ctk.StringVar(value="玄幻")
             self.num_chapters_var = ctk.StringVar(value="10")
+            self.num_volumes_var = ctk.StringVar(value="0")  # 新增：分卷数量默认为0（不分卷）
             self.word_number_var = ctk.StringVar(value="3000")
             self.filepath_var = ctk.StringVar(value="")
             self.chapter_num_var = ctk.StringVar(value="1")
@@ -311,6 +314,37 @@ class NovelGeneratorGUI:
             self.filepath_var.set(selected_dir)
             # 自动加载项目信息
             self.auto_load_project_info(selected_dir)
+
+    def validate_volume_config(self, event=None):
+        """
+        验证分卷配置的合法性
+
+        验证规则：
+        1. 总章节数必须是5的倍数
+        2. 如果分卷，检查每卷章节数是否合理
+        3. 显示分卷预览
+        """
+        try:
+            num_chapters = self.safe_get_int(self.num_chapters_var, 10)
+            num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+
+            # 调用 volume_utils 的验证函数
+            is_valid, error_msg = validate_vol_config(num_chapters, num_volumes)
+
+            if not is_valid:
+                messagebox.showwarning("配置错误", error_msg)
+                return False
+
+            # 如果验证通过且是分卷模式，显示分卷预览
+            if num_volumes > 1:
+                volume_info = get_volume_info_text(num_chapters, num_volumes)
+                self.safe_log(volume_info)
+
+            return True
+
+        except Exception as e:
+            self.safe_log(f"⚠ 验证分卷配置时出错: {str(e)}")
+            return False
 
     def auto_load_project_info(self, filepath):
         """自动加载项目信息到界面"""
@@ -500,6 +534,7 @@ class NovelGeneratorGUI:
                 "topic": self.topic_text.get("0.0", "end").strip(),
                 "genre": self.genre_var.get().strip(),
                 "num_chapters": self.safe_get_int(self.num_chapters_var, 10),
+                "num_volumes": self.safe_get_int(self.num_volumes_var, 0),  # 新增：保存分卷数量
                 "word_number": self.safe_get_int(self.word_number_var, 3000),
                 "filepath": self.filepath_var.get().strip(),
                 "chapter_num": self.chapter_num_var.get().strip(),

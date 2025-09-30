@@ -7,10 +7,16 @@ import os
 import logging
 from llm_adapters import create_llm_adapter
 from embedding_adapters import create_embedding_adapter
-from prompt_definitions import summary_prompt, update_character_state_prompt, resolve_global_system_prompt
+from prompt_definitions import (
+    summary_prompt,
+    update_character_state_prompt,
+    volume_summary_prompt,  # 新增：分卷总结提示词
+    resolve_global_system_prompt
+)
 from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
 from novel_generator.vectorstore_utils import update_vector_store
+from volume_utils import calculate_volume_ranges, is_volume_last_chapter  # 新增：分卷工具函数
 logging.basicConfig(
     filename='app.log',      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
@@ -18,6 +24,129 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+def finalize_volume(
+    volume_number: int,
+    volume_start: int,
+    volume_end: int,
+    api_key: str,
+    base_url: str,
+    model_name: str,
+    temperature: float,
+    filepath: str,
+    interface_format: str,
+    max_tokens: int,
+    timeout: int = 600,
+    use_global_system_prompt: bool = False,
+    gui_log_callback=None
+):
+    """
+    为指定卷生成总结摘要（仅分卷模式）
+
+    Args:
+        volume_number: 卷号（1-based）
+        volume_start: 卷的起始章节号
+        volume_end: 卷的结束章节号
+        其他参数同 finalize_chapter
+
+    生成文件：
+        - volume_X_summary.txt: 卷摘要
+        - 清空 global_summary.txt 为下一卷做准备
+    """
+    def gui_log(msg):
+        if gui_log_callback:
+            gui_log_callback(msg)
+        logging.info(msg)
+
+    gui_log(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log(f"📖 开始生成第{volume_number}卷总结")
+    gui_log(f"   卷范围: 第{volume_start}-{volume_end}章")
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+    # 读取该卷的所有章节内容
+    chapters_dir = os.path.join(filepath, "chapters")
+    volume_chapters_text = []
+
+    gui_log(f"▶ 读取第{volume_start}-{volume_end}章内容...")
+    for chap_num in range(volume_start, volume_end + 1):
+        chapter_file = os.path.join(chapters_dir, f"chapter_{chap_num}.txt")
+        if os.path.exists(chapter_file):
+            chapter_text = read_file(chapter_file).strip()
+            if chapter_text:
+                volume_chapters_text.append(f"=== 第{chap_num}章 ===\n{chapter_text}")
+        else:
+            gui_log(f"⚠️ 第{chap_num}章文件不存在，跳过")
+
+    if not volume_chapters_text:
+        gui_log("❌ 该卷没有可用的章节内容，无法生成总结")
+        logging.warning(f"Volume {volume_number} has no chapter content.")
+        return
+
+    combined_volume_text = "\n\n".join(volume_chapters_text)
+
+    # 限制总文本长度（避免超过 context 窗口）
+    max_combined_length = 50000  # 约50K字符
+    if len(combined_volume_text) > max_combined_length:
+        gui_log(f"⚠️ 卷内容过长({len(combined_volume_text)}字)，截取后{max_combined_length}字符")
+        combined_volume_text = combined_volume_text[-max_combined_length:]
+
+    # 读取卷架构信息
+    volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
+    volume_architecture_text = ""
+    if os.path.exists(volume_arch_file):
+        volume_architecture_text = read_file(volume_arch_file).strip()
+
+    # 构建 LLM 适配器
+    llm_adapter = create_llm_adapter(
+        interface_format=interface_format,
+        base_url=base_url,
+        model_name=model_name,
+        api_key=api_key,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout
+    )
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+
+    # 生成卷摘要
+    gui_log("▶ 向LLM发起请求生成卷摘要...")
+    volume_summary_prompt_text = volume_summary_prompt.format(
+        volume_number=volume_number,
+        volume_start=volume_start,
+        volume_end=volume_end,
+        volume_chapters_text=combined_volume_text,
+        volume_architecture=volume_architecture_text
+    )
+
+    volume_summary_result = invoke_with_cleaning(
+        llm_adapter,
+        volume_summary_prompt_text,
+        system_prompt=system_prompt
+    )
+
+    if not volume_summary_result.strip():
+        gui_log("   └─ ❌ 生成失败")
+        logging.warning(f"Volume {volume_number} summary generation failed.")
+        return
+
+    gui_log(f"   └─ ✅ 卷摘要生成完成 (共{len(volume_summary_result)}字)\n")
+
+    # 保存卷摘要
+    volume_summary_file = os.path.join(filepath, f"volume_{volume_number}_summary.txt")
+    clear_file_content(volume_summary_file)
+    save_string_to_txt(volume_summary_result, volume_summary_file)
+    gui_log(f"▶ 卷摘要已保存至: volume_{volume_number}_summary.txt")
+
+    # 清空全局摘要，为下一卷做准备
+    global_summary_file = os.path.join(filepath, "global_summary.txt")
+    clear_file_content(global_summary_file)
+    gui_log("▶ 已清空 global_summary.txt，为下一卷做准备\n")
+
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log(f"✅ 第{volume_number}卷总结完成")
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    logging.info(f"Volume {volume_number} summary has been generated successfully.")
+
+
 def finalize_chapter(
     novel_number: int,
     word_number: int,
@@ -34,7 +163,9 @@ def finalize_chapter(
     max_tokens: int,
     timeout: int = 600,
     use_global_system_prompt: bool = False,
-    gui_log_callback=None  # 新增GUI日志回调
+    num_volumes: int = 0,  # 新增：分卷数量
+    total_chapters: int = 0,  # 新增：总章节数
+    gui_log_callback=None
 ):
     """
     对指定章节做最终处理：更新前文摘要、更新角色状态、插入向量库等。
@@ -126,6 +257,36 @@ def finalize_chapter(
     gui_log(f"✅ 第{novel_number}章定稿完成")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info(f"Chapter {novel_number} has been finalized.")
+
+    # 检查是否需要生成卷总结（分卷模式 + 卷末章节）
+    if num_volumes > 1 and total_chapters > 0:
+        volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+
+        if is_volume_last_chapter(novel_number, volume_ranges):
+            from volume_utils import get_volume_number
+
+            volume_num = get_volume_number(novel_number, volume_ranges)
+            if volume_num > 0:
+                vol_start, vol_end = volume_ranges[volume_num - 1]
+
+                gui_log(f"\n🔔 检测到第{novel_number}章是第{volume_num}卷的最后一章")
+                gui_log("   启动卷总结生成流程...\n")
+
+                finalize_volume(
+                    volume_number=volume_num,
+                    volume_start=vol_start,
+                    volume_end=vol_end,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=model_name,
+                    temperature=temperature,
+                    filepath=filepath,
+                    interface_format=interface_format,
+                    max_tokens=max_tokens,
+                    timeout=timeout,
+                    use_global_system_prompt=use_global_system_prompt,
+                    gui_log_callback=gui_log_callback
+                )
 
 def enrich_chapter_text(
     chapter_text: str,

@@ -23,20 +23,34 @@ def build_novel_params_area(self, start_row=1):
     genre_entry = ctk.CTkEntry(self.params_frame, textvariable=self.genre_var, font=("Microsoft YaHei", 12))
     genre_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-    # 3) 章节数 & 每章字数
+    # 3) 章节数 & 每章字数 & 分卷数量
     row_for_chapter_and_word = 2
-    create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="章节数 & 每章字数:", tooltip_key="num_chapters", row=row_for_chapter_and_word, column=0, font=("Microsoft YaHei", 12))
+    create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="章节数 & 每章字数 & 分卷:", tooltip_key="num_chapters", row=row_for_chapter_and_word, column=0, font=("Microsoft YaHei", 12))
     chapter_word_frame = ctk.CTkFrame(self.params_frame)
     chapter_word_frame.grid(row=row_for_chapter_and_word, column=1, padx=5, pady=5, sticky="ew")
-    chapter_word_frame.columnconfigure((0, 1, 2, 3), weight=0)
+    chapter_word_frame.columnconfigure((0, 1, 2, 3, 4, 5), weight=0)
+
+    # 章节数
     num_chapters_label = ctk.CTkLabel(chapter_word_frame, text="章节数:", font=("Microsoft YaHei", 12))
     num_chapters_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
     num_chapters_entry = ctk.CTkEntry(chapter_word_frame, textvariable=self.num_chapters_var, width=60, font=("Microsoft YaHei", 12))
     num_chapters_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+    # 每章字数
     word_number_label = ctk.CTkLabel(chapter_word_frame, text="每章字数:", font=("Microsoft YaHei", 12))
     word_number_label.grid(row=0, column=2, padx=(15, 5), pady=5, sticky="e")
     word_number_entry = ctk.CTkEntry(chapter_word_frame, textvariable=self.word_number_var, width=60, font=("Microsoft YaHei", 12))
     word_number_entry.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+
+    # 分卷数量（新增）
+    num_volumes_label = ctk.CTkLabel(chapter_word_frame, text="分卷数:", font=("Microsoft YaHei", 12))
+    num_volumes_label.grid(row=0, column=4, padx=(15, 5), pady=5, sticky="e")
+    self.num_volumes_entry = ctk.CTkEntry(chapter_word_frame, textvariable=self.num_volumes_var, width=60, font=("Microsoft YaHei", 12))
+    self.num_volumes_entry.grid(row=0, column=5, padx=5, pady=5, sticky="w")
+
+    # 绑定验证事件
+    num_chapters_entry.bind("<FocusOut>", self.validate_volume_config)
+    self.num_volumes_entry.bind("<FocusOut>", self.validate_volume_config)
 
     # 4) 保存路径
     row_fp = 3

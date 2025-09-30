@@ -14,6 +14,7 @@ from prompt_definitions import (
     character_dynamics_prompt,
     world_building_prompt,
     plot_architecture_prompt,
+    volume_breakdown_prompt,  # 新增：分卷架构提示词
     create_character_state_prompt,
     resolve_global_system_prompt
 )
@@ -25,6 +26,94 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 from utils import clear_file_content, save_string_to_txt
+from volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
+
+
+def generate_volume_architecture(
+    llm_adapter,
+    novel_architecture: str,
+    num_volumes: int,
+    num_chapters: int,
+    volume_ranges: list,
+    system_prompt: str = "",
+    gui_log_callback=None
+) -> str:
+    """
+    生成分卷架构规划
+
+    Args:
+        llm_adapter: LLM适配器
+        novel_architecture: 总体架构文本
+        num_volumes: 分卷数量
+        num_chapters: 总章节数
+        volume_ranges: 卷范围列表 [(start, end), ...]
+        system_prompt: 系统提示词
+        gui_log_callback: GUI日志回调函数
+
+    Returns:
+        分卷架构文本
+    """
+    def gui_log(msg):
+        if gui_log_callback:
+            gui_log_callback(msg)
+        logging.info(msg)
+
+    # 构建动态格式示例
+    volume_format_examples = []
+    for i, (vol_start, vol_end) in enumerate(volume_ranges, 1):
+        if i == 1:
+            # 第一卷格式
+            example = f"""第一卷（第{vol_start}-{vol_end}章）
+卷标题：[为本卷起一个副标题]
+核心冲突：[本卷的主要矛盾]
+├── 第一幕（触发）：[起因事件与初始冲突]
+├── 第二幕（对抗）：[矛盾升级与角色成长]
+├── 第三幕（解决）：[阶段性结局，可留悬念]
+└── 卷末伏笔：[为下一卷铺垫的3个关键要素]"""
+        elif i == num_volumes:
+            # 最后一卷格式
+            example = f"""第{i}卷（第{vol_start}-{vol_end}章）
+卷标题：[副标题]
+核心冲突：[终极矛盾]
+├── 承接点：[如何继承第{i-1}卷]
+├── 第一幕（触发）：[终极冲突的触发]
+├── 第二幕（对抗）：[最高潮的较量]
+├── 第三幕（解决）：[完整收束所有主线和关键支线]
+└── 全书总结：[整体主题的升华]"""
+        else:
+            # 中间卷格式
+            example = f"""第{i}卷（第{vol_start}-{vol_end}章）
+卷标题：[副标题]
+核心冲突：[升级的矛盾]
+├── 承接点：[如何继承第{i-1}卷]
+├── 第一幕（触发）：[新的触发事件]
+├── 第二幕（对抗）：[更深层的冲突]
+├── 第三幕（解决）：[阶段性结局]
+└── 卷末伏笔：[为下一卷铺垫的要素]"""
+
+        volume_format_examples.append(example)
+
+    volume_format_str = "\n\n".join(volume_format_examples)
+
+    # 构建 prompt 参数
+    format_params = {
+        "novel_architecture": novel_architecture,
+        "num_volumes": num_volumes,
+        "num_chapters": num_chapters,
+        "volume_format_examples": volume_format_str
+    }
+
+    gui_log("   ├─ 向LLM发起请求...")
+    prompt = volume_breakdown_prompt.format(**format_params)
+    result = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
+
+    if not result or not result.strip():
+        gui_log("   └─ ⚠ 生成结果为空")
+        logging.warning("Volume architecture generation returned empty result")
+        return ""
+
+    return result
+
 
 def load_partial_architecture_data(filepath: str) -> dict:
     """
@@ -63,6 +152,7 @@ def Novel_architecture_generate(
     number_of_chapters: int,
     word_number: int,
     filepath: str,
+    num_volumes: int = 0,  # 新增：分卷数量（0或1表示不分卷）
     user_guidance: str = "",  # 新增参数
     use_global_system_prompt: bool = False,
     temperature: float = 0.7,
@@ -207,7 +297,8 @@ def Novel_architecture_generate(
 
     # Step4: 三幕式情节
     if "plot_arch_result" not in partial_data:
-        gui_log("▶ [5/5] 三幕式情节架构")
+        step_label = "[5/6]" if num_volumes > 1 else "[5/5]"  # 动态调整步骤标签
+        gui_log(f"▶ {step_label} 三幕式情节架构")
         gui_log("   ├─ 整合前述要素设计情节...")
         logging.info("Step4: Generating plot_architecture_prompt ...")
         prompt_plot = plot_architecture_prompt.format(
@@ -227,7 +318,8 @@ def Novel_architecture_generate(
         partial_data["plot_arch_result"] = plot_arch_result
         save_partial_architecture_data(filepath, partial_data)
     else:
-        gui_log("▷ [5/5] 三幕式情节 (已完成，跳过)\n")
+        step_label = "[5/6]" if num_volumes > 1 else "[5/5]"
+        gui_log(f"▷ {step_label} 三幕式情节 (已完成，跳过)\n")
         logging.info("Step4 already done. Skipping...")
 
     core_seed_result = partial_data["core_seed_result"]
@@ -237,7 +329,8 @@ def Novel_architecture_generate(
 
     final_content = (
         "#=== 0) 小说设定 ===\n"
-        f"主题：{topic},类型：{genre},篇幅：约{number_of_chapters}章（每章{word_number}字）\n\n"
+        f"主题：{topic},类型：{genre},篇幅：约{number_of_chapters}章（每章{word_number}字）\n"
+        f"分卷：{'不分卷' if num_volumes <= 1 else f'{num_volumes}卷'}\n\n"
         "#=== 1) 核心种子 ===\n"
         f"{core_seed_result}\n\n"
         "#=== 2) 角色动力学 ===\n"
@@ -248,13 +341,56 @@ def Novel_architecture_generate(
         f"{plot_arch_result}\n"
     )
 
+    # 保存总架构
     arch_file = os.path.join(filepath, "Novel_architecture.txt")
     clear_file_content(arch_file)
     save_string_to_txt(final_content, arch_file)
 
+    # Step5: 分卷规划（仅在分卷模式下执行）
+    if num_volumes > 1 and "volume_arch_result" not in partial_data:
+        gui_log("▶ [6/6] 分卷架构规划")
+        gui_log(f"   ├─ 将{number_of_chapters}章分为{num_volumes}卷...")
+        logging.info(f"Step5: Generating volume architecture ({num_volumes} volumes)...")
+
+        volume_ranges = calculate_volume_ranges(number_of_chapters, num_volumes)
+
+        # 显示分卷范围
+        for i, (vol_start, vol_end) in enumerate(volume_ranges, 1):
+            chapter_count = vol_end - vol_start + 1
+            gui_log(f"       第{i}卷: 第{vol_start}-{vol_end}章 (共{chapter_count}章)")
+
+        volume_arch_result = generate_volume_architecture(
+            llm_adapter=llm_adapter,
+            novel_architecture=final_content,
+            num_volumes=num_volumes,
+            num_chapters=number_of_chapters,
+            volume_ranges=volume_ranges,
+            system_prompt=system_prompt,
+            gui_log_callback=gui_log_callback
+        )
+
+        if not volume_arch_result.strip():
+            gui_log("   └─ ⚠ 分卷架构生成失败，继续使用总架构")
+            logging.warning("Volume architecture generation failed, continuing without it.")
+        else:
+            gui_log("   └─ ✅ 分卷架构完成\n")
+            partial_data["volume_arch_result"] = volume_arch_result
+            save_partial_architecture_data(filepath, partial_data)
+
+            # 保存分卷架构到独立文件
+            volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
+            clear_file_content(volume_arch_file)
+            save_string_to_txt(volume_arch_result, volume_arch_file)
+            logging.info("Volume_architecture.txt has been generated successfully.")
+    elif num_volumes > 1 and "volume_arch_result" in partial_data:
+        gui_log("▷ [6/6] 分卷架构 (已完成，跳过)\n")
+        logging.info("Step5 (volume architecture) already done. Skipping...")
+
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     gui_log("✅ 小说架构生成完毕")
     gui_log(f"   已保存至: Novel_architecture.txt")
+    if num_volumes > 1:
+        gui_log(f"   分卷架构: Volume_architecture.txt")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info("Novel_architecture.txt has been generated successfully.")
 

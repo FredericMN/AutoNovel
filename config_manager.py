@@ -70,6 +70,7 @@ def create_config(config_file: str) -> dict:
         "topic": "",
         "genre": "",
         "num_chapters": 0,
+        "num_volumes": 0,  # 分卷数量（0/1=不分卷，>1=分卷模式）
         "word_number": 0,
         "filepath": "",
         "chapter_num": "120",

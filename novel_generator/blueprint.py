@@ -8,8 +8,14 @@ import re
 import logging
 from novel_generator.common import invoke_with_cleaning
 from llm_adapters import create_llm_adapter
-from prompt_definitions import chapter_blueprint_prompt, chunked_chapter_blueprint_prompt, resolve_global_system_prompt
+from prompt_definitions import (
+    chapter_blueprint_prompt,
+    chunked_chapter_blueprint_prompt,
+    volume_chapter_blueprint_prompt,  # 新增：分卷蓝图提示词
+    resolve_global_system_prompt
+)
 from utils import read_file, clear_file_content, save_string_to_txt
+from volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
 logging.basicConfig(
     filename='app.log',      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
@@ -54,20 +60,27 @@ def Chapter_blueprint_generate(
     llm_model: str,
     filepath: str,
     number_of_chapters: int,
-    user_guidance: str = "",  # 新增参数
+    num_volumes: int = 0,  # 新增：分卷数量
+    user_guidance: str = "",
     use_global_system_prompt: bool = False,
     temperature: float = 0.7,
     max_tokens: int = 4096,
     timeout: int = 600,
-    gui_log_callback=None  # 新增GUI日志回调
+    gui_log_callback=None
 ) -> None:
     """
-    若 Novel_directory.txt 已存在且内容非空，则表示可能是之前的部分生成结果；
-      解析其中已有的章节数，从下一个章节继续分块生成；
-      对于已有章节目录，传入时仅保留最近100章目录，避免prompt过长。
-    否则：
+    章节蓝图生成主函数，支持分卷模式和非分卷模式。
+
+    分卷模式 (num_volumes > 1)：
+      - 读取 Volume_architecture.txt
+      - 按卷逐个生成章节蓝图
+      - 使用 volume_chapter_blueprint_prompt
+
+    非分卷模式 (num_volumes <= 1)：
       - 若章节数 <= chunk_size，直接一次性生成
       - 若章节数 > chunk_size，进行分块生成
+      - 支持断点续传
+
     生成完成后输出至 Novel_directory.txt。
     """
     arch_file = os.path.join(filepath, "Novel_architecture.txt")
@@ -101,6 +114,8 @@ def Chapter_blueprint_generate(
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     gui_log("📖 开始生成章节蓝图")
     gui_log(f"   目标章节数: {number_of_chapters}")
+    if num_volumes > 1:
+        gui_log(f"   分卷模式: {num_volumes}卷")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
     filename_dir = os.path.join(filepath, "Novel_directory.txt")
@@ -108,6 +123,93 @@ def Chapter_blueprint_generate(
         open(filename_dir, "w", encoding="utf-8").close()
 
     existing_blueprint = read_file(filename_dir).strip()
+
+    # ============ 分卷模式：按卷生成 ============
+    if num_volumes > 1:
+        volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
+        if not os.path.exists(volume_arch_file):
+            gui_log("❌ 错误：分卷模式下需要先生成 Volume_architecture.txt")
+            logging.error("Volume mode enabled but Volume_architecture.txt not found.")
+            return
+
+        volume_architecture_text = read_file(volume_arch_file).strip()
+        if not volume_architecture_text:
+            gui_log("❌ 错误：Volume_architecture.txt 为空")
+            logging.error("Volume_architecture.txt is empty.")
+            return
+
+        gui_log(f"▶ 分卷模式：将为 {num_volumes} 卷生成章节蓝图\n")
+
+        volume_ranges = calculate_volume_ranges(number_of_chapters, num_volumes)
+        final_blueprint = existing_blueprint
+
+        # 检测已完成的章节
+        max_existing_chap = 0
+        if existing_blueprint:
+            pattern = r"第\s*(\d+)\s*章"
+            existing_chapter_numbers = re.findall(pattern, existing_blueprint)
+            existing_chapter_numbers = [int(x) for x in existing_chapter_numbers if x.isdigit()]
+            max_existing_chap = max(existing_chapter_numbers) if existing_chapter_numbers else 0
+            gui_log(f"▷ 检测到已有蓝图内容，已完成到第{max_existing_chap}章")
+
+        # 按卷生成
+        for vol_idx, (vol_start, vol_end) in enumerate(volume_ranges, 1):
+            # 跳过已完成的卷
+            if max_existing_chap >= vol_end:
+                gui_log(f"▷ [卷{vol_idx}] 第{vol_start}-{vol_end}章 已完成，跳过\n")
+                continue
+
+            # 部分完成的卷：调整起始章节
+            actual_start = max(vol_start, max_existing_chap + 1)
+            vol_chapter_count = vol_end - actual_start + 1
+
+            gui_log(f"▶ [卷{vol_idx}/{num_volumes}] 生成第{actual_start}-{vol_end}章 (共{vol_chapter_count}章)")
+            gui_log(f"   ├─ 构建分卷提示词...")
+
+            volume_prompt = volume_chapter_blueprint_prompt.format(
+                novel_architecture=architecture_text,
+                volume_architecture=volume_architecture_text,
+                volume_number=vol_idx,
+                volume_start=actual_start,
+                volume_end=vol_end,
+                volume_chapter_count=vol_chapter_count,
+                user_guidance=user_guidance
+            )
+
+            gui_log(f"   ├─ 向LLM发起请求...")
+            logging.info(f"Generating blueprint for Volume {vol_idx} (chapters {actual_start}-{vol_end})...")
+
+            volume_blueprint_result = invoke_with_cleaning(llm_adapter, volume_prompt, system_prompt=system_prompt)
+
+            if not volume_blueprint_result.strip():
+                gui_log(f"   └─ ❌ 第{vol_idx}卷蓝图生成失败\n")
+                logging.warning(f"Volume {vol_idx} blueprint generation failed.")
+                # 保存已有内容
+                clear_file_content(filename_dir)
+                save_string_to_txt(final_blueprint.strip(), filename_dir)
+                return
+
+            gui_log(f"   └─ ✅ 第{vol_idx}卷蓝图生成完成\n")
+
+            # 拼接蓝图
+            if final_blueprint.strip():
+                final_blueprint += "\n\n" + volume_blueprint_result.strip()
+            else:
+                final_blueprint = volume_blueprint_result.strip()
+
+            # 实时保存
+            clear_file_content(filename_dir)
+            save_string_to_txt(final_blueprint.strip(), filename_dir)
+            logging.info(f"Volume {vol_idx} blueprint saved.")
+
+        gui_log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        gui_log("✅ 分卷章节蓝图全部生成完毕")
+        gui_log(f"   已保存至: Novel_directory.txt")
+        gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        logging.info("Volume-based chapter blueprint generation completed.")
+        return
+
+    # ============ 非分卷模式：原有逻辑 ============
     chunk_size = compute_chunk_size(number_of_chapters, max_tokens)
     gui_log(f"▶ 分块大小计算: 每次生成 {chunk_size} 章")
     logging.info(f"Number of chapters = {number_of_chapters}, computed chunk_size = {chunk_size}.")
