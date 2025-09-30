@@ -98,6 +98,18 @@ def build_novel_params_area(self, start_row=1):
     time_const_entry = ctk.CTkEntry(self.params_frame, textvariable=self.time_constraint_var, font=("Microsoft YaHei", 12))
     time_const_entry.grid(row=row_idx, column=1, padx=5, pady=5, sticky="ew")
 
+    # 保存小说参数按钮
+    row_idx += 1
+    save_params_btn = ctk.CTkButton(
+        self.params_frame,
+        text="💾 保存小说参数",
+        command=self.save_other_params,
+        font=("Microsoft YaHei", 12),
+        fg_color="#1E90FF",
+        height=32
+    )
+    save_params_btn.grid(row=row_idx, column=0, columnspan=2, padx=5, pady=10, sticky="ew")
+
 def build_optional_buttons_area(self, start_row=2):
     self.optional_btn_frame = ctk.CTkFrame(self.right_frame)
     self.optional_btn_frame.grid(row=start_row, column=0, sticky="ew", padx=5, pady=5)

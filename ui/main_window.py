@@ -58,26 +58,24 @@ class NovelGeneratorGUI:
         self.config_file = "config.json"
         self.loaded_config = load_config(self.config_file)
 
+        # 获取上次选中的LLM配置名
+        last_selected_llm_config = self.loaded_config.get("last_selected_llm_config", None)
+
         if self.loaded_config:
             last_llm = next(iter(self.loaded_config["llm_configs"].values())).get("interface_format", "OpenAI")
-
             last_embedding = self.loaded_config.get("last_embedding_interface_format", "OpenAI")
         else:
             last_llm = "OpenAI"
             last_embedding = "OpenAI"
 
-        # if self.loaded_config and "llm_configs" in self.loaded_config and last_llm in self.loaded_config["llm_configs"]:
-        #     llm_conf = next(iter(self.loaded_config["llm_configs"]))
-        # else:
-        #     llm_conf = {
-        #         "api_key": "",
-        #         "base_url": "https://api.openai.com/v1",
-        #         "model_name": "gpt-4o-mini",
-        #         "temperature": 0.7,
-        #         "max_tokens": 8192,
-        #         "timeout": 600
-        #     }
-        llm_conf = next(iter(self.loaded_config["llm_configs"].values()))
+        # 优先使用上次选中的配置，否则使用第一个配置
+        if last_selected_llm_config and last_selected_llm_config in self.loaded_config.get("llm_configs", {}):
+            llm_conf = self.loaded_config["llm_configs"][last_selected_llm_config]
+            selected_config_name = last_selected_llm_config
+        else:
+            llm_conf = next(iter(self.loaded_config["llm_configs"].values()))
+            selected_config_name = next(iter(self.loaded_config["llm_configs"]))
+
         choose_configs = self.loaded_config.get("choose_configs", {})
 
 
@@ -104,7 +102,6 @@ class NovelGeneratorGUI:
 
 
         # -- LLM通用参数 --
-        # self.llm_conf_name = next(iter(self.loaded_config["llm_configs"]))
         self.api_key_var = ctk.StringVar(value=llm_conf.get("api_key", ""))
         self.base_url_var = ctk.StringVar(value=llm_conf.get("base_url", "https://api.openai.com/v1"))
         self.interface_format_var = ctk.StringVar(value=llm_conf.get("interface_format", "OpenAI"))
@@ -112,7 +109,7 @@ class NovelGeneratorGUI:
         self.temperature_var = ctk.DoubleVar(value=llm_conf.get("temperature", 0.7))
         self.max_tokens_var = ctk.IntVar(value=llm_conf.get("max_tokens", 8192))
         self.timeout_var = ctk.IntVar(value=llm_conf.get("timeout", 600))
-        self.interface_config_var = ctk.StringVar(value=next(iter(self.loaded_config["llm_configs"])))
+        self.interface_config_var = ctk.StringVar(value=selected_config_name)  # 使用上次选择的配置名
         self.global_system_prompt_var = ctk.BooleanVar(value=False)
 
 
@@ -312,6 +309,72 @@ class NovelGeneratorGUI:
         selected_dir = filedialog.askdirectory()
         if selected_dir:
             self.filepath_var.set(selected_dir)
+            # 自动加载项目信息
+            self.auto_load_project_info(selected_dir)
+
+    def auto_load_project_info(self, filepath):
+        """自动加载项目信息到界面"""
+        import glob
+
+        try:
+            # 1. 检测已生成的章节数
+            chapters_dir = os.path.join(filepath, "chapters")
+            if os.path.exists(chapters_dir):
+                chapter_files = glob.glob(os.path.join(chapters_dir, "chapter_*.txt"))
+                if chapter_files:
+                    max_chapter = max([
+                        int(os.path.basename(f).split('_')[1].split('.')[0])
+                        for f in chapter_files
+                    ])
+                    self.chapter_num_var.set(str(max_chapter + 1))  # 设置为下一章
+                    self.safe_log(f"✅ 检测到项目已生成 {max_chapter} 章，下一章为第 {max_chapter + 1} 章")
+
+            # 2. 读取Novel_directory.txt并刷新章节列表
+            dir_file = os.path.join(filepath, "Novel_directory.txt")
+            if os.path.exists(dir_file):
+                # 如果有加载章节蓝图的方法，调用它
+                if hasattr(self, 'load_chapter_blueprint'):
+                    try:
+                        self.load_chapter_blueprint()
+                        self.safe_log("✅ 已加载章节蓝图")
+                    except Exception as e:
+                        self.safe_log(f"⚠️ 加载章节蓝图失败: {str(e)}")
+
+            # 3. 读取character_state.txt
+            char_file = os.path.join(filepath, "character_state.txt")
+            if os.path.exists(char_file):
+                if hasattr(self, 'load_character_state'):
+                    try:
+                        self.load_character_state()
+                        self.safe_log("✅ 已加载角色状态")
+                    except Exception as e:
+                        self.safe_log(f"⚠️ 加载角色状态失败: {str(e)}")
+
+            # 4. 读取global_summary.txt
+            summary_file = os.path.join(filepath, "global_summary.txt")
+            if os.path.exists(summary_file):
+                if hasattr(self, 'load_global_summary'):
+                    try:
+                        self.load_global_summary()
+                        self.safe_log("✅ 已加载前文摘要")
+                    except Exception as e:
+                        self.safe_log(f"⚠️ 加载前文摘要失败: {str(e)}")
+
+            # 5. 检测向量库
+            vectorstore_dir = os.path.join(filepath, "vectorstore")
+            if os.path.exists(vectorstore_dir):
+                self.safe_log("✅ 检测到向量库存在")
+
+            # 6. 刷新chapters tab的章节列表
+            if hasattr(self, 'refresh_chapters_list'):
+                try:
+                    self.refresh_chapters_list()
+                    self.safe_log("✅ 已刷新章节列表")
+                except Exception as e:
+                    self.safe_log(f"⚠️ 刷新章节列表失败: {str(e)}")
+
+        except Exception as e:
+            self.safe_log(f"⚠️ 自动加载项目信息时出错: {str(e)}")
 
     def show_character_import_window(self):
         """显示角色导入窗口"""
@@ -428,6 +491,42 @@ class NovelGeneratorGUI:
         system_prompt = resolve_global_system_prompt(self.global_system_prompt_var.get())
 
         self._role_lib = RoleLibrary(self.master, save_path, llm_adapter, system_prompt=system_prompt)
+
+    def save_other_params(self):
+        """保存小说参数到配置文件"""
+        try:
+            # 从UI组件获取所有参数
+            other_params = {
+                "topic": self.topic_text.get("0.0", "end").strip(),
+                "genre": self.genre_var.get().strip(),
+                "num_chapters": self.safe_get_int(self.num_chapters_var, 10),
+                "word_number": self.safe_get_int(self.word_number_var, 3000),
+                "filepath": self.filepath_var.get().strip(),
+                "chapter_num": self.chapter_num_var.get().strip(),
+                "user_guidance": self.user_guide_text.get("0.0", "end").strip(),
+                "characters_involved": self.char_inv_text.get("0.0", "end").strip(),
+                "key_items": self.key_items_var.get().strip(),
+                "scene_location": self.scene_location_var.get().strip(),
+                "time_constraint": self.time_constraint_var.get().strip()
+            }
+
+            # 直接更新内存中的配置，避免覆盖其他修改
+            self.loaded_config["other_params"] = other_params
+
+            # 【关键修复】同步回写 characters_involved_var，确保生成流程能读取到最新值
+            # 原因：generation_handlers.py:150,735 使用 self.characters_involved_var.get()
+            # 而不是直接读取 TextBox，必须保持同步
+            self.characters_involved_var.set(other_params["characters_involved"])
+
+            # 保存到配置文件
+            save_config(self.loaded_config, self.config_file)
+
+            messagebox.showinfo("提示", "小说参数已保存到配置文件")
+            self.safe_log("✅ 小说参数已保存")
+
+        except Exception as e:
+            messagebox.showerror("错误", f"保存小说参数失败: {str(e)}")
+            self.safe_log(f"❌ 保存小说参数失败: {str(e)}")
 
     # ----------------- 将导入的各模块函数直接赋给类方法 -----------------
     generate_novel_architecture_ui = generate_novel_architecture_ui

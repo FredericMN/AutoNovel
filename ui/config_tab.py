@@ -78,11 +78,15 @@ def build_ai_config_tab(self):
             self.max_tokens_var.set(int(config.get("max_tokens", 8192)))
             self.timeout_var.set(int(config.get("timeout", 600)))
             self.interface_format_var.set(config.get("interface_format", "OpenAI"))
-            
+
             # 更新显示标签
             self.temp_value_label.configure(text=f"{float(config.get('temperature', 0.7)):.2f}")
             self.max_tokens_value_label.configure(text=str(int(config.get('max_tokens', 8192))))
             self.timeout_value_label.configure(text=str(int(config.get('timeout', 600))))
+
+            # 自动保存当前选择
+            self.loaded_config["last_selected_llm_config"] = new_value
+            save_config(self.loaded_config, self.config_file)
 
     def add_new_config():
         """添加新配置 - 弹出对话框让用户输入名称"""
@@ -153,7 +157,7 @@ def build_ai_config_tab(self):
         if config_name not in self.loaded_config.get("llm_configs", {}):
             messagebox.showerror("错误", "配置不存在!")
             return
-            
+
         config = self.loaded_config["llm_configs"][config_name]
         config.update({
             "api_key": self.api_key_var.get(),
@@ -165,36 +169,15 @@ def build_ai_config_tab(self):
             "interface_format": self.interface_format_var.get(),
             "updated_at": datetime.datetime.now().isoformat()
         })
-        
+
         # 如果修改了配置名称
         new_name = self.interface_config_var.get()
         if new_name != config_name:
             self.loaded_config["llm_configs"][new_name] = self.loaded_config["llm_configs"].pop(config_name)
             refresh_config_dropdown()
-        embedding_config = {
-        "api_key": self.embedding_api_key_var.get(),
-        "base_url": self.embedding_url_var.get(),
-        "model_name": self.embedding_model_name_var.get(),
-        "retrieval_k": self.safe_get_int(self.embedding_retrieval_k_var, 4),
-        "interface_format": self.embedding_interface_format_var.get().strip()
 
-        }
-        other_params = {
-            "topic": self.topic_text.get("0.0", "end").strip(),
-            "genre": self.genre_var.get(),
-            "num_chapters": self.safe_get_int(self.num_chapters_var, 10),
-            "word_number": self.safe_get_int(self.word_number_var, 3000),
-            "filepath": self.filepath_var.get(),
-            "chapter_num": self.chapter_num_var.get(),
-            "user_guidance": self.user_guide_text.get("0.0", "end").strip(),
-            "characters_involved": self.characters_involved_var.get(),
-            "key_items": self.key_items_var.get(),
-            "scene_location": self.scene_location_var.get(),
-            "time_constraint": self.time_constraint_var.get()
-        }
-        self.loaded_config["embedding_configs"][self.embedding_interface_format_var.get().strip()] = embedding_config
-        self.loaded_config["other_params"] = other_params
-
+        # 保存当前选择
+        self.loaded_config["last_selected_llm_config"] = new_name
 
         # 保存到JSON文件
         try:
@@ -260,8 +243,15 @@ def build_ai_config_tab(self):
             }
         }
         config_names = ["默认配置"]
-    
-    self.interface_config_var = ctk.StringVar(value=config_names[0])
+
+    # 优先使用上次选择的配置
+    last_selected = self.loaded_config.get("last_selected_llm_config", None)
+    if last_selected and last_selected in config_names:
+        initial_config = last_selected
+    else:
+        initial_config = config_names[0]
+
+    self.interface_config_var = ctk.StringVar(value=initial_config)
 
     interface_config_dropdown = ctk.CTkOptionMenu(
         self.ai_config_tab, 
@@ -437,8 +427,8 @@ def build_ai_config_tab(self):
     )
     test_btn.grid(row=row_start+7, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
 
-    # 初始化当前配置
-    on_config_selected(config_names[0])
+    # 初始化当前配置（使用上面确定的 initial_config）
+    on_config_selected(initial_config)
 
 
     # 初始化UI布局
@@ -542,9 +532,43 @@ def build_embeddings_config_tab(self):
     emb_retrieval_k_entry = ctk.CTkEntry(self.embeddings_config_tab, textvariable=self.embedding_retrieval_k_var, font=("Microsoft YaHei", 12))
     emb_retrieval_k_entry.grid(row=4, column=1, padx=5, pady=5, sticky="nsew")
 
+    # 保存Embedding配置函数
+    def save_embedding_config():
+        """保存Embedding配置到JSON文件"""
+        current_interface = self.embedding_interface_format_var.get().strip()
+        embedding_config = {
+            "api_key": self.embedding_api_key_var.get(),
+            "base_url": self.embedding_url_var.get(),
+            "model_name": self.embedding_model_name_var.get(),
+            "retrieval_k": self.safe_get_int(self.embedding_retrieval_k_var, 4),
+            "interface_format": current_interface
+        }
+
+        if "embedding_configs" not in self.loaded_config:
+            self.loaded_config["embedding_configs"] = {}
+
+        self.loaded_config["embedding_configs"][current_interface] = embedding_config
+        self.loaded_config["last_embedding_interface_format"] = current_interface
+
+        try:
+            save_config(self.loaded_config, self.config_file)
+            messagebox.showinfo("提示", f"Embedding配置已保存")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存配置文件失败: {str(e)}")
+
+    # 添加保存按钮
+    save_embedding_btn = ctk.CTkButton(
+        self.embeddings_config_tab,
+        text="保存配置",
+        command=save_embedding_config,
+        font=("Microsoft YaHei", 12),
+        fg_color="#1E90FF"
+    )
+    save_embedding_btn.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+
     # 添加测试按钮
     test_btn = ctk.CTkButton(self.embeddings_config_tab, text="测试配置", command=self.test_embedding_config, font=("Microsoft YaHei", 12))
-    test_btn.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+    test_btn.grid(row=6, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 
 def build_config_choose_tab(self):
 
@@ -574,20 +598,22 @@ def build_config_choose_tab(self):
     consistency_review_dropdown.grid(row=4, column=1, padx=5, pady=5, sticky="nsew")
 
     def save_config_choose():
-        config_data = load_config(self.config_file)["choose_configs"]
-        if not config_data:
-            config_data = {}
-        config_data["architecture_llm"] = self.architecture_llm_var.get()
-        config_data["chapter_outline_llm"] = self.chapter_outline_llm_var.get()
-        config_data["prompt_draft_llm"] = self.prompt_draft_llm_var.get()
-        config_data["final_chapter_llm"] = self.final_chapter_llm_var.get()
-        config_data["consistency_review_llm"] = self.consistency_review_llm_var.get()
+        """保存配置选择到JSON文件"""
+        # 直接更新内存中的配置，避免覆盖其他修改
+        if "choose_configs" not in self.loaded_config:
+            self.loaded_config["choose_configs"] = {}
 
+        self.loaded_config["choose_configs"]["architecture_llm"] = self.architecture_llm_var.get()
+        self.loaded_config["choose_configs"]["chapter_outline_llm"] = self.chapter_outline_llm_var.get()
+        self.loaded_config["choose_configs"]["prompt_draft_llm"] = self.prompt_draft_llm_var.get()
+        self.loaded_config["choose_configs"]["final_chapter_llm"] = self.final_chapter_llm_var.get()
+        self.loaded_config["choose_configs"]["consistency_review_llm"] = self.consistency_review_llm_var.get()
 
-        config_data_full = load_config(self.config_file)
-        config_data_full["choose_configs"] = config_data
-        save_config(config_data_full, self.config_file)
-        messagebox.showinfo("提示", "配置已保存。")
+        try:
+            save_config(self.loaded_config, self.config_file)
+            messagebox.showinfo("提示", "配置已保存。")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存配置失败: {str(e)}")
 
     def refresh_config_dropdowns():
         """刷新所有配置下拉菜单"""
@@ -668,17 +694,22 @@ def build_proxy_setting_tab(self):
         os.environ['HTTPS_PROXY'] = f"http://{address}:{port}"
 
     def save_proxy_setting():
-        config_data = load_config(self.config_file)
-        if "proxy_setting" not in config_data:
-            config_data["proxy_setting"] = {}
-            
-        config_data["proxy_setting"]["enabled"] = self.proxy_enabled_var.get()
-        config_data["proxy_setting"]["proxy_url"] = self.proxy_address_var.get()
-        config_data["proxy_setting"]["proxy_port"] = self.proxy_port_var.get()
+        """保存代理配置到JSON文件"""
+        # 直接更新内存中的配置，避免覆盖其他修改
+        if "proxy_setting" not in self.loaded_config:
+            self.loaded_config["proxy_setting"] = {}
 
-        save_config(config_data, self.config_file)
-        messagebox.showinfo("提示", "代理配置已保存。")
+        self.loaded_config["proxy_setting"]["enabled"] = self.proxy_enabled_var.get()
+        self.loaded_config["proxy_setting"]["proxy_url"] = self.proxy_address_var.get()
+        self.loaded_config["proxy_setting"]["proxy_port"] = self.proxy_port_var.get()
 
+        try:
+            save_config(self.loaded_config, self.config_file)
+            messagebox.showinfo("提示", "代理配置已保存。")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存配置文件失败: {str(e)}")
+
+        # 应用代理设置到环境变量
         if self.proxy_enabled_var.get():
             open_proxy(self.proxy_address_var.get(), self.proxy_port_var.get())
         else:
@@ -698,101 +729,14 @@ def build_proxy_setting_tab(self):
     
 
 def load_config_btn(self):
-    cfg = load_config(self.config_file)
-    if cfg:
-        last_llm = cfg.get("last_interface_format", "OpenAI")
-        last_embedding = cfg.get("last_embedding_interface_format", "OpenAI")
-        self.interface_format_var.set(last_llm)
-        self.embedding_interface_format_var.set(last_embedding)
-        llm_configs = cfg.get("llm_configs", {})
-        if last_llm in llm_configs:
-            llm_conf = llm_configs[last_llm]
-            self.interface_format_var.set(llm_conf.get("interface_format", "OpenAI"))
-            self.api_key_var.set(llm_conf.get("api_key", ""))
-            self.base_url_var.set(llm_conf.get("base_url", "https://api.openai.com/v1"))
-            self.model_name_var.set(llm_conf.get("model_name", "gpt-4o-mini"))
-            self.temperature_var.set(llm_conf.get("temperature", 0.7))
-            self.max_tokens_var.set(llm_conf.get("max_tokens", 8192))
-            self.timeout_var.set(llm_conf.get("timeout", 600))
-        embedding_configs = cfg.get("embedding_configs", {})
-        if last_embedding in embedding_configs:
-            emb_conf = embedding_configs[last_embedding]
-            self.embedding_api_key_var.set(emb_conf.get("api_key", ""))
-            self.embedding_url_var.set(emb_conf.get("base_url", "https://api.openai.com/v1"))
-            self.embedding_model_name_var.set(emb_conf.get("model_name", "text-embedding-ada-002"))
-            self.embedding_retrieval_k_var.set(str(emb_conf.get("retrieval_k", 4)))
-        other_params = cfg.get("other_params", {})
-        self.topic_text.delete("0.0", "end")
-        self.topic_text.insert("0.0", other_params.get("topic", ""))
-        self.genre_var.set(other_params.get("genre", "玄幻"))
-        self.num_chapters_var.set(str(other_params.get("num_chapters", 10)))
-        self.word_number_var.set(str(other_params.get("word_number", 3000)))
-        self.filepath_var.set(other_params.get("filepath", ""))
-        self.chapter_num_var.set(str(other_params.get("chapter_num", "1")))
-        self.user_guide_text.delete("0.0", "end")
-        self.user_guide_text.insert("0.0", other_params.get("user_guidance", ""))
-        self.characters_involved_var.set(other_params.get("characters_involved", ""))
-        self.key_items_var.set(other_params.get("key_items", ""))
-        self.scene_location_var.set(other_params.get("scene_location", ""))
-        self.time_constraint_var.set(other_params.get("time_constraint", ""))
-        self.log("已加载配置。")
-    else:
-        messagebox.showwarning("提示", "未找到或无法读取配置文件。")
+    """加载配置文件并更新界面（已废弃 - 配置自动加载）"""
+    messagebox.showinfo("提示", "配置已在启动时自动加载，无需手动加载。")
 
 def save_config_btn(self):
-    current_llm_interface = self.interface_format_var.get().strip()
-    current_embedding_interface = self.embedding_interface_format_var.get().strip()
-    llm_config = {
-        "api_key": self.api_key_var.get(),
-        "base_url": self.base_url_var.get(),
-        "model_name": self.model_name_var.get(),
-        "temperature": self.temperature_var.get(),
-        "max_tokens": self.max_tokens_var.get(),
-        "timeout": self.safe_get_int(self.timeout_var, 600),
-        "interface_format": current_llm_interface
-    }
-    embedding_config = {
-        "api_key": self.embedding_api_key_var.get(),
-        "base_url": self.embedding_url_var.get(),
-        "model_name": self.embedding_model_name_var.get(),
-        "retrieval_k": self.safe_get_int(self.embedding_retrieval_k_var, 4),
-        "interface_format": current_embedding_interface
-
-    }
-    other_params = {
-        "topic": self.topic_text.get("0.0", "end").strip(),
-        "genre": self.genre_var.get(),
-        "num_chapters": self.safe_get_int(self.num_chapters_var, 10),
-        "word_number": self.safe_get_int(self.word_number_var, 3000),
-        "filepath": self.filepath_var.get(),
-        "chapter_num": self.chapter_num_var.get(),
-        "user_guidance": self.user_guide_text.get("0.0", "end").strip(),
-        "characters_involved": self.characters_involved_var.get(),
-        "key_items": self.key_items_var.get(),
-        "scene_location": self.scene_location_var.get(),
-        "time_constraint": self.time_constraint_var.get()
-    }
-    llm_config_name = self.base_url_var.get().split("/")[2] + " " + self.model_name_var.get()
-
-    existing_config = load_config(self.config_file)
-    if not existing_config:
-        existing_config = {}
-    existing_config["last_interface_format"] = current_llm_interface
-    existing_config["last_embedding_interface_format"] = current_embedding_interface
-    if "llm_configs" not in existing_config:
-        existing_config["llm_configs"] = {}
-    llm_config["config_name"] = llm_config_name
-
-    existing_config["llm_configs"][llm_config_name] = llm_config
-
-    if "embedding_configs" not in existing_config:
-        existing_config["embedding_configs"] = {}
-    existing_config["embedding_configs"][current_embedding_interface] = embedding_config
-
-    existing_config["other_params"] = other_params
-
-    if save_config(existing_config, self.config_file):
-        messagebox.showinfo("提示", "配置已保存至 config.json")
-        self.log("配置已保存。")
-    else:
-        messagebox.showerror("错误", "保存配置失败。")
+    """保存配置（已废弃 - 请使用各个tab的独立保存按钮）"""
+    messagebox.showinfo("提示",
+        "请使用各个标签页的独立保存按钮：\n\n"
+        "• LLM Model settings - 保存按钮\n"
+        "• Embedding settings - 保存配置按钮\n"
+        "• Config choose - 保存配置按钮"
+    )

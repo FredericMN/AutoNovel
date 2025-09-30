@@ -26,6 +26,7 @@ def create_config(config_file: str) -> dict:
     """创建一个创建默认配置文件。"""
     config = {
     "last_interface_format": "OpenAI",
+    "last_selected_llm_config": "Gemini 2.5 Pro",  # 新增：记录当前选中的LLM配置名
     "last_embedding_interface_format": "OpenAI",
     "llm_configs": {
         "DeepSeek V3": {
