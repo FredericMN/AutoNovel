@@ -892,44 +892,28 @@ def build_chapter_prompt(
 
         if volume_context["is_volume_first_chapter"]:
             volume_info_parts.append("章节定位：本卷首章")
-            # 注：前一卷摘要已通过"前文摘要"字段完整提供（line 779），此处不重复注入
         elif volume_context["is_volume_last_chapter"]:
             volume_info_parts.append("章节定位：本卷末章（需为本卷收尾）")
 
         volume_info_text = "\n".join(volume_info_parts)
 
-        # 渐进式遗忘策略：平滑过渡前一卷与当前卷的上下文权重
-        # 计算当前章节距离卷首的偏移量
-        volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
-        vol_start, vol_end = volume_ranges[volume_context["volume_number"] - 1]
-        chapters_since_volume_start = novel_number - vol_start + 1
+        # 新策略：固定传递"上一卷完整摘要 + 本卷累积摘要"
+        # 优势：保证跨卷连贯性，避免过早丢失前一卷信息
+        if volume_context["volume_summary"]:
+            # 构建摘要：上一卷 + 本卷
+            combined_summary = f"【上一卷完整回顾】\n{volume_context['volume_summary']}\n\n"
 
-        if volume_context["is_volume_first_chapter"] and volume_context["volume_summary"]:
-            # 卷首章（偏移=1）：前一卷摘要 100%
-            global_summary_text = volume_context["volume_summary"]
-            logging.info(f"第{novel_number}章使用前一卷完整摘要")
-
-        elif 2 <= chapters_since_volume_start <= 5 and volume_context["volume_summary"]:
-            # 第2-5章：渐进式遗忘，前一卷简要 + 当前卷滚动摘要
-            prev_brief = volume_context["volume_summary"][:400]  # 截取400字
-            ellipsis = "..." if len(volume_context["volume_summary"]) > 400 else ""
-
-            # 拼接前一卷简要与当前卷摘要
-            combined_summary = f"【前一卷简要回顾】\n{prev_brief}{ellipsis}\n\n"
-
-            # 添加当前卷滚动摘要（优先使用 current_volume_summary，否则使用 global_summary）
-            if volume_context["current_volume_summary"]:
-                combined_summary += f"【本卷已发展】\n{volume_context['current_volume_summary']}"
+            # 添加本卷累积摘要
+            if global_summary_text.strip():
+                combined_summary += f"【本卷进展】\n{global_summary_text}"
             else:
-                combined_summary += f"【本卷已发展】\n{global_summary_text}"
+                combined_summary += "【本卷进展】\n（本卷尚未开始累积摘要）"
 
             global_summary_text = combined_summary
-            logging.info(f"第{novel_number}章使用渐进式遗忘策略（卷内第{chapters_since_volume_start}章）")
-
-        elif volume_context["current_volume_summary"]:
-            # 第6章+：仅当前卷滚动摘要
-            global_summary_text = volume_context["current_volume_summary"]
-            logging.info(f"第{novel_number}章使用当前卷滚动摘要")
+            logging.info(f"第{novel_number}章使用固定策略: 上一卷完整摘要 + 本卷累积摘要")
+        else:
+            # 第一卷或无前卷摘要：仅使用本卷累积
+            logging.info(f"第{novel_number}章使用本卷累积摘要（无前卷信息）")
 
         # 否则继续使用全局摘要（默认）
     else:

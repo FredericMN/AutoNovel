@@ -136,6 +136,49 @@ def finalize_volume(
     save_string_to_txt(volume_summary_result, volume_summary_file)
     gui_log(f"▶ 卷摘要已保存至: volume_{volume_number}_summary.txt")
 
+    # 将卷摘要也存入向量库（标记为特殊类型，方便跨卷检索）
+    try:
+        from embedding_adapters import create_embedding_adapter
+        # 尝试从配置读取 embedding 配置（降级策略：如果无法获取则跳过）
+        import json
+        config_file = "config.json"
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                embedding_config = config.get("embedding_configs", {})
+                if embedding_config:
+                    embedding_adapter = create_embedding_adapter(
+                        embedding_config.get("interface_format", "openai"),
+                        embedding_config.get("api_key", ""),
+                        embedding_config.get("base_url", ""),
+                        embedding_config.get("model_name", "text-embedding-ada-002")
+                    )
+
+                    # 先删除旧的卷摘要（避免重复存储）
+                    from novel_generator.vectorstore_utils import delete_volume_summary_from_store
+                    delete_volume_summary_from_store(embedding_adapter, filepath, volume_number)
+                    gui_log(f"▶ 已清理旧卷摘要（如存在）")
+
+                    # 将卷摘要切分后存入向量库，标记为卷摘要类型
+                    from novel_generator.vectorstore_utils import update_vector_store
+
+                    # 构建卷摘要标题（便于检索时识别）
+                    volume_summary_with_title = f"【第{volume_number}卷总结】\n{volume_summary_result}"
+
+                    update_vector_store(
+                        embedding_adapter=embedding_adapter,
+                        new_chapter=volume_summary_with_title,
+                        filepath=filepath,
+                        chapter_num=volume_end,  # 使用卷的末章号作为标记
+                        volume_num=volume_number
+                    )
+                    gui_log(f"▶ 卷摘要已存入向量库（便于跨卷检索）\n")
+                    logging.info(f"Volume {volume_number} summary stored in vector store")
+    except Exception as e:
+        # 非关键操作，失败不影响主流程
+        logging.warning(f"Failed to store volume summary in vector store: {e}")
+        gui_log(f"⚠️ 卷摘要向量存储失败（不影响主流程）: {str(e)[:50]}\n")
+
     # 清空全局摘要，为下一卷做准备
     global_summary_file = os.path.join(filepath, "global_summary.txt")
     clear_file_content(global_summary_file)

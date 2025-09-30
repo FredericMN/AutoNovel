@@ -146,6 +146,51 @@ def load_vector_store(embedding_adapter, filepath: str):
         traceback.print_exc()
         return None
 
+def delete_volume_summary_from_store(embedding_adapter, filepath: str, volume_num: int):
+    """
+    从向量库中删除指定卷的摘要（避免重复存储）
+
+    Args:
+        embedding_adapter: Embedding 适配器
+        filepath: 小说保存路径
+        volume_num: 要删除的卷号
+    """
+    store = load_vector_store(embedding_adapter, filepath)
+    if not store:
+        logging.info("Vector store not found, skip deleting volume summary.")
+        return
+
+    try:
+        # 获取所有文档
+        collection = store._collection
+
+        # 查询包含卷摘要标记的文档
+        results = collection.get(
+            where={"volume": volume_num}
+        )
+
+        if not results or not results.get('ids'):
+            logging.info(f"No existing volume {volume_num} summary found in vector store.")
+            return
+
+        # 过滤出卷摘要（通过内容特征识别）
+        ids_to_delete = []
+        for i, doc_id in enumerate(results['ids']):
+            content = results['documents'][i] if 'documents' in results else ""
+            # 识别卷摘要标记
+            if content.startswith(f"【第{volume_num}卷总结】"):
+                ids_to_delete.append(doc_id)
+
+        if ids_to_delete:
+            collection.delete(ids=ids_to_delete)
+            logging.info(f"Deleted {len(ids_to_delete)} old volume {volume_num} summary documents from vector store.")
+        else:
+            logging.info(f"No volume summary documents found for volume {volume_num}.")
+
+    except Exception as e:
+        logging.warning(f"Failed to delete volume summary from vector store: {e}")
+        traceback.print_exc()
+
 def split_by_length(text: str, max_length: int = 500):
     """按照 max_length 切分文本"""
     segments = []
@@ -326,25 +371,94 @@ def get_relevant_contexts_deduplicated(
         seen_hashes = set()
 
         for query in query_groups:
-            # 分卷检索：当前卷优先
+            # 分卷检索：当前卷优先 + 跨卷智能检索
             if use_volume_filter and current_vol is not None and current_vol > 0:
                 try:
-                    # 当前卷检索（adjusted_k - 1 条）
+                    # 检测是否需要跨卷检索（使用词边界匹配避免误触发）
+                    # 优化版关键词库：32个精选词汇，覆盖跨卷伏笔核心场景
+                    cross_volume_keywords = [
+                        # === 角色背景类 ===
+                        "起源", "身世", "师傅", "仇人",
+                        "父亲", "母亲", "恩人", "师兄",
+
+                        # === 物品类 ===
+                        "宝物", "信物", "遗物", "神器", "遗迹",
+
+                        # === 能力/技能类（玄幻向）===
+                        "功法", "传承", "心法", "剑法",
+
+                        # === 剧情伏笔类 ===
+                        "预言", "诅咒", "秘密", "真相", "阴谋", "誓言",
+                        "约定", "承诺", "宿命", "封印",
+
+                        # === 关键事件类 ===
+                        "惨案", "灭门", "叛变",
+
+                        # === 时间引用类 ===
+                        "初遇", "相识"
+                    ]
+
+                    # 使用正则词边界匹配，避免子串误触发（如"起源于"、"秘密花园"）
+                    needs_cross_volume_search = False
+                    for kw in cross_volume_keywords:
+                        # 构建词边界正则：前后必须是非汉字字符或字符串边界
+                        pattern = rf'(?<![a-zA-Z0-9\u4e00-\u9fa5]){re.escape(kw)}(?![a-zA-Z0-9\u4e00-\u9fa5])'
+                        if re.search(pattern, query):
+                            needs_cross_volume_search = True
+                            logging.info(f"检测到跨卷关键词 '{kw}' 在查询 '{query}' 中")
+                            break
+
+                    # 动态调整检索数量，保持总量恒定
+                    if needs_cross_volume_search:
+                        # 启用跨卷检索：减少当前卷检索量，为历史卷留出空间
+                        # 总量控制：current_vol_k + prev_vol_k + historical_k = adjusted_k
+                        historical_volumes_count = min(3, current_vol - 1)  # 最多回溯3卷
+                        historical_k = min(historical_volumes_count, adjusted_k // 3)  # 历史卷占1/3
+                        prev_vol_k = 1 if current_vol > 1 and adjusted_k > historical_k + 1 else 0
+                        current_vol_k = max(1, adjusted_k - historical_k - prev_vol_k)
+
+                        logging.info(f"跨卷检索分配: 当前卷{current_vol_k}条 + 前一卷{prev_vol_k}条 + 历史卷{historical_k}条 = 总计{adjusted_k}条")
+                    else:
+                        # 常规检索：当前卷为主 + 前一卷补充
+                        current_vol_k = max(1, adjusted_k - 1)
+                        prev_vol_k = 1 if current_vol > 1 else 0
+                        historical_k = 0
+
+                    # 策略1：当前卷优先检索
                     current_vol_docs = store.similarity_search(
                         query,
-                        k=max(1, adjusted_k - 1),
+                        k=current_vol_k,
                         filter={"volume": current_vol}
                     )
                     docs = current_vol_docs
 
-                    # 前一卷检索（1 条，如果存在）
-                    if current_vol > 1:
+                    # 策略2：前一卷补充检索
+                    if prev_vol_k > 0:
                         prev_vol_docs = store.similarity_search(
                             query,
-                            k=1,
+                            k=prev_vol_k,
                             filter={"volume": current_vol - 1}
                         )
                         docs.extend(prev_vol_docs)
+
+                    # 策略3：跨卷关键词检索（仅在触发时执行）
+                    if needs_cross_volume_search and historical_k > 0:
+                        # 检索历史卷（均匀分配，每卷1条）
+                        start_vol = max(1, current_vol - 3)
+                        end_vol = current_vol - 1
+                        for vol in range(start_vol, end_vol):
+                            if historical_k <= 0:
+                                break
+                            try:
+                                historical_docs = store.similarity_search(
+                                    query,
+                                    k=1,
+                                    filter={"volume": vol}
+                                )
+                                docs.extend(historical_docs)
+                                historical_k -= len(historical_docs)
+                            except:
+                                pass  # 某卷可能不存在，跳过
 
                 except Exception as e:
                     # 降级：如果元数据过滤失败（旧向量库无元数据），使用普通检索

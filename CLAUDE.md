@@ -92,9 +92,31 @@ pyinstaller main.spec  # 生成 dist/main.exe
 ## 关键技术细节
 
 ### 向量检索流程
-1. 定稿章节时,使用 `update_vector_store()` 将章节文本切分并存入 Chroma
-2. 生成新章节时,使用 `get_relevant_context_from_vector_store()` 检索相关历史片段
+1. 定稿章节时,使用 `update_vector_store()` 将章节文本切分并存入 Chroma,附带章节号和卷号元数据
+2. 生成新章节时,使用 `get_relevant_contexts_deduplicated()` 检索相关历史片段
 3. 切换 Embedding 模型后需清空 `vectorstore/` 目录
+4. **跨卷检索增强**: 检测到关键词(如"起源"、"身世"、"预言"等)时,自动检索历史卷的相关内容
+5. **卷摘要向量化**: 完成一卷后,将卷摘要也存入向量库,便于跨卷语义检索
+
+### 分卷模式摘要传递策略
+**当前策略**: 固定传递"上一卷完整摘要 + 本卷累积摘要" (2025-10-01 更新)
+
+**传递逻辑** (`chapter.py:900-916`):
+- **第一卷**: 仅使用 `global_summary.txt`(本卷累积)
+- **第二卷及以后**:
+  - 前置摘要 = `volume_{N-1}_summary.txt`(上一卷完整) + `global_summary.txt`(本卷累积)
+  - 优势: 保证跨卷连贯性,避免丢失前一卷关键信息
+  - 配合增强向量检索,可按需查找更早卷的具体内容
+
+**卷摘要清空时机** (`finalization.py:177-180`):
+- 每卷最后一章定稿后,生成 `volume_X_summary.txt`
+- 清空 `global_summary.txt`,为下一卷重新累积摘要
+- 卷摘要同时存入向量库,标记为卷号元数据
+
+**跨卷检索策略** (`vectorstore_utils.py:328-377`):
+1. 当前卷优先检索(占大部分结果)
+2. 前一卷补充检索(1条)
+3. 关键词触发历史卷检索(检测到"起源"、"身世"等词时,回溯最多3卷)
 
 ### LLM 适配器注册
 - `llm_adapters.py` 的 `create_llm_adapter()` 根据 interface_format 创建对应适配器
