@@ -144,6 +144,35 @@ def generate_chapter_draft_ui(self):
 
 
             chap_num = self.safe_get_int(self.chapter_num_var, 1)
+
+            # 【方案A】检查章节文件是否已存在，警告覆盖风险
+            chapters_dir = os.path.join(filepath, "chapters")
+            os.makedirs(chapters_dir, exist_ok=True)
+            chapter_file = os.path.join(chapters_dir, f"chapter_{chap_num}.txt")
+
+            if os.path.exists(chapter_file):
+                confirm_result = {"confirmed": False}
+                confirm_event = threading.Event()
+
+                def ask_overwrite():
+                    result = messagebox.askyesno(
+                        "覆盖确认",
+                        f"⚠️ 第{chap_num}章已存在！\n\n"
+                        f"覆盖将导致：\n"
+                        f"1. 旧内容永久丢失\n"
+                        f"2. 定稿时向量库重复存储（污染检索）\n\n"
+                        f"是否继续？建议修改章节号为 {chap_num + 1}"
+                    )
+                    confirm_result["confirmed"] = result
+                    confirm_event.set()
+
+                self.master.after(0, ask_overwrite)
+                confirm_event.wait()
+
+                if not confirm_result["confirmed"]:
+                    self.safe_log(f"❌ 用户取消了第{chap_num}章草稿生成，避免覆盖现有内容。")
+                    return
+
             word_number = self.safe_get_int(self.word_number_var, 3000)
             user_guidance = self.user_guide_text.get("0.0", "end").strip()
 
@@ -305,6 +334,11 @@ def generate_chapter_draft_ui(self):
             if draft_text:
                 self.safe_log(f"✅ 第{chap_num}章草稿已保存，请在左侧查看或编辑。")
                 self.master.after(0, lambda: self.show_chapter_in_textbox(draft_text))
+
+                # 【方案B】草稿生成成功后自动递增章节号
+                next_chap = chap_num + 1
+                self.master.after(0, lambda: self.chapter_num_var.set(str(next_chap)))
+                self.safe_log(f"💡 章节号已自动更新为 {next_chap}")
             else:
                 self.safe_log("⚠️ 本章草稿生成失败或无内容。")
         except Exception:
@@ -342,11 +376,44 @@ def finalize_chapter_ui(self):
             embedding_model_name = self.embedding_model_name_var.get().strip()
 
             chap_num = self.safe_get_int(self.chapter_num_var, 1)
-            word_number = self.safe_get_int(self.word_number_var, 3000)
 
+            # 【方案A】检查章节文件是否已存在，警告覆盖风险
             chapters_dir = os.path.join(filepath, "chapters")
             os.makedirs(chapters_dir, exist_ok=True)
             chapter_file = os.path.join(chapters_dir, f"chapter_{chap_num}.txt")
+
+            # 注意：定稿操作通常是在草稿已存在的前提下进行，但如果用户手动修改章节号
+            # 导致定稿一个新的章节号，且该章节号已有定稿内容，则应警告
+            # 这里用更温和的提示，因为定稿前通常草稿已经存在
+            if os.path.exists(chapter_file):
+                # 检查向量库目录，确认是否已定稿过
+                vectorstore_dir = os.path.join(filepath, "vectorstore")
+                has_vectorstore = os.path.exists(vectorstore_dir) and os.listdir(vectorstore_dir)
+
+                if has_vectorstore:
+                    confirm_result = {"confirmed": False}
+                    confirm_event = threading.Event()
+
+                    def ask_refinalize():
+                        result = messagebox.askyesno(
+                            "重复定稿确认",
+                            f"⚠️ 第{chap_num}章疑似已定稿过！\n\n"
+                            f"重复定稿将导致：\n"
+                            f"1. 向量库重复存储相同内容（污染检索）\n"
+                            f"2. 摘要和角色状态可能重复更新\n\n"
+                            f"是否继续？建议检查章节号是否正确"
+                        )
+                        confirm_result["confirmed"] = result
+                        confirm_event.set()
+
+                    self.master.after(0, ask_refinalize)
+                    confirm_event.wait()
+
+                    if not confirm_result["confirmed"]:
+                        self.safe_log(f"❌ 用户取消了第{chap_num}章定稿，避免重复写入向量库。")
+                        return
+
+            word_number = self.safe_get_int(self.word_number_var, 3000)
 
             edited_text = self.chapter_result.get("0.0", "end").strip()
 
@@ -393,6 +460,11 @@ def finalize_chapter_ui(self):
 
             final_text = read_file(chapter_file)
             self.master.after(0, lambda: self.show_chapter_in_textbox(final_text))
+
+            # 【方案B】定稿成功后自动递增章节号
+            next_chap = chap_num + 1
+            self.master.after(0, lambda: self.chapter_num_var.set(str(next_chap)))
+            self.safe_log(f"💡 章节号已自动更新为 {next_chap}")
         except Exception:
             self.handle_exception("定稿章节时出错")
         finally:
@@ -565,6 +637,134 @@ def generate_batch_ui(self):
                 self.safe_log("❌ 错误：起始章节不能大于结束章节")
                 return
 
+            # 【方案A-批量版】检查范围内章节文件冲突
+            filepath = self.filepath_var.get().strip()
+            chapters_dir = os.path.join(filepath, "chapters")
+            os.makedirs(chapters_dir, exist_ok=True)
+
+            existing_chapters = []
+            for i in range(start, end + 1):
+                chapter_file = os.path.join(chapters_dir, f"chapter_{i}.txt")
+                if os.path.exists(chapter_file):
+                    existing_chapters.append(i)
+
+            # 如果有冲突章节，弹出对话框
+            if existing_chapters:
+                conflict_action = {"action": None}
+                conflict_event = threading.Event()
+
+                def show_conflict_dialog():
+                    conflict_list = ", ".join([f"第{i}章" for i in existing_chapters[:10]])
+                    if len(existing_chapters) > 10:
+                        conflict_list += f" 等{len(existing_chapters)}章"
+
+                    dialog = ctk.CTkToplevel()
+                    dialog.title("⚠️ 批量生成冲突检测")
+                    dialog.geometry("500x300")
+                    dialog.resizable(False, False)
+
+                    # 警告信息
+                    warning_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+                    warning_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                    ctk.CTkLabel(
+                        warning_frame,
+                        text=f"⚠️ 检测到 {len(existing_chapters)} 个章节已存在！",
+                        font=("Microsoft YaHei", 14, "bold"),
+                        text_color="#FF6B6B"
+                    ).pack(pady=(0, 10))
+
+                    ctk.CTkLabel(
+                        warning_frame,
+                        text=f"范围: 第{start}章 - 第{end}章 (共{total}章)",
+                        font=("Microsoft YaHei", 12)
+                    ).pack(pady=5)
+
+                    ctk.CTkLabel(
+                        warning_frame,
+                        text=f"冲突章节: {conflict_list}",
+                        font=("Microsoft YaHei", 11),
+                        wraplength=450,
+                        justify="left"
+                    ).pack(pady=5)
+
+                    ctk.CTkLabel(
+                        warning_frame,
+                        text="覆盖将导致：\n1. 旧内容永久丢失\n2. 重复定稿会污染向量库",
+                        font=("Microsoft YaHei", 10),
+                        text_color="#FFA500",
+                        justify="left"
+                    ).pack(pady=(10, 0))
+
+                    # 按钮区
+                    button_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+                    button_frame.pack(pady=(0, 20))
+
+                    def on_cancel():
+                        conflict_action["action"] = "cancel"
+                        dialog.destroy()
+                        conflict_event.set()
+
+                    def on_skip():
+                        conflict_action["action"] = "skip"
+                        dialog.destroy()
+                        conflict_event.set()
+
+                    def on_overwrite():
+                        conflict_action["action"] = "overwrite"
+                        dialog.destroy()
+                        conflict_event.set()
+
+                    ctk.CTkButton(
+                        button_frame,
+                        text="❌ 取消批量生成",
+                        command=on_cancel,
+                        fg_color="#DC3545",
+                        hover_color="#C82333",
+                        width=140,
+                        height=32
+                    ).pack(side="left", padx=5)
+
+                    ctk.CTkButton(
+                        button_frame,
+                        text="⏭️ 跳过已存在章节",
+                        command=on_skip,
+                        fg_color="#FFC107",
+                        hover_color="#E0A800",
+                        width=140,
+                        height=32
+                    ).pack(side="left", padx=5)
+
+                    ctk.CTkButton(
+                        button_frame,
+                        text="⚠️ 覆盖全部",
+                        command=on_overwrite,
+                        fg_color="#6C757D",
+                        hover_color="#5A6268",
+                        width=140,
+                        height=32
+                    ).pack(side="left", padx=5)
+
+                    dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+                    dialog.transient(self.master)
+                    dialog.grab_set()
+
+                self.master.after(0, show_conflict_dialog)
+                conflict_event.wait()
+
+                action = conflict_action["action"]
+                if action == "cancel":
+                    self.safe_log("❌ 用户取消批量生成，避免覆盖现有章节。")
+                    return
+                elif action == "skip":
+                    self.safe_log(f"⏭️ 用户选择跳过已存在的 {len(existing_chapters)} 个章节")
+                    skip_chapters = set(existing_chapters)
+                elif action == "overwrite":
+                    self.safe_log(f"⚠️ 用户选择覆盖全部 {len(existing_chapters)} 个已存在章节")
+                    skip_chapters = set()
+            else:
+                skip_chapters = set()
+
             # 输出批量生成开始信息
             self.safe_log("\n" + "=" * 70)
             self.safe_log("📚 开始批量生成章节")
@@ -578,17 +778,23 @@ def generate_batch_ui(self):
             self.safe_log("=" * 70 + "\n")
 
             # 批量生成循环
-            current_index = 0  # 初始化，记录实际完成的章节数
+            processed_count = 0  # 实际处理成功的章节数
+            skipped_count = 0  # 跳过的章节数
             failed = False  # 标记是否有失败
+            actual_total = total - len(skip_chapters)  # 实际需要处理的章节数
 
             for i in range(start, end + 1):
-                current_index = i - start + 1
+                # 跳过已存在的章节（如果用户选择跳过）
+                if i in skip_chapters:
+                    self.safe_log(f"⏭️ 跳过第{i}章（已存在）")
+                    skipped_count += 1
+                    continue
 
-                # 更新整体进度
-                self.update_overall_progress(current_index - 1, total)
+                # 更新整体进度（处理前）
+                self.update_overall_progress(processed_count, actual_total)
 
                 self.safe_log("\n" + "━" * 70)
-                self.safe_log(f"▶▶▶ 第{i}章 [{current_index}/{total}] 开始处理")
+                self.safe_log(f"▶▶▶ 第{i}章 [{processed_count + 1}/{actual_total}] 开始处理")
                 self.safe_log("━" * 70 + "\n")
 
                 try:
@@ -599,12 +805,15 @@ def generate_batch_ui(self):
                         word=word,
                         min_word=min_word,
                         auto_enrich=auto_enrich,
-                        current_index=current_index,
-                        total=total
+                        current_index=processed_count + 1,
+                        total=actual_total
                     )
 
-                    # 更新整体进度
-                    self.update_overall_progress(current_index, total)
+                    # 成功后递增计数
+                    processed_count += 1
+
+                    # 更新整体进度（处理后）
+                    self.update_overall_progress(processed_count, actual_total)
 
                     self.safe_log("\n" + "━" * 70)
                     self.safe_log(f"✅ 第{i}章处理完成")
@@ -615,18 +824,21 @@ def generate_batch_ui(self):
                     self.safe_log("批量生成中止。\n")
                     logging.error(f"Chapter {i} batch generation failed after retry: {str(e)}")
                     failed = True
-                    current_index = i - start  # 失败时，完成数不包括当前章节
                     break
 
             # 输出完成信息
             self.safe_log("\n" + "=" * 70)
             if failed:
                 self.safe_log("⚠️  批量生成部分完成（遇到错误已中止）")
-                self.safe_log(f"   成功处理: {current_index}章")
-                self.safe_log(f"   失败章节: 第{start + current_index}章")
+                self.safe_log(f"   成功处理: {processed_count}章")
+                self.safe_log(f"   失败章节: 第{i}章")
+                if skipped_count > 0:
+                    self.safe_log(f"   跳过章节: {skipped_count}章")
             else:
                 self.safe_log("🎉 批量生成完成！")
-                self.safe_log(f"   成功处理: {current_index}章")
+                self.safe_log(f"   成功处理: {processed_count}章")
+                if skipped_count > 0:
+                    self.safe_log(f"   跳过章节: {skipped_count}章")
             self.safe_log("=" * 70 + "\n")
 
         except Exception as e:
