@@ -220,7 +220,52 @@ class NovelGeneratorGUI:
         self.chapter_result.delete("0.0", "end")
         self.chapter_result.insert("0.0", text)
         self.chapter_result.see("end")
-    
+
+    # ========== 进度条控制方法 ==========
+    def show_progress_bars(self):
+        """显示进度条区域"""
+        self.master.after(0, lambda: self.progress_frame.grid())
+
+    def hide_progress_bars(self):
+        """隐藏进度条区域"""
+        self.master.after(0, lambda: self.progress_frame.grid_remove())
+
+    def update_overall_progress(self, current: int, total: int):
+        """
+        更新整体进度条
+        Args:
+            current: 已完成章节数
+            total: 总章节数
+        """
+        def update():
+            percentage = (current / total * 100) if total > 0 else 0
+            self.overall_progress_label.configure(
+                text=f"整体进度: {current}/{total} ({percentage:.0f}%)"
+            )
+            self.overall_progress_bar.set(current / total if total > 0 else 0)
+        self.master.after(0, update)
+
+    def update_chapter_progress(self, stage: str, progress: float):
+        """
+        更新当前章节进度条
+        Args:
+            stage: 阶段描述（如 "生成草稿" "定稿章节"）
+            progress: 进度值 0.0-1.0
+        """
+        def update():
+            self.chapter_progress_label.configure(text=f"当前章节: {stage}")
+            self.chapter_progress_bar.set(progress)
+        self.master.after(0, update)
+
+    def reset_progress_bars(self):
+        """重置进度条"""
+        def reset():
+            self.overall_progress_label.configure(text="整体进度: 0/0 (0%)")
+            self.overall_progress_bar.set(0)
+            self.chapter_progress_label.configure(text="当前章节: 准备中...")
+            self.chapter_progress_bar.set(0)
+        self.master.after(0, reset)
+
     def test_llm_config(self):
         """
         测试当前的LLM配置是否可用

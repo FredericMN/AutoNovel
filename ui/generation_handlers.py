@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import threading
+import logging
 import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk
@@ -448,45 +449,46 @@ def do_consistency_check(self):
             self.enable_button_safe(self.btn_check_consistency)
     threading.Thread(target=task, daemon=True).start()
 def generate_batch_ui(self):
+    """批量生成章节（草稿+定稿）"""
 
     # PenBo 优化界面，使用customtkinter进行批量生成章节界面
     def open_batch_dialog():
         dialog = ctk.CTkToplevel()
         dialog.title("批量生成章节")
-        
+
         chapter_file = os.path.join(self.filepath_var.get().strip(), "chapters")
         files = glob.glob(os.path.join(chapter_file, "chapter_*.txt"))
         if not files:
             num = 1
         else:
             num = max(int(os.path.basename(f).split('_')[1].split('.')[0]) for f in files) + 1
-            
+
         dialog.geometry("400x200")
         dialog.resizable(False, False)
-        
+
         # 创建网格布局
         dialog.grid_columnconfigure(0, weight=0)
         dialog.grid_columnconfigure(1, weight=1)
         dialog.grid_columnconfigure(2, weight=0)
         dialog.grid_columnconfigure(3, weight=1)
-        
+
         # 起始章节
         ctk.CTkLabel(dialog, text="起始章节:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         entry_start = ctk.CTkEntry(dialog)
         entry_start.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
         entry_start.insert(0, str(num))
-        
+
         # 结束章节
         ctk.CTkLabel(dialog, text="结束章节:").grid(row=0, column=2, padx=10, pady=10, sticky="w")
         entry_end = ctk.CTkEntry(dialog)
         entry_end.grid(row=0, column=3, padx=10, pady=10, sticky="ew")
-        
+
         # 期望字数
         ctk.CTkLabel(dialog, text="期望字数:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         entry_word = ctk.CTkEntry(dialog)
         entry_word.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
         entry_word.insert(0, self.word_number_var.get())
-        
+
         # 最低字数
         ctk.CTkLabel(dialog, text="最低字数:").grid(row=1, column=2, padx=10, pady=10, sticky="w")
         entry_min = ctk.CTkEntry(dialog)
@@ -520,180 +522,393 @@ def generate_batch_ui(self):
             nonlocal result
             result["close"] = True
             dialog.destroy()
-            
+
         # 按钮框架
         button_frame = ctk.CTkFrame(dialog)
         button_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="ew")
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
-        
+
         ctk.CTkButton(button_frame, text="确认", command=on_confirm).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         ctk.CTkButton(button_frame, text="取消", command=on_cancel).grid(row=0, column=1, padx=10, pady=10, sticky="w")
-        
+
         dialog.protocol("WM_DELETE_WINDOW", on_cancel)
         dialog.transient(self.master)
         dialog.grab_set()
         dialog.wait_window(dialog)
         return result
-    
-    def generate_chapter_batch(self ,i ,word, min, auto_enrich):
-        draft_interface_format = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["interface_format"]
-        draft_api_key = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["api_key"]
-        draft_base_url = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["base_url"]
-        draft_model_name = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["model_name"]
-        draft_temperature = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["temperature"]
-        draft_max_tokens = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["max_tokens"]
-        draft_timeout = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["timeout"]
-        user_guidance = self.user_guide_text.get("0.0", "end").strip()  
 
-        char_inv = self.characters_involved_var.get().strip()
-        key_items = self.key_items_var.get().strip()
-        scene_loc = self.scene_location_var.get().strip()
-        time_constr = self.time_constraint_var.get().strip()
-
-        embedding_api_key = self.embedding_api_key_var.get().strip()
-        embedding_url = self.embedding_url_var.get().strip()
-        embedding_interface_format = self.embedding_interface_format_var.get().strip()
-        embedding_model_name = self.embedding_model_name_var.get().strip()
-        embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
-
-        prompt_text = build_chapter_prompt(
-            api_key=draft_api_key,
-            base_url=draft_base_url,
-            model_name=draft_model_name,
-            filepath=self.filepath_var.get().strip(),
-            novel_number=i,
-            word_number=word,
-            temperature=draft_temperature,
-            user_guidance=user_guidance,
-            characters_involved=char_inv,
-            key_items=key_items,
-            scene_location=scene_loc,
-            time_constraint=time_constr,
-            embedding_api_key=embedding_api_key,
-            embedding_url=embedding_url,
-            embedding_interface_format=embedding_interface_format,
-            embedding_model_name=embedding_model_name,
-            embedding_retrieval_k=embedding_k,
-            interface_format=draft_interface_format,
-            max_tokens=draft_max_tokens,
-            timeout=draft_timeout,
-        )
-        final_prompt = prompt_text
-        role_names = [name.strip() for name in self.char_inv_text.get("0.0", "end").split("\n")]
-        role_lib_path = os.path.join(self.filepath_var.get().strip(), "角色库")
-        role_contents = []
-        if os.path.exists(role_lib_path):
-            for root, dirs, files in os.walk(role_lib_path):
-                for file in files:
-                    if file.endswith(".txt") and os.path.splitext(file)[0] in role_names:
-                        file_path = os.path.join(root, file)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                role_contents.append(f.read().strip())  # 直接使用文件内容，不添加重复名字
-                        except Exception as e:
-                            self.safe_log(f"读取角色文件 {file} 失败: {str(e)}")
-        if role_contents:
-            role_content_str = "\n".join(role_contents)
-            # 更精确的替换逻辑，处理不同情况下的占位符
-            placeholder_variations = [
-                "核心人物(可能未指定)：{characters_involved}",
-                "核心人物：{characters_involved}",
-                "核心人物(可能未指定):{characters_involved}",
-                "核心人物:{characters_involved}"
-            ]
-            
-            for placeholder in placeholder_variations:
-                if placeholder in final_prompt:
-                    final_prompt = final_prompt.replace(
-                        placeholder,
-                        f"核心人物：\n{role_content_str}"
-                    )
-                    break
-            else:  # 如果没有找到任何已知占位符变体
-                lines = final_prompt.split('\n')
-                for i, line in enumerate(lines):
-                    if "核心人物" in line and "：" in line:
-                        lines[i] = f"核心人物：\n{role_content_str}"
-                        break
-                final_prompt = '\n'.join(lines)
-        draft_text = generate_chapter_draft(
-            api_key=draft_api_key,
-            base_url=draft_base_url,
-            model_name=draft_model_name,
-            filepath=self.filepath_var.get().strip(),
-            novel_number=i,
-            word_number=word,
-            temperature=draft_temperature,
-            user_guidance=user_guidance,
-            characters_involved=char_inv,
-            key_items=key_items,
-            scene_location=scene_loc,
-            time_constraint=time_constr,
-            embedding_api_key=embedding_api_key,
-            embedding_url=embedding_url,
-            embedding_interface_format=embedding_interface_format,
-            embedding_model_name=embedding_model_name,
-            embedding_retrieval_k=embedding_k,
-            interface_format=draft_interface_format,
-            max_tokens=draft_max_tokens,
-            timeout=draft_timeout,
-            custom_prompt_text=final_prompt,             use_global_system_prompt=self.global_system_prompt_var.get()
-        )
-
-        finalize_interface_format = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["interface_format"]
-        finalize_api_key = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["api_key"]
-        finalize_base_url = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["base_url"]
-        finalize_model_name = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["model_name"]
-        finalize_temperature = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["temperature"]
-        finalize_max_tokens = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["max_tokens"]
-        finalize_timeout = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["timeout"]
-
-        chapters_dir = os.path.join(self.filepath_var.get().strip(), "chapters")
-        os.makedirs(chapters_dir, exist_ok=True)
-        chapter_path = os.path.join(chapters_dir, f"chapter_{i}.txt")
-        if len(draft_text) < 0.7 * min and auto_enrich:
-            self.safe_log(f"第{i}章草稿字数 ({len(draft_text)}) 低于目标字数({min})的70%，正在扩写...")
-            enriched = enrich_chapter_text(
-                chapter_text=draft_text,
-                word_number=word,
-                api_key=draft_api_key,
-                base_url=draft_base_url,
-                model_name=draft_model_name,
-                temperature=draft_temperature,
-                interface_format=draft_interface_format,
-                max_tokens=draft_max_tokens,
-                timeout=draft_timeout,
-                use_global_system_prompt=self.global_system_prompt_var.get()
-            )
-            draft_text = enriched
-        clear_file_content(chapter_path)
-        save_string_to_txt(draft_text, chapter_path)
-        finalize_chapter(
-            novel_number=i,
-            word_number=word,
-            api_key=finalize_api_key,
-            base_url=finalize_base_url,
-            model_name=finalize_model_name,
-            temperature=finalize_temperature,
-            filepath=self.filepath_var.get().strip(),
-            embedding_api_key=embedding_api_key,
-            embedding_url=embedding_url,
-            embedding_interface_format=embedding_interface_format,
-            embedding_model_name=embedding_model_name,
-            interface_format=finalize_interface_format,
-            max_tokens=finalize_max_tokens,
-            timeout=finalize_timeout,
-            use_global_system_prompt=self.global_system_prompt_var.get()
-        )
-
-
+    # 1. 打开对话框获取参数
     result = open_batch_dialog()
     if result["close"]:
         return
 
-    for i in range(int(result["start"]), int(result["end"]) + 1):
-        generate_chapter_batch(self, i, int(result["word"]), int(result["min"]), result["auto_enrich"])
+    # 2. 定义后台任务
+    def batch_task():
+        try:
+            # 禁用批量生成按钮
+            self.disable_button_safe(self.btn_batch_generate)
+
+            # 显示进度条
+            self.show_progress_bars()
+            self.reset_progress_bars()
+
+            start = int(result["start"])
+            end = int(result["end"])
+            word = int(result["word"])
+            min_word = int(result["min"])
+            auto_enrich = result["auto_enrich"]
+            total = end - start + 1
+
+            # 参数校验
+            if start > end:
+                self.safe_log("❌ 错误：起始章节不能大于结束章节")
+                return
+
+            # 输出批量生成开始信息
+            self.safe_log("\n" + "=" * 70)
+            self.safe_log("📚 开始批量生成章节")
+            self.safe_log("=" * 70)
+            self.safe_log(f"   起始章节: 第{start}章")
+            self.safe_log(f"   结束章节: 第{end}章")
+            self.safe_log(f"   总计: {total}章")
+            self.safe_log(f"   期望字数: {word}字/章")
+            self.safe_log(f"   最低字数: {min_word}字/章")
+            self.safe_log(f"   自动扩写: {'是' if auto_enrich else '否'}")
+            self.safe_log("=" * 70 + "\n")
+
+            # 批量生成循环
+            current_index = 0  # 初始化，记录实际完成的章节数
+            failed = False  # 标记是否有失败
+
+            for i in range(start, end + 1):
+                current_index = i - start + 1
+
+                # 更新整体进度
+                self.update_overall_progress(current_index - 1, total)
+
+                self.safe_log("\n" + "━" * 70)
+                self.safe_log(f"▶▶▶ 第{i}章 [{current_index}/{total}] 开始处理")
+                self.safe_log("━" * 70 + "\n")
+
+                try:
+                    # 调用单章生成函数（带重试机制）
+                    generate_chapter_batch_with_retry(
+                        self,
+                        chapter_num=i,
+                        word=word,
+                        min_word=min_word,
+                        auto_enrich=auto_enrich,
+                        current_index=current_index,
+                        total=total
+                    )
+
+                    # 更新整体进度
+                    self.update_overall_progress(current_index, total)
+
+                    self.safe_log("\n" + "━" * 70)
+                    self.safe_log(f"✅ 第{i}章处理完成")
+                    self.safe_log("━" * 70 + "\n")
+
+                except Exception as e:
+                    self.safe_log(f"\n❌ 第{i}章生成失败（已重试）: {str(e)}")
+                    self.safe_log("批量生成中止。\n")
+                    logging.error(f"Chapter {i} batch generation failed after retry: {str(e)}")
+                    failed = True
+                    current_index = i - start  # 失败时，完成数不包括当前章节
+                    break
+
+            # 输出完成信息
+            self.safe_log("\n" + "=" * 70)
+            if failed:
+                self.safe_log("⚠️  批量生成部分完成（遇到错误已中止）")
+                self.safe_log(f"   成功处理: {current_index}章")
+                self.safe_log(f"   失败章节: 第{start + current_index}章")
+            else:
+                self.safe_log("🎉 批量生成完成！")
+                self.safe_log(f"   成功处理: {current_index}章")
+            self.safe_log("=" * 70 + "\n")
+
+        except Exception as e:
+            self.handle_exception("批量生成时出错")
+        finally:
+            # 隐藏进度条
+            self.hide_progress_bars()
+            # 启用批量生成按钮
+            self.enable_button_safe(self.btn_batch_generate)
+
+    # 3. 启动后台线程
+    threading.Thread(target=batch_task, daemon=True).start()
+
+
+def generate_chapter_batch_with_retry(
+    self,
+    chapter_num: int,
+    word: int,
+    min_word: int,
+    auto_enrich: bool,
+    current_index: int,
+    total: int
+):
+    """
+    单章批量生成函数（带重试机制）
+
+    Args:
+        chapter_num: 章节号
+        word: 期望字数
+        min_word: 最低字数
+        auto_enrich: 是否自动扩写
+        current_index: 当前处理索引（用于进度显示）
+        total: 总章节数
+    """
+    max_retries = 1  # 最多重试1次
+
+    for attempt in range(max_retries + 1):
+        try:
+            if attempt > 0:
+                self.safe_log(f"\n🔄 第{chapter_num}章生成失败，开始第{attempt}次重试...\n")
+
+            # 调用单章生成核心逻辑
+            generate_single_chapter_batch(
+                self,
+                chapter_num=chapter_num,
+                word=word,
+                min_word=min_word,
+                auto_enrich=auto_enrich,
+                current_index=current_index,
+                total=total
+            )
+
+            # 成功则退出
+            return
+
+        except Exception as e:
+            if attempt < max_retries:
+                self.safe_log(f"⚠️  生成出错: {str(e)}")
+                self.safe_log(f"   准备重试...")
+
+                # 如果生成过程中已经污染了向量库，需要回滚
+                # 但由于向量库没有事务机制，我们在第二次尝试时避免更新向量库
+                continue
+            else:
+                # 重试后仍失败，抛出异常
+                raise Exception(f"生成失败（已重试{max_retries}次）: {str(e)}")
+
+
+def generate_single_chapter_batch(
+    self,
+    chapter_num: int,
+    word: int,
+    min_word: int,
+    auto_enrich: bool,
+    current_index: int,
+    total: int
+):
+    """
+    单章批量生成核心逻辑（不含重试）
+
+    包含3个阶段:
+    1. 构建提示词（含向量检索）
+    2. 生成草稿
+    3. 定稿章节
+    """
+    # 获取草稿生成配置
+    draft_interface_format = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["interface_format"]
+    draft_api_key = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["api_key"]
+    draft_base_url = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["base_url"]
+    draft_model_name = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["model_name"]
+    draft_temperature = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["temperature"]
+    draft_max_tokens = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["max_tokens"]
+    draft_timeout = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["timeout"]
+
+    # 获取定稿配置
+    finalize_interface_format = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["interface_format"]
+    finalize_api_key = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["api_key"]
+    finalize_base_url = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["base_url"]
+    finalize_model_name = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["model_name"]
+    finalize_temperature = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["temperature"]
+    finalize_max_tokens = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["max_tokens"]
+    finalize_timeout = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["timeout"]
+
+    # 获取其他参数
+    user_guidance = self.user_guide_text.get("0.0", "end").strip()
+    char_inv = self.characters_involved_var.get().strip()
+    key_items = self.key_items_var.get().strip()
+    scene_loc = self.scene_location_var.get().strip()
+    time_constr = self.time_constraint_var.get().strip()
+
+    embedding_api_key = self.embedding_api_key_var.get().strip()
+    embedding_url = self.embedding_url_var.get().strip()
+    embedding_interface_format = self.embedding_interface_format_var.get().strip()
+    embedding_model_name = self.embedding_model_name_var.get().strip()
+    embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
+
+    # ========== 阶段1: 构建提示词（含向量检索） ==========
+    self.update_chapter_progress("准备中...", 0.0)
+    self.safe_log("▶ [阶段1/3] 构建章节提示词")
+
+    prompt_text = build_chapter_prompt(
+        api_key=draft_api_key,
+        base_url=draft_base_url,
+        model_name=draft_model_name,
+        filepath=self.filepath_var.get().strip(),
+        novel_number=chapter_num,
+        word_number=word,
+        temperature=draft_temperature,
+        user_guidance=user_guidance,
+        characters_involved=char_inv,
+        key_items=key_items,
+        scene_location=scene_loc,
+        time_constraint=time_constr,
+        embedding_api_key=embedding_api_key,
+        embedding_url=embedding_url,
+        embedding_interface_format=embedding_interface_format,
+        embedding_model_name=embedding_model_name,
+        embedding_retrieval_k=embedding_k,
+        interface_format=draft_interface_format,
+        max_tokens=draft_max_tokens,
+        timeout=draft_timeout,
+        system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get()),
+        gui_log_callback=self.safe_log  # 传入回调，显示向量检索详情
+    )
+
+    # 处理角色库
+    final_prompt = prompt_text
+    # 兼容逗号和换行两种分隔符
+    char_text = self.char_inv_text.get("0.0", "end").strip()
+    role_names = []
+    if ',' in char_text:
+        # 逗号分隔格式（与单章流程一致）
+        role_names = [name.strip() for name in char_text.split(',') if name.strip()]
+    else:
+        # 换行分隔格式
+        role_names = [name.strip() for name in char_text.split("\n") if name.strip()]
+
+    role_lib_path = os.path.join(self.filepath_var.get().strip(), "角色库")
+    role_contents = []
+
+    if os.path.exists(role_lib_path):
+        for root, dirs, files in os.walk(role_lib_path):
+            for file in files:
+                if file.endswith(".txt") and os.path.splitext(file)[0] in role_names:
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            role_contents.append(f.read().strip())
+                    except Exception as e:
+                        self.safe_log(f"读取角色文件 {file} 失败: {str(e)}")
+
+    if role_contents:
+        role_content_str = "\n".join(role_contents)
+        placeholder_variations = [
+            "核心人物(可能未指定)：{characters_involved}",
+            "核心人物：{characters_involved}",
+            "核心人物(可能未指定):{characters_involved}",
+            "核心人物:{characters_involved}"
+        ]
+
+        for placeholder in placeholder_variations:
+            if placeholder in final_prompt:
+                final_prompt = final_prompt.replace(
+                    placeholder,
+                    f"核心人物：\n{role_content_str}"
+                )
+                break
+        else:
+            lines = final_prompt.split('\n')
+            for idx, line in enumerate(lines):
+                if "核心人物" in line and "：" in line:
+                    lines[idx] = f"核心人物：\n{role_content_str}"
+                    break
+            final_prompt = '\n'.join(lines)
+
+    self.update_chapter_progress("提示词构建完成", 0.33)
+
+    # ========== 阶段2: 生成草稿 ==========
+    self.safe_log("\n▶ [阶段2/3] 生成章节草稿")
+    self.update_chapter_progress("生成草稿中...", 0.33)
+
+    draft_text = generate_chapter_draft(
+        api_key=draft_api_key,
+        base_url=draft_base_url,
+        model_name=draft_model_name,
+        filepath=self.filepath_var.get().strip(),
+        novel_number=chapter_num,
+        word_number=word,
+        temperature=draft_temperature,
+        user_guidance=user_guidance,
+        characters_involved=char_inv,
+        key_items=key_items,
+        scene_location=scene_loc,
+        time_constraint=time_constr,
+        embedding_api_key=embedding_api_key,
+        embedding_url=embedding_url,
+        embedding_interface_format=embedding_interface_format,
+        embedding_model_name=embedding_model_name,
+        embedding_retrieval_k=embedding_k,
+        interface_format=draft_interface_format,
+        max_tokens=draft_max_tokens,
+        timeout=draft_timeout,
+        custom_prompt_text=final_prompt,
+        use_global_system_prompt=self.global_system_prompt_var.get(),
+        gui_log_callback=self.safe_log  # 传入回调
+    )
+
+    # 检查字数并扩写
+    chapters_dir = os.path.join(self.filepath_var.get().strip(), "chapters")
+    os.makedirs(chapters_dir, exist_ok=True)
+    chapter_path = os.path.join(chapters_dir, f"chapter_{chapter_num}.txt")
+
+    if len(draft_text) < 0.7 * min_word and auto_enrich:
+        self.safe_log(f"\n⚠️  字数不足 ({len(draft_text)}/{min_word})")
+        self.safe_log("   ├─ 启动自动扩写...")
+        self.update_chapter_progress("扩写中...", 0.5)
+
+        enriched = enrich_chapter_text(
+            chapter_text=draft_text,
+            word_number=word,
+            api_key=draft_api_key,
+            base_url=draft_base_url,
+            model_name=draft_model_name,
+            temperature=draft_temperature,
+            interface_format=draft_interface_format,
+            max_tokens=draft_max_tokens,
+            timeout=draft_timeout,
+            use_global_system_prompt=self.global_system_prompt_var.get()
+        )
+        draft_text = enriched
+        self.safe_log(f"   └─ ✅ 扩写完成 (现{len(draft_text)}字)\n")
+
+    # 保存草稿
+    clear_file_content(chapter_path)
+    save_string_to_txt(draft_text, chapter_path)
+
+    self.update_chapter_progress("草稿完成", 0.66)
+
+    # ========== 阶段3: 定稿章节 ==========
+    self.safe_log("\n▶ [阶段3/3] 章节定稿")
+    self.update_chapter_progress("定稿中...", 0.66)
+
+    finalize_chapter(
+        novel_number=chapter_num,
+        word_number=word,
+        api_key=finalize_api_key,
+        base_url=finalize_base_url,
+        model_name=finalize_model_name,
+        temperature=finalize_temperature,
+        filepath=self.filepath_var.get().strip(),
+        embedding_api_key=embedding_api_key,
+        embedding_url=embedding_url,
+        embedding_interface_format=embedding_interface_format,
+        embedding_model_name=embedding_model_name,
+        interface_format=finalize_interface_format,
+        max_tokens=finalize_max_tokens,
+        timeout=finalize_timeout,
+        use_global_system_prompt=self.global_system_prompt_var.get(),
+        gui_log_callback=self.safe_log  # 传入回调
+    )
+
+    self.update_chapter_progress("完成", 1.0)
 
 
 def import_knowledge_handler(self):

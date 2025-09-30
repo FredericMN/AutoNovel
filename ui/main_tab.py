@@ -30,7 +30,8 @@ def build_left_layout(self):
     self.left_frame.grid_rowconfigure(1, weight=2)
     self.left_frame.grid_rowconfigure(2, weight=0)
     self.left_frame.grid_rowconfigure(3, weight=0)
-    self.left_frame.grid_rowconfigure(4, weight=1)
+    self.left_frame.grid_rowconfigure(4, weight=0)  # 进度条区域
+    self.left_frame.grid_rowconfigure(5, weight=1)
     self.left_frame.columnconfigure(0, weight=1)
 
     self.chapter_label = ctk.CTkLabel(self.left_frame, text="本章内容（可编辑）  字数：0", font=("Microsoft YaHei", 12))
@@ -97,14 +98,55 @@ def build_left_layout(self):
     )
     self.btn_batch_generate.grid(row=0, column=4, padx=5, pady=2, sticky="ew")
 
+    # 进度条区域（默认隐藏）
+    self.progress_frame = ctk.CTkFrame(self.left_frame)
+    self.progress_frame.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
+    self.progress_frame.columnconfigure(0, weight=1)
+    self.progress_frame.grid_remove()  # 默认隐藏
+
+    # 整体进度标签
+    self.overall_progress_label = ctk.CTkLabel(
+        self.progress_frame,
+        text="整体进度: 0/0 (0%)",
+        font=("Microsoft YaHei", 11, "bold"),
+        anchor="w"
+    )
+    self.overall_progress_label.grid(row=0, column=0, padx=5, pady=(5, 2), sticky="w")
+
+    # 整体进度条（较大）
+    self.overall_progress_bar = ctk.CTkProgressBar(
+        self.progress_frame,
+        height=18,
+        corner_radius=9
+    )
+    self.overall_progress_bar.grid(row=1, column=0, padx=5, pady=(0, 8), sticky="ew")
+    self.overall_progress_bar.set(0)
+
+    # 当前章节进度标签
+    self.chapter_progress_label = ctk.CTkLabel(
+        self.progress_frame,
+        text="当前章节: 准备中...",
+        font=("Microsoft YaHei", 10),
+        anchor="w"
+    )
+    self.chapter_progress_label.grid(row=2, column=0, padx=5, pady=(0, 2), sticky="w")
+
+    # 当前章节进度条（较小）
+    self.chapter_progress_bar = ctk.CTkProgressBar(
+        self.progress_frame,
+        height=12,
+        corner_radius=6
+    )
+    self.chapter_progress_bar.grid(row=3, column=0, padx=5, pady=(0, 5), sticky="ew")
+    self.chapter_progress_bar.set(0)
 
     # 日志文本框
     log_label = ctk.CTkLabel(self.left_frame, text="输出日志 (只读)", font=("Microsoft YaHei", 12))
-    log_label.grid(row=3, column=0, padx=5, pady=(5, 0), sticky="w")
+    log_label.grid(row=4, column=0, padx=5, pady=(5, 0), sticky="w")
 
     self.log_text = ctk.CTkTextbox(self.left_frame, wrap="word", font=("Microsoft YaHei", 12))
     TextWidgetContextMenu(self.log_text)
-    self.log_text.grid(row=4, column=0, sticky="nsew", padx=5, pady=(0, 5))
+    self.log_text.grid(row=5, column=0, sticky="nsew", padx=5, pady=(0, 5))
     self.log_text.configure(state="disabled")
 
 def build_right_layout(self):
