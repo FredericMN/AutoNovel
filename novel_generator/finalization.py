@@ -241,6 +241,15 @@ def finalize_chapter(
 
     gui_log("▶ [3/3] 插入向量库")
     gui_log("   ├─ 切分章节文本...")
+
+    # 计算卷号（用于向量检索优化）
+    volume_num = None
+    if num_volumes > 1 and total_chapters > 0:
+        from volume_utils import get_volume_number, calculate_volume_ranges
+        volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+        volume_num = get_volume_number(novel_number, volume_ranges)
+        gui_log(f"   ├─ 章节元数据: chapter={novel_number}, volume={volume_num}")
+
     update_vector_store(
         embedding_adapter=create_embedding_adapter(
             embedding_interface_format,
@@ -249,7 +258,9 @@ def finalize_chapter(
             embedding_model_name
         ),
         new_chapter=chapter_text,
-        filepath=filepath
+        filepath=filepath,
+        chapter_num=novel_number,  # 新增：章节号
+        volume_num=volume_num  # 新增：卷号
     )
     gui_log("   └─ ✅ 向量库更新完成\n")
 

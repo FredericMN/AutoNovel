@@ -50,16 +50,28 @@ def clear_vector_store(filepath: str) -> bool:
         traceback.print_exc()
         return False
 
-def init_vector_store(embedding_adapter, texts, filepath: str):
+def init_vector_store(embedding_adapter, texts=None, filepath: str = None, documents=None):
     """
-    在 filepath 下创建/加载一个 Chroma 向量库并插入 texts。
+    在 filepath 下创建/加载一个 Chroma 向量库并插入 texts 或 documents。
     如果Embedding失败，则返回 None，不中断任务。
+
+    Args:
+        embedding_adapter: Embedding 适配器
+        texts: 文本列表（如果 documents 未提供）
+        filepath: 小说保存路径
+        documents: Document 对象列表（优先使用，可包含元数据）
     """
     from langchain.embeddings.base import Embeddings as LCEmbeddings
 
     store_dir = get_vectorstore_dir(filepath)
     os.makedirs(store_dir, exist_ok=True)
-    documents = [Document(page_content=str(t)) for t in texts]
+
+    # 优先使用 documents，否则从 texts 创建
+    if documents is None:
+        if texts is None:
+            logging.error("Both texts and documents are None. Cannot init vector store.")
+            return None
+        documents = [Document(page_content=str(t)) for t in texts]
 
     try:
         class LCEmbeddingWrapper(LCEmbeddings):
@@ -185,10 +197,17 @@ def split_text_for_vectorstore(chapter_text: str, max_length: int = 500, similar
         final_segments.append(" ".join(current_segment))
 
     return final_segments
-def update_vector_store(embedding_adapter, new_chapter: str, filepath: str):
+def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chapter_num: int = None, volume_num: int = None):
     """
     将最新章节文本插入到向量库中。
     若库不存在则初始化；若初始化/更新失败，则跳过。
+
+    Args:
+        embedding_adapter: Embedding 适配器
+        new_chapter: 章节文本
+        filepath: 小说保存路径
+        chapter_num: 章节号（用于元数据，可选）
+        volume_num: 卷号（用于分卷检索，可选）
     """
     from utils import read_file, clear_file_content, save_string_to_txt
     splitted_texts = split_text_for_vectorstore(new_chapter)
@@ -199,55 +218,57 @@ def update_vector_store(embedding_adapter, new_chapter: str, filepath: str):
     store = load_vector_store(embedding_adapter, filepath)
     if not store:
         logging.info("Vector store does not exist or failed to load. Initializing a new one for new chapter...")
-        store = init_vector_store(embedding_adapter, splitted_texts, filepath)
+
+        # 初始化时也需要添加元数据
+        metadata = {}
+        if chapter_num is not None:
+            metadata["chapter"] = chapter_num
+        if volume_num is not None:
+            metadata["volume"] = volume_num
+
+        # 创建带元数据的文档
+        docs = [Document(page_content=str(t), metadata=metadata) for t in splitted_texts]
+        store = init_vector_store(embedding_adapter, filepath=filepath, documents=docs)
+
         if not store:
             logging.warning("Init vector store failed, skip embedding.")
         else:
-            logging.info("New vector store created successfully.")
+            logging.info(f"New vector store created successfully with metadata: chapter={chapter_num}, volume={volume_num}")
         return
 
     try:
-        docs = [Document(page_content=str(t)) for t in splitted_texts]
+        # 构建元数据字典
+        metadata = {}
+        if chapter_num is not None:
+            metadata["chapter"] = chapter_num
+        if volume_num is not None:
+            metadata["volume"] = volume_num
+
+        # 创建带元数据的文档
+        docs = [Document(page_content=str(t), metadata=metadata) for t in splitted_texts]
         store.add_documents(docs)
-        logging.info("Vector store updated with the new chapter splitted segments.")
+
+        if metadata:
+            logging.info(f"Vector store updated with metadata: {metadata}")
+        else:
+            logging.info("Vector store updated with the new chapter splitted segments.")
     except Exception as e:
         logging.warning(f"Failed to update vector store: {e}")
         traceback.print_exc()
-
-def get_relevant_context_from_vector_store(embedding_adapter, query: str, filepath: str, k: int = 2) -> str:
-    """
-    从向量库中检索与 query 最相关的 k 条文本，拼接后返回。
-    如果向量库加载/检索失败，则返回空字符串。
-    最终只返回最多2000字符的检索片段。
-    """
-    store = load_vector_store(embedding_adapter, filepath)
-    if not store:
-        logging.info("No vector store found or load failed. Returning empty context.")
-        return ""
-
-    try:
-        docs = store.similarity_search(query, k=k)
-        if not docs:
-            logging.info(f"No relevant documents found for query '{query}'. Returning empty context.")
-            return ""
-        combined = "\n".join([d.page_content for d in docs])
-        if len(combined) > 2000:
-            combined = combined[:2000]
-        return combined
-    except Exception as e:
-        logging.warning(f"Similarity search failed: {e}")
-        traceback.print_exc()
-        return ""
 
 def get_relevant_contexts_deduplicated(
     embedding_adapter,
     query_groups: list,
     filepath: str,
     k_per_group: int = 2,
-    max_total_results: int = None
+    max_total_results: int = None,
+    current_chapter: int = None,  # 新增：当前章节号
+    num_volumes: int = 0,  # 新增：总卷数
+    total_chapters: int = 0  # 新增：总章节数
 ) -> list:
     """
     对多组关键词执行向量检索并去重,返回去重后的文档内容列表。
+    支持分卷模式下的按卷优先检索。
 
     Args:
         embedding_adapter: Embedding适配器
@@ -255,6 +276,9 @@ def get_relevant_contexts_deduplicated(
         filepath: 项目文件路径
         k_per_group: 每组关键词检索的文档数量
         max_total_results: 最大返回结果数(None表示不限制)
+        current_chapter: 当前章节号（用于分卷检索）
+        num_volumes: 总卷数（>1 时启用分卷检索）
+        total_chapters: 总章节数（用于计算卷范围）
 
     Returns:
         list: 去重后的文档内容列表,每个元素为 {"content": str, "queries": [str], "type": str}
@@ -270,6 +294,20 @@ def get_relevant_contexts_deduplicated(
         if collection_size == 0:
             logging.info("Vector store is empty. Returning empty list.")
             return []
+
+        # 检查是否启用分卷检索
+        use_volume_filter = (
+            num_volumes > 1 and
+            current_chapter is not None and
+            total_chapters > 0
+        )
+
+        current_vol = None
+        if use_volume_filter:
+            from volume_utils import get_volume_number, calculate_volume_ranges
+            volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+            current_vol = get_volume_number(current_chapter, volume_ranges)
+            logging.info(f"启用分卷检索：当前章节{current_chapter}位于第{current_vol}卷")
 
         # 动态调整每组检索数量
         # 如果关键词组很多,减少每组数量避免过度检索
@@ -288,8 +326,33 @@ def get_relevant_contexts_deduplicated(
         seen_hashes = set()
 
         for query in query_groups:
-            # 检索文档
-            docs = store.similarity_search(query, k=adjusted_k)
+            # 分卷检索：当前卷优先
+            if use_volume_filter and current_vol is not None and current_vol > 0:
+                try:
+                    # 当前卷检索（adjusted_k - 1 条）
+                    current_vol_docs = store.similarity_search(
+                        query,
+                        k=max(1, adjusted_k - 1),
+                        filter={"volume": current_vol}
+                    )
+                    docs = current_vol_docs
+
+                    # 前一卷检索（1 条，如果存在）
+                    if current_vol > 1:
+                        prev_vol_docs = store.similarity_search(
+                            query,
+                            k=1,
+                            filter={"volume": current_vol - 1}
+                        )
+                        docs.extend(prev_vol_docs)
+
+                except Exception as e:
+                    # 降级：如果元数据过滤失败（旧向量库无元数据），使用普通检索
+                    logging.warning(f"分卷检索失败，降级为普通检索: {e}")
+                    docs = store.similarity_search(query, k=adjusted_k)
+            else:
+                # 普通检索
+                docs = store.similarity_search(query, k=adjusted_k)
 
             for doc in docs:
                 content = doc.page_content

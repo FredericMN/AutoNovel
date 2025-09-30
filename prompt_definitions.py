@@ -342,6 +342,9 @@ volume_chapter_blueprint_prompt = """\
 以及本卷的架构规划：
 {volume_architecture}
 
+前序卷实际发展（如有）：
+{previous_volumes_summary}
+
 当前需要为【第{volume_number}卷】生成章节蓝图，该卷包含第{volume_start}-{volume_end}章（共{volume_chapter_count}章）。
 
 章节蓝图生成要求：

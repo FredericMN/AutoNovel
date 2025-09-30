@@ -166,6 +166,25 @@ def Chapter_blueprint_generate(
             gui_log(f"▶ [卷{vol_idx}/{num_volumes}] 生成第{actual_start}-{vol_end}章 (共{vol_chapter_count}章)")
             gui_log(f"   ├─ 构建分卷提示词...")
 
+            # 读取前序卷摘要（用于保持设定一致性，避免细节漂移）
+            previous_volumes_summary = ""
+            if vol_idx > 1:
+                for i in range(1, vol_idx):
+                    summary_file = os.path.join(filepath, f"volume_{i}_summary.txt")
+                    if os.path.exists(summary_file):
+                        prev_vol_summary = read_file(summary_file).strip()
+                        if prev_vol_summary:
+                            previous_volumes_summary += f"═══ 第{i}卷实际发展 ═══\n{prev_vol_summary}\n\n"
+
+                # 降级策略：如果前序卷摘要不存在，尝试使用 global_summary
+                if not previous_volumes_summary:
+                    global_summary_file = os.path.join(filepath, "global_summary.txt")
+                    if os.path.exists(global_summary_file):
+                        global_summary_content = read_file(global_summary_file).strip()
+                        if global_summary_content:
+                            previous_volumes_summary = f"前序剧情摘要（全局）：\n{global_summary_content}"
+                            gui_log(f"   ├─ ⚠ 前序卷摘要不存在，使用全局摘要降级")
+
             volume_prompt = volume_chapter_blueprint_prompt.format(
                 novel_architecture=architecture_text,
                 volume_architecture=volume_architecture_text,
@@ -173,6 +192,7 @@ def Chapter_blueprint_generate(
                 volume_start=actual_start,
                 volume_end=vol_end,
                 volume_chapter_count=vol_chapter_count,
+                previous_volumes_summary=previous_volumes_summary,  # 新增
                 user_guidance=user_guidance
             )
 

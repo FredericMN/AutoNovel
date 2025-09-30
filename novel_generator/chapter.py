@@ -19,10 +19,7 @@ from prompt_definitions import (
 from chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
-from novel_generator.vectorstore_utils import (
-    get_relevant_context_from_vector_store,
-    load_vector_store  # 添加导入
-)
+from novel_generator.vectorstore_utils import load_vector_store
 from volume_utils import get_volume_number, is_volume_last_chapter  # 新增：分卷工具函数
 logging.basicConfig(
     filename='app.log',      # 日志文件名
@@ -764,23 +761,47 @@ def build_chapter_prompt(
 
         if volume_context["is_volume_first_chapter"]:
             volume_info_parts.append("章节定位：本卷首章")
-            if volume_context["volume_summary"]:
-                # 截取前500字符，避免过长
-                summary_preview = volume_context['volume_summary'][:500]
-                volume_info_parts.append(f"前一卷摘要：\n{summary_preview}{'...' if len(volume_context['volume_summary']) > 500 else ''}")
+            # 注：前一卷摘要已通过"前文摘要"字段完整提供（line 779），此处不重复注入
         elif volume_context["is_volume_last_chapter"]:
             volume_info_parts.append("章节定位：本卷末章（需为本卷收尾）")
 
         volume_info_text = "\n".join(volume_info_parts)
 
-        # 如果是分卷模式，优先使用卷摘要而不是全局摘要
+        # 渐进式遗忘策略：平滑过渡前一卷与当前卷的上下文权重
+        # 计算当前章节距离卷首的偏移量
+        from volume_utils import calculate_volume_ranges
+        volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+        vol_start, vol_end = volume_ranges[volume_context["volume_number"] - 1]
+        chapters_since_volume_start = novel_number - vol_start + 1
+
         if volume_context["is_volume_first_chapter"] and volume_context["volume_summary"]:
-            # 卷首章使用前一卷摘要
+            # 卷首章（偏移=1）：前一卷摘要 100%
             global_summary_text = volume_context["volume_summary"]
+            logging.info(f"第{novel_number}章使用前一卷完整摘要")
+
+        elif 2 <= chapters_since_volume_start <= 5 and volume_context["volume_summary"]:
+            # 第2-5章：渐进式遗忘，前一卷简要 + 当前卷滚动摘要
+            prev_brief = volume_context["volume_summary"][:400]  # 截取400字
+            ellipsis = "..." if len(volume_context["volume_summary"]) > 400 else ""
+
+            # 拼接前一卷简要与当前卷摘要
+            combined_summary = f"【前一卷简要回顾】\n{prev_brief}{ellipsis}\n\n"
+
+            # 添加当前卷滚动摘要（优先使用 current_volume_summary，否则使用 global_summary）
+            if volume_context["current_volume_summary"]:
+                combined_summary += f"【本卷已发展】\n{volume_context['current_volume_summary']}"
+            else:
+                combined_summary += f"【本卷已发展】\n{global_summary_text}"
+
+            global_summary_text = combined_summary
+            logging.info(f"第{novel_number}章使用渐进式遗忘策略（卷内第{chapters_since_volume_start}章）")
+
         elif volume_context["current_volume_summary"]:
-            # 卷内其他章节使用当前卷摘要（如果存在）
+            # 第6章+：仅当前卷滚动摘要
             global_summary_text = volume_context["current_volume_summary"]
-        # 否则继续使用全局摘要
+            logging.info(f"第{novel_number}章使用当前卷滚动摘要")
+
+        # 否则继续使用全局摘要（默认）
     else:
         # 非分卷模式：不显示分卷信息
         volume_info_text = ""
@@ -866,13 +887,16 @@ def build_chapter_prompt(
         )
 
         gui_log("   ├─ 执行向量检索...")
-        # 使用新的去重检索函数
+        # 使用新的去重检索函数（支持分卷检索）
         retrieved_docs = get_relevant_contexts_deduplicated(
             embedding_adapter=embedding_adapter,
             query_groups=keyword_groups,
             filepath=filepath,
             k_per_group=embedding_retrieval_k,
-            max_total_results=embedding_retrieval_k * len(keyword_groups) if keyword_groups else 10
+            max_total_results=embedding_retrieval_k * len(keyword_groups) if keyword_groups else 10,
+            current_chapter=novel_number,  # 新增：当前章节号
+            num_volumes=num_volumes,  # 新增：总卷数
+            total_chapters=total_chapters  # 新增：总章节数
         )
 
         # 记录检索统计
