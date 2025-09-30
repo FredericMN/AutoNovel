@@ -8,7 +8,7 @@ def build_main_tab(self):
     """
     主Tab包含三段式布局：左侧本章内容、中间日志与按钮、右侧小说参数
     """
-    self.main_tab = self.tabview.add("Main Functions")
+    self.main_tab = self.tabview.add("主界面")
     self.main_tab.rowconfigure(0, weight=1)
 
     # 配置三段列宽：每段最小300px，默认500px，权重相等

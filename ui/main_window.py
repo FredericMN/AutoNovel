@@ -41,9 +41,11 @@ from ui.generation_handlers import (
     show_vectorstore_report
 )
 from ui.setting_tab import build_setting_tab, load_novel_architecture, save_novel_architecture
+from ui.volume_architecture_tab import build_volume_architecture_tab, load_volume_architecture, save_volume_architecture
 from ui.directory_tab import build_directory_tab, load_chapter_blueprint, save_chapter_blueprint
 from ui.character_tab import build_character_tab, load_character_state, save_character_state
 from ui.summary_tab import build_summary_tab, load_global_summary, save_global_summary
+from ui.volume_summary_tab import build_volume_summary_tab, refresh_volume_list, load_volume_summary, save_volume_summary, on_volume_selected
 from ui.chapters_tab import build_chapters_tab, refresh_chapters_list, on_chapter_selected, load_chapter_content, save_current_chapter, prev_chapter, next_chapter
 from ui.settings_tab import build_settings_tab
 
@@ -182,9 +184,11 @@ class NovelGeneratorGUI:
         build_novel_params_area(self, start_row=0)
         build_optional_buttons_area(self, start_row=1)
         build_setting_tab(self)
+        build_volume_architecture_tab(self)
         build_directory_tab(self)
         build_character_tab(self)
         build_summary_tab(self)
+        build_volume_summary_tab(self)
         build_chapters_tab(self)
         build_settings_tab(self)
 
@@ -778,12 +782,18 @@ class NovelGeneratorGUI:
     show_plot_arcs_ui = show_plot_arcs_ui
     load_novel_architecture = load_novel_architecture
     save_novel_architecture = save_novel_architecture
+    load_volume_architecture = load_volume_architecture
+    save_volume_architecture = save_volume_architecture
     load_chapter_blueprint = load_chapter_blueprint
     save_chapter_blueprint = save_chapter_blueprint
     load_character_state = load_character_state
     save_character_state = save_character_state
     load_global_summary = load_global_summary
     save_global_summary = save_global_summary
+    refresh_volume_list = refresh_volume_list
+    load_volume_summary = load_volume_summary
+    save_volume_summary = save_volume_summary
+    on_volume_selected = on_volume_selected
     refresh_chapters_list = refresh_chapters_list
     on_chapter_selected = on_chapter_selected
     save_current_chapter = save_current_chapter

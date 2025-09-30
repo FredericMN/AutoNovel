@@ -26,9 +26,15 @@ AutoNovel 是一个基于大语言模型的自动小说生成工具,支持多种
 - **main_window.py**: 主窗口和应用入口
 - **generation_handlers.py**: 所有生成操作的 UI 线程处理逻辑
 - **config_tab.py**: LLM 和 Embedding 配置界面
-- **main_tab.py**: 主操作面板(四步生成流程)
-- **chapters_tab.py**: 章节预览和编辑
-- **character_tab.py**: 角色库管理
+- **main_tab.py**: 主操作面板(主界面页签)
+- **setting_tab.py**: 小说架构查看/编辑(Novel_architecture.txt)
+- **volume_architecture_tab.py**: 分卷架构查看/编辑(Volume_architecture.txt)
+- **directory_tab.py**: 目录蓝图查看/编辑(Novel_directory.txt)
+- **character_tab.py**: 角色状态查看/编辑(character_state.txt)
+- **summary_tab.py**: 全局概要查看/编辑(global_summary.txt)
+- **volume_summary_tab.py**: 分卷概要查看/编辑(volume_X_summary.txt,支持多卷分页)
+- **chapters_tab.py**: 章节管理(章节预览和编辑)
+- **settings_tab.py**: 设置页签(所有配置项)
 - **role_library.py**: 角色设定模板
 
 ### 根目录核心文件
@@ -49,8 +55,15 @@ pip install -r requirements.txt
 
 ### 运行应用
 ```bash
-python main.py  # 启动 GUI
+# ⚠️ 重要：请勿直接运行 python main.py 测试GUI
+# 应使用虚拟环境启动脚本测试前端功能
+D:\project\AutoNovel\run_gui.bat
 ```
+
+**测试说明**：
+- 直接运行 `python main.py` 可能因缺少依赖导致失败
+- 项目已配置虚拟环境和依赖，使用 `run_gui.bat` 启动即可
+- 如需验证GUI功能，请调用 `run_gui.bat` 启动测试
 
 ### 日志查看
 生成过程中所有日志写入 `app.log`,可实时查看后台进度和错误。
@@ -115,10 +128,38 @@ pyinstaller main.spec  # 生成 dist/main.exe
 ## 生成流程输出文件
 所有文件保存在用户指定的 `filepath` 目录:
 - `Novel_architecture.txt`: 世界观、角色、剧情架构
+- `Volume_architecture.txt`: 分卷架构(仅分卷模式)
 - `Novel_directory.txt`: 所有章节的标题和大纲
 - `chapter_X.txt`: 第 X 章正文
 - `outline_X.txt`: 第 X 章大纲
 - `global_summary.txt`: 全局摘要
+- `volume_X_summary.txt`: 第 X 卷摘要(仅分卷模式,可能多个)
 - `character_state.txt`: 角色状态变化
 - `plot_arcs.txt`: 剧情要点
 - `vectorstore/`: Chroma 向量数据库存储
+
+## 最新功能更新
+
+### 分卷功能支持 (2025-09-30)
+项目现已全面支持分卷模式，包含以下增强：
+
+**后端功能**：
+- 支持多卷小说生成，每卷独立架构和摘要
+- 自动生成分卷架构文件 `Volume_architecture.txt`
+- 为每卷生成独立摘要 `volume_X_summary.txt`
+
+**前端功能**：
+- 新增**分卷架构**页签：查看/编辑 `Volume_architecture.txt`
+- 新增**分卷概要**页签：支持多卷切换查看，使用 `CTkSegmentedButton` 实现分卷选择器
+- 所有页签已汉化：主界面、小说架构、分卷架构、目录蓝图、角色状态、全局概要、分卷概要、章节管理、设置
+
+**页签布局顺序**：
+1. 主界面 (Main Functions)
+2. 小说架构 (Novel Architecture)
+3. 分卷架构 (Volume Architecture) - 新增
+4. 目录蓝图 (Chapter Blueprint)
+5. 角色状态 (Character State)
+6. 全局概要 (Global Summary)
+7. 分卷概要 (Volume Summary) - 新增
+8. 章节管理 (Chapters Manage)
+9. 设置 (Settings)

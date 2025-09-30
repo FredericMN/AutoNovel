@@ -31,7 +31,7 @@ def build_settings_tab(self):
     构建 Settings 标签页，整合所有配置
     使用 ScrollableFrame 包含多个配置区域，直接依次排列
     """
-    self.settings_tab = self.tabview.add("Settings")
+    self.settings_tab = self.tabview.add("设置")
     self.settings_tab.rowconfigure(0, weight=1)
     self.settings_tab.columnconfigure(0, weight=1)
 
