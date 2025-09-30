@@ -67,7 +67,8 @@ def Novel_architecture_generate(
     use_global_system_prompt: bool = False,
     temperature: float = 0.7,
     max_tokens: int = 2048,
-    timeout: int = 600
+    timeout: int = 600,
+    gui_log_callback=None  # 新增GUI日志回调
 ) -> None:
     """
     依次调用:
@@ -95,8 +96,23 @@ def Novel_architecture_generate(
         timeout=timeout
     )
     system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+
+    # GUI日志辅助函数
+    def gui_log(msg):
+        if gui_log_callback:
+            gui_log_callback(msg)
+        logging.info(msg)
+
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log("📚 开始生成小说架构")
+    gui_log(f"   主题: {topic} | 类型: {genre}")
+    gui_log(f"   章节数: {number_of_chapters} | 每章字数: {word_number}")
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
     # Step1: 核心种子
     if "core_seed_result" not in partial_data:
+        gui_log("▶ [1/5] 核心种子生成")
+        gui_log("   ├─ 分析主题与类型...")
         logging.info("Step1: Generating core_seed_prompt (核心种子) ...")
         prompt_core = core_seed_prompt.format(
             topic=topic,

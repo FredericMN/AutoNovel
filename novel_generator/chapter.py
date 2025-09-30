@@ -304,22 +304,114 @@ def format_chapter_info(chapter_info: dict) -> str:
     )
 
 def parse_search_keywords(response_text: str) -> list:
-    """解析新版关键词格式（示例输入：'科技公司·数据泄露\n地下实验室·基因编辑'）"""
-    return [
+    """
+    解析检索关键词，支持多种格式并提供兜底策略
+
+    标准格式：'科技公司·数据泄露\n地下实验室·基因编辑'
+    兜底支持：
+    - 空格分隔："科技公司 数据泄露"
+    - 顿号分隔："科技公司、数据泄露"
+    - 连字符："科技公司-数据泄露"
+    - 纯文本行（作为单个关键词组）
+
+    Returns:
+        list: 关键词组列表，最多5组，空响应返回空列表
+    """
+    if not response_text or not response_text.strip():
+        logging.warning("parse_search_keywords: Empty response, returning empty list")
+        return []
+
+    response_text = response_text.strip()
+
+    # 策略1: 标准格式 - 包含中文间隔号·的行
+    keywords = [
         line.strip().replace('·', ' ')
-        for line in response_text.strip().split('\n')
-        if '·' in line
-    ][:5]  # 最多取5组
+        for line in response_text.split('\n')
+        if '·' in line and line.strip()
+    ][:5]
+
+    if keywords:
+        logging.info(f"parse_search_keywords: Extracted {len(keywords)} keywords using standard format (·)")
+        return keywords
+
+    # 策略2: 兜底格式1 - 包含其他分隔符（、- : |）
+    fallback_separators = ['、', '-', ':', '|']
+    for sep in fallback_separators:
+        keywords = [
+            line.strip().replace(sep, ' ')
+            for line in response_text.split('\n')
+            if sep in line and line.strip()
+        ][:5]
+
+        if keywords:
+            logging.warning(f"parse_search_keywords: Using fallback separator '{sep}', extracted {len(keywords)} keywords")
+            return keywords
+
+    # 策略3: 兜底格式2 - 按行分割（每行作为一个关键词组）
+    lines = [line.strip() for line in response_text.split('\n') if line.strip()]
+
+    # 过滤掉明显不是关键词的行（如标题、说明文字）
+    # 放宽长度限制，允许2字符短关键词（如"AI""VR""秦朝"）
+    valid_lines = []
+    filtered_lines = []  # 记录被过滤的行
+
+    for line in lines:
+        # 允许长度2-50的行
+        if not (2 <= len(line) <= 50):
+            filtered_lines.append((line, "length"))
+            continue
+
+        # 排除明显的标题和说明文字
+        if line.startswith(('注', '说明', '备注', '#', '*', '提示', '关键词', '检索')):
+            filtered_lines.append((line, "prefix"))
+            continue
+
+        if line.endswith(('：', ':')):
+            filtered_lines.append((line, "suffix"))
+            continue
+
+        valid_lines.append(line)
+
+    # 记录被过滤的行到日志（仅记录前3个，避免日志过长）
+    if filtered_lines:
+        sample = filtered_lines[:3]
+        logging.debug(f"parse_search_keywords: Filtered {len(filtered_lines)} lines, sample: {sample}")
+
+    if valid_lines:
+        keywords = valid_lines[:5]
+        logging.warning(f"parse_search_keywords: Using line-based fallback, extracted {len(keywords)} keywords")
+        return keywords
+
+    # 策略4: 最终兜底 - 使用整个响应作为单个关键词（截断到合理长度）
+    if len(response_text) <= 100:
+        logging.error(f"parse_search_keywords: All parsing strategies failed, using entire response as single keyword: '{response_text[:50]}...'")
+        return [response_text]
+    else:
+        # 响应过长，可能是LLM输出了段落而非关键词，记录错误并返回空
+        logging.error(f"parse_search_keywords: Response too long ({len(response_text)} chars) and no valid format detected. Response preview: '{response_text[:100]}...'")
+        return []
 
 def extract_chapter_numbers(text: str) -> list:
-    """从文本中提取章节编号"""
-    # 匹配"第X章"或"chapter_X"格式
-    if re.search(r'第[\d]+章', text):
-        return list(map(int, re.findall(r'第([\d]+)章', text)))
-    elif re.search(r'chapter_[\d]+', text):
-        return list(map(int, re.findall(r'chapter_([\d]+)', text)))
-    # 兜底:尝试提取所有数字
-    return [int(s) for s in re.findall(r'\d+', text) if s.isdigit()]
+    """
+    从文本中提取章节编号
+
+    支持格式：
+    - 第N章 / 第 N 章（允许空格）
+    - chapter_N / chapter N / Chapter N（允许空格和下划线，不区分大小写）
+    """
+    # 匹配"第N章"格式（允许空格）
+    if re.search(r'第\s*\d+\s*章', text):
+        return list(map(int, re.findall(r'第\s*(\d+)\s*章', text)))
+
+    # 匹配"chapter N"格式（允许空格/下划线，不区分大小写）
+    elif re.search(r'chapter[_\s]*\d+', text, re.IGNORECASE):
+        return list(map(int, re.findall(r'chapter[_\s]*(\d+)', text, re.IGNORECASE)))
+
+    # 兜底:尝试提取所有数字（但要谨慎，可能误匹配）
+    nums = [int(s) for s in re.findall(r'\d+', text) if s.isdigit()]
+    if nums:
+        logging.debug(f"extract_chapter_numbers fallback: extracted {nums} from text: {text[:50]}...")
+    return nums
 
 def apply_unified_content_rules(texts: list, current_chapter: int) -> list:
     """
@@ -335,11 +427,10 @@ def apply_unified_content_rules(texts: list, current_chapter: int) -> list:
     processed = []
 
     for text in texts:
-        # 检测是否包含历史章节标记
+        # 检测是否包含历史章节标记（更严格的正则）
         has_chapter_marker = (
-            re.search(r'第[\d]+章', text) or
-            re.search(r'chapter_[\d]+', text) or
-            ("第" in text and "章" in text)
+            re.search(r'第\s*\d+\s*章', text) or  # "第N章"格式，允许空格
+            re.search(r'chapter[_\s]*\d+', text, re.IGNORECASE)  # "chapter_N"或"chapter N"，不区分大小写
         )
 
         if has_chapter_marker:
@@ -354,24 +445,30 @@ def apply_unified_content_rules(texts: list, current_chapter: int) -> list:
                 if time_distance <= 2:
                     # 近2章:直接跳过,防止重复
                     processed.append(f"[SKIP] 跳过近章内容({time_distance}章距离): {text[:120]}...")
+                    logging.info(f"Skipped recent chapter content (distance={time_distance}): {text[:50]}...")
 
                 elif time_distance <= 3:
                     # 第3章:需要高度修改
                     processed.append(f"[HISTORY_LIMIT] 近期章节限制(需修改≥50%): {text[:100]}...")
+                    logging.debug(f"Marked as HISTORY_LIMIT (distance={time_distance})")
 
                 elif time_distance <= 5:
                     # 3-5章前:允许引用但需要修改
                     processed.append(f"[HISTORY_REF] 历史参考(需改写≥40%): {text}")
+                    logging.debug(f"Marked as HISTORY_REF (distance={time_distance})")
 
                 else:
                     # 6章以前:可以引用核心概念
                     processed.append(f"[HISTORY_OK] 远期章节(可引用核心): {text}")
+                    logging.debug(f"Marked as HISTORY_OK (distance={time_distance})")
             else:
                 # 无法提取章节号,但有章节标记,保守处理
                 processed.append(f"[HISTORY_UNKNOWN] 历史内容(章节号不明): {text[:100]}...")
+                logging.warning(f"Chapter marker found but no valid chapter number: {text[:50]}...")
         else:
             # 非历史章节内容,判断为外部知识,优先使用
             processed.append(f"[EXTERNAL] 外部知识(优先使用): {text}")
+            logging.debug(f"Marked as EXTERNAL knowledge: {text[:50]}...")
 
     return processed
 
@@ -409,7 +506,7 @@ def get_filtered_knowledge_context(
             max_tokens=max_tokens,
             timeout=timeout
         )
-        
+
         # 限制检索文本长度并格式化
         formatted_texts = []
         max_text_length = 600
@@ -431,13 +528,45 @@ def get_filtered_knowledge_context(
             chapter_info=formatted_chapter_info,
             retrieved_texts="\n\n".join(formatted_texts) if formatted_texts else "（无检索结果）"
         )
-        
+
         filtered_content = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
         return filtered_content if filtered_content else "（知识内容过滤失败）"
-        
+
+    except TimeoutError as e:
+        # 超时异常
+        import traceback
+        logging.error(f"Knowledge filtering timeout after {timeout}s: {str(e)}\n{traceback.format_exc()}")
+        return "（知识过滤超时，建议增加timeout参数或检查网络连接）"
+
     except Exception as e:
-        logging.error(f"Error in knowledge filtering: {str(e)}")
-        return "（内容过滤过程出错）"
+        # 其他异常：API认证、模型错误、参数错误等
+        import traceback
+        error_msg = str(e).lower()
+        error_details = traceback.format_exc()
+
+        # 记录完整堆栈到日志
+        logging.error(f"Error in knowledge filtering: {str(e)}\n{error_details}")
+
+        # 根据错误类型返回不同提示
+        if "api" in error_msg and ("key" in error_msg or "auth" in error_msg or "unauthorized" in error_msg):
+            return "（API认证失败，请检查api_key配置是否正确）"
+
+        elif "connection" in error_msg or "network" in error_msg or "unreachable" in error_msg:
+            return "（网络连接失败，请检查base_url和网络状态）"
+
+        elif "rate" in error_msg and "limit" in error_msg:
+            return "（API调用频率超限，请稍后重试或升级配额）"
+
+        elif "model" in error_msg and ("not found" in error_msg or "invalid" in error_msg):
+            return f"（模型不可用，请检查model_name配置: {model_name}）"
+
+        elif "token" in error_msg and ("limit" in error_msg or "exceed" in error_msg):
+            return "（Token数量超限，请减少max_tokens或简化输入内容）"
+
+        else:
+            # 未知错误，返回前100字符的错误信息
+            error_preview = str(e)[:100]
+            return f"（内容过滤出错：{error_preview}{'...' if len(str(e)) > 100 else ''}）"
 
 def build_chapter_prompt(
     api_key: str,
