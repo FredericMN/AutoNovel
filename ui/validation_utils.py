@@ -8,6 +8,7 @@ import os
 from typing import Dict, List, Optional
 from datetime import datetime
 import customtkinter as ctk
+import tkinter as tk
 
 
 def validate_chapter_continuity(filepath: str, chapter_num: int) -> dict:
@@ -200,7 +201,7 @@ def auto_detect_next_chapter(filepath: str) -> int:
 
 
 class SaveStatusIndicator:
-    """保存状态指示器组件"""
+    """保存状态指示器组件 - iOS风格（仅文字版本）"""
 
     def __init__(self, parent_frame):
         """
@@ -211,35 +212,26 @@ class SaveStatusIndicator:
         """
         self.frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
 
-        # 状态图标
-        self.status_icon = ctk.CTkLabel(
-            self.frame,
-            text="🟢",
-            font=("Microsoft YaHei", 14)
-        )
-        self.status_icon.grid(row=0, column=0, padx=3)
-
-        # 状态文字
+        # 状态文字（移除圆点图标，只保留文字）
         self.status_text = ctk.CTkLabel(
             self.frame,
             text="已保存",
-            font=("Microsoft YaHei", 10),
+            font=("Microsoft YaHei", 11),
             text_color="#00AA00"
         )
-        self.status_text.grid(row=0, column=1, padx=3)
+        self.status_text.grid(row=0, column=0, padx=3)
 
         # 最后保存时间
         self.time_label = ctk.CTkLabel(
             self.frame,
             text="",
-            font=("Microsoft YaHei", 9),
+            font=("Microsoft YaHei", 10),
             text_color="gray"
         )
-        self.time_label.grid(row=0, column=2, padx=5)
+        self.time_label.grid(row=0, column=1, padx=5)
 
     def set_saved(self):
         """设置为已保存状态"""
-        self.status_icon.configure(text="🟢")
         self.status_text.configure(
             text="已保存",
             text_color="#00AA00"
@@ -249,19 +241,17 @@ class SaveStatusIndicator:
 
     def set_unsaved(self):
         """设置为未保存状态"""
-        self.status_icon.configure(text="🔴")
         self.status_text.configure(
             text="尚未保存",
-            text_color="#FF0000"
+            text_color="#FF3B30"
         )
         self.time_label.configure(text="有未保存的修改")
 
     def set_saving(self):
         """设置为保存中状态"""
-        self.status_icon.configure(text="🟡")
         self.status_text.configure(
             text="保存中...",
-            text_color="#FFA500"
+            text_color="#FF9500"
         )
         self.time_label.configure(text="")
 

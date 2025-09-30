@@ -8,6 +8,7 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from .role_library import RoleLibrary
+from .ios_theme import apply_ios_theme, IOSColors, IOSLayout, IOSFonts, IOSStyles
 from llm_adapters import create_llm_adapter
 
 from prompt_definitions import resolve_global_system_prompt
@@ -56,13 +57,20 @@ class NovelGeneratorGUI:
     """
     def __init__(self, master):
         self.master = master
-        self.master.title("Novel Generator GUI")
+        self.master.title("AutoNovel - AI小说生成器")
+
+        # 应用iOS风格主题
+        apply_ios_theme()
+
+        # 设置窗口背景色为应用底色
+        self.master.configure(fg_color=IOSColors.BG_APP)
+
         try:
             if os.path.exists("icon.ico"):
                 self.master.iconbitmap("icon.ico")
         except Exception:
             pass
-        self.master.geometry("1600x840")
+        self.master.geometry("1680x920")
 
         # --------------- 配置文件路径 ---------------
         self.config_file = "config.json"
@@ -176,8 +184,65 @@ class NovelGeneratorGUI:
             self.user_guidance_default = ""
 
         # --------------- 整体Tab布局 ---------------
-        self.tabview = ctk.CTkTabview(self.master)
+        # 添加顶部边距，营造iOS风格的留白感
+        main_container = ctk.CTkFrame(self.master, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=IOSLayout.PADDING_LARGE, pady=IOSLayout.PADDING_LARGE)
+
+        # 【优化：导航栏卡片包裹】
+        # 创建卡片容器来包裹整个TabView，使用更明显的边框
+        tabview_card = ctk.CTkFrame(
+            main_container,
+            fg_color="#FFFFFF",  # 纯白卡片背景
+            corner_radius=IOSLayout.CORNER_RADIUS_LARGE,
+            border_width=2,  # 增加边框宽度，更明显
+            border_color="#D1D1D6"  # 使用更深的灰色边框
+        )
+        tabview_card.pack(fill="both", expand=True)
+
+        self.tabview = ctk.CTkTabview(
+            tabview_card,
+            corner_radius=IOSLayout.CORNER_RADIUS_LARGE,
+            border_width=0,
+            height=IOSLayout.TAB_HEIGHT,  # 设置导航栏高度
+            # 优化导航栏配色 - 使用更明显的背景色
+            segmented_button_fg_color="#F0F0F5",  # 更深的灰色背景，增强对比
+            segmented_button_selected_color=IOSColors.PRIMARY,
+            segmented_button_selected_hover_color=IOSColors.PRIMARY_HOVER,
+            segmented_button_unselected_color="#F0F0F5",
+            segmented_button_unselected_hover_color="#E5E5EA",
+            text_color=IOSColors.TEXT_SECONDARY,  # 未选中文字颜色
+            text_color_disabled=IOSColors.TEXT_TERTIARY,
+        )
         self.tabview.pack(fill="both", expand=True)
+
+        # 【优化：设置导航栏字体】
+        # 通过访问内部的_segmented_button来设置字体
+        try:
+            self.tabview._segmented_button.configure(
+                font=IOSFonts.get_font(IOSLayout.FONT_SIZE_TAB, "bold")
+            )
+        except Exception as e:
+            pass
+
+        # 【优化：导航栏底部分隔线】
+        # 在导航栏下方添加更明显的分隔线，增强层次感
+        try:
+            # 获取TabView内部的_segmented_button（导航栏）
+            nav_button = self.tabview._segmented_button
+            # 创建分隔线Frame - 使用2px高度和更深的颜色
+            separator = ctk.CTkFrame(
+                self.tabview._parent_frame,
+                height=2,
+                fg_color="#D1D1D6"  # 更深的灰色
+            )
+            # 将分隔线放置在导航栏下方
+            separator.place(relx=0, rely=0, relwidth=1.0, y=IOSLayout.TAB_HEIGHT)
+        except Exception as e:
+            # 如果访问内部组件失败，静默跳过（不影响功能）
+            pass
+
+        # 设置TabView背景为卡片背景色
+        self.tabview.configure(fg_color=IOSColors.BG_CARD)
 
         # 创建各个标签页
         build_main_tab(self)

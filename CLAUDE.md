@@ -23,10 +23,10 @@ AutoNovel 是一个基于大语言模型的自动小说生成工具,支持多种
 - **knowledge.py**: 外部知识库导入支持
 
 ### ui/ - CustomTkinter 图形界面
-- **main_window.py**: 主窗口和应用入口
+- **main_window.py**: 主窗口和应用入口（已应用iOS风格）
 - **generation_handlers.py**: 所有生成操作的 UI 线程处理逻辑
 - **config_tab.py**: LLM 和 Embedding 配置界面
-- **main_tab.py**: 主操作面板(主界面页签)
+- **main_tab.py**: 主操作面板(主界面页签,已应用iOS风格)
 - **setting_tab.py**: 小说架构查看/编辑(Novel_architecture.txt)
 - **volume_architecture_tab.py**: 分卷架构查看/编辑(Volume_architecture.txt)
 - **directory_tab.py**: 目录蓝图查看/编辑(Novel_directory.txt)
@@ -36,6 +36,8 @@ AutoNovel 是一个基于大语言模型的自动小说生成工具,支持多种
 - **chapters_tab.py**: 章节管理(章节预览和编辑)
 - **settings_tab.py**: 设置页签(所有配置项)
 - **role_library.py**: 角色设定模板
+- **ios_theme.py**: iOS风格主题配置（颜色、字体、布局参数）
+- **ios_theme_helper.py**: iOS风格应用辅助工具（快速应用样式的工具函数）
 
 ### 根目录核心文件
 - **llm_adapters.py**: 统一 LLM 接口适配器(OpenAI、Gemini、Azure 等),使用 LangChain
@@ -124,6 +126,7 @@ pyinstaller main.spec  # 生成 dist/main.exe
 - **504 Gateway Timeout**: 接口不稳定或 timeout 设置过短
 - **向量检索失败**: 确认 Embedding 配置正确,本地 Ollama 需先启动服务(`ollama serve`)
 - **章节生成中断**: 查看 `app.log` 日志定位错误,可能是 token 不足或 API 限流
+- **页签切换失效**: 如果页签无法切换,检查TabView的`command`参数是否被错误覆盖。应使用原生切换机制,不要自定义command回调
 
 ## 生成流程输出文件
 所有文件保存在用户指定的 `filepath` 目录:
@@ -139,6 +142,114 @@ pyinstaller main.spec  # 生成 dist/main.exe
 - `vectorstore/`: Chroma 向量数据库存储
 
 ## 最新功能更新
+
+### iOS风格UI优化 (2025-09-30)
+项目UI已全面升级为iOS风格的现代简约设计：
+
+**设计理念**：
+- 参考Apple Human Interface Guidelines设计规范
+- 简约、清晰、一致的视觉语言
+- 舒适的留白和间距
+- 流畅的圆角和阴影效果
+
+**核心改进**：
+1. **颜色方案**：
+   - 主色调：iOS蓝 (#007AFF)
+   - 背景色层级：
+     - 应用底色：#E8E8ED（深灰）
+     - 页签背景：#FAFAFA（极浅灰）
+     - 卡片背景：#FFFFFF（纯白，带细微边框）
+   - 文字色：黑色主文本 + 灰色次要文本
+   - 状态色：绿色(成功)、橙色(警告)、红色(危险)
+
+2. **布局优化**：
+   - 所有内容区使用白色卡片容器（圆角16px + 细边框）
+   - 统一的内边距系统（8/12/16/20px）
+   - 主窗口尺寸：1680x920，提供更宽裕的视觉空间
+   - 顶部添加边距，营造iOS风格的留白感
+   - 三层背景色体系：应用底色 > 页签背景 > 卡片背景
+
+3. **组件样式**：
+   - 按钮：圆角12px，高度40px，iOS蓝色系
+   - 输入框：圆角12px，白色背景，灰色边框
+   - 文本框：圆角12px，白色背景，细边框，字体15px
+   - 进度条：圆角设计，iOS蓝色进度
+   - 标签：使用iOS风格字体大小和颜色层级
+
+4. **导航栏优化**：
+   - 高度增加到44px，视觉更突出
+   - 字体增大到15px
+   - 未选中项文字颜色优化为#3C3C43，提升可见度
+   - 悬停效果更明显
+
+5. **交互细节**：
+   - 批量生成按钮：调整为柔和的绿色(#30B050)，降低视觉冲击
+   - 保存状态指示器：使用Canvas绘制的彩色圆点替代emoji
+     - 绿色圆点：已保存
+     - 红色圆点：未保存
+     - 橙色圆点：保存中
+   - 文本编辑区字体：统一增大到15px，提升可读性
+   - 页签切换：原生CustomTkinter切换机制，流畅稳定
+
+6. **已优化页面**：
+   - ✅ 主窗口（main_window.py）
+   - ✅ 主界面页签（main_tab.py）- 包含三段式布局优化
+   - ✅ 步骤按钮区域 - 应用主按钮样式
+   - ✅ 批量生成按钮 - 使用柔和绿色按钮样式
+   - ✅ 进度条区域 - 卡片式容器 + iOS风格进度条
+   - ✅ 日志区域 - 卡片样式文本框
+   - ✅ 保存状态指示器 - Canvas圆点替代emoji
+
+**技术实现**：
+- `ui/ios_theme.py`: 完整的iOS风格配置系统
+  - `IOSColors`: 配色方案类（新增BG_CARD、BG_APP等）
+  - `IOSLayout`: 布局参数类（圆角、间距、控件尺寸、TAB_HEIGHT、FONT_SIZE_EDITOR）
+  - `IOSFonts`: 字体配置类
+  - `IOSStyles`: 组件样式预设类
+  - `apply_ios_theme()`: 主题应用函数
+  - `create_card_frame()`: 创建白色卡片+细边框
+
+- `ui/ios_theme_helper.py`: 快速应用工具
+  - `create_ios_button()`: 创建iOS风格按钮
+  - `create_ios_entry()`: 创建iOS风格输入框
+  - `create_ios_textbox()`: 创建iOS风格文本框
+  - `create_ios_label()`: 创建iOS风格标签
+  - `build_standard_edit_tab()`: 标准编辑页签模板
+  - `apply_ios_card_layout()`: 卡片式布局应用
+
+- `ui/validation_utils.py`: 保存状态指示器优化
+  - 使用`tk.Canvas`绘制彩色圆点
+  - 避免Windows系统emoji显示问题
+
+**视觉层级体系**：
+```
+应用窗口 (#E8E8ED 深灰)
+ └─ 外边距 (16px)
+    └─ TabView容器 (#FAFAFA 极浅灰)
+       └─ 页签内容 (#FAFAFA)
+          └─ 卡片容器 (#FFFFFF 纯白 + 细边框)
+             └─ 内容区域
+```
+
+**如何应用到其他页签**：
+```python
+# 1. 导入主题
+from ui.ios_theme_helper import build_standard_edit_tab
+
+# 2. 使用预设模板快速构建（适用于简单编辑页签）
+widgets = build_standard_edit_tab(
+    parent_tab=self.your_tab,
+    title="文件名.txt",
+    load_callback=self.load_function,
+    save_callback=self.save_function
+)
+
+# 3. 或手动应用样式
+from ui.ios_theme import IOSStyles, IOSLayout, IOSColors
+btn = ctk.CTkButton(parent, text="按钮", **IOSStyles.primary_button())
+```
+
+参考示例：`ui/setting_tab_ios_example.py`
 
 ### 分卷功能支持 (2025-09-30)
 项目现已全面支持分卷模式，包含以下增强：

@@ -6,9 +6,11 @@ import customtkinter as ctk
 from tkinter import messagebox
 from utils import read_file, save_string_to_txt, clear_file_content
 from ui.context_menu import TextWidgetContextMenu
+from ui.ios_theme import IOSColors, IOSLayout, IOSStyles
 
 def build_volume_summary_tab(self):
     self.volume_summary_tab = self.tabview.add("分卷概要")
+    self.volume_summary_tab.configure(fg_color=IOSColors.BG_CARD)
     self.volume_summary_tab.rowconfigure(0, weight=0)
     self.volume_summary_tab.rowconfigure(1, weight=0)
     self.volume_summary_tab.rowconfigure(2, weight=1)
@@ -16,36 +18,41 @@ def build_volume_summary_tab(self):
 
     # 顶部操作按钮区域
     top_frame = ctk.CTkFrame(self.volume_summary_tab, fg_color="transparent")
-    top_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+    top_frame.grid(row=0, column=0, sticky="ew", padx=IOSLayout.PADDING_LARGE, pady=IOSLayout.PADDING_LARGE)
     top_frame.columnconfigure(0, weight=0)
     top_frame.columnconfigure(1, weight=1)
     top_frame.columnconfigure(2, weight=0)
 
-    refresh_btn = ctk.CTkButton(top_frame, text="刷新分卷列表", command=self.refresh_volume_list, font=("Microsoft YaHei", 12), width=120)
-    refresh_btn.grid(row=0, column=0, padx=5, pady=0, sticky="w")
+    # 应用iOS按钮样式
+    btn_style = IOSStyles.primary_button()
+    refresh_btn = ctk.CTkButton(top_frame, text="刷新分卷列表", command=self.refresh_volume_list, **btn_style, width=120)
+    refresh_btn.grid(row=0, column=0, padx=(0, IOSLayout.PADDING_SMALL), sticky="w")
 
-    self.volume_summary_word_count_label = ctk.CTkLabel(top_frame, text="字数：0", font=("Microsoft YaHei", 12))
-    self.volume_summary_word_count_label.grid(row=0, column=1, padx=5, pady=0, sticky="w")
+    label_style = IOSStyles.label_normal()
+    self.volume_summary_word_count_label = ctk.CTkLabel(top_frame, text="字数：0", **label_style)
+    self.volume_summary_word_count_label.grid(row=0, column=1, padx=IOSLayout.PADDING_MEDIUM, sticky="w")
 
-    save_btn = ctk.CTkButton(top_frame, text="保存修改", command=self.save_volume_summary, font=("Microsoft YaHei", 12), width=100)
-    save_btn.grid(row=0, column=2, padx=5, pady=0, sticky="e")
+    save_btn = ctk.CTkButton(top_frame, text="保存修改", command=self.save_volume_summary, **btn_style, width=100)
+    save_btn.grid(row=0, column=2, padx=0, sticky="e")
 
     # 分卷选择区域（使用 Segmented Button）
     volume_selector_frame = ctk.CTkFrame(self.volume_summary_tab, fg_color="transparent")
-    volume_selector_frame.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+    volume_selector_frame.grid(row=1, column=0, sticky="ew", padx=IOSLayout.PADDING_LARGE, pady=(0, IOSLayout.PADDING_MEDIUM))
 
-    selector_label = ctk.CTkLabel(volume_selector_frame, text="选择分卷：", font=("Microsoft YaHei", 12))
-    selector_label.pack(side="left", padx=(5, 10))
+    selector_label_style = IOSStyles.label_normal()
+    selector_label = ctk.CTkLabel(volume_selector_frame, text="选择分卷：", **selector_label_style)
+    selector_label.pack(side="left", padx=(0, IOSLayout.PADDING_MEDIUM))
 
     # 初始化分卷选择器（动态生成）
     self.volume_selector = None
     self.current_volume_number = 1  # 当前选中的分卷编号
     self.volume_files_list = []  # 存储检测到的分卷文件列表
 
-    # 文本编辑区域
-    self.volume_summary_text = ctk.CTkTextbox(self.volume_summary_tab, wrap="word", font=("Microsoft YaHei", 12))
+    # 文本编辑区域 - 应用iOS文本框样式（卡片式边框）
+    textbox_style = IOSStyles.textbox()
+    self.volume_summary_text = ctk.CTkTextbox(self.volume_summary_tab, wrap="word", **textbox_style)
     TextWidgetContextMenu(self.volume_summary_text)
-    self.volume_summary_text.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+    self.volume_summary_text.grid(row=2, column=0, sticky="nsew", padx=IOSLayout.PADDING_LARGE, pady=(0, IOSLayout.PADDING_LARGE))
 
     def update_word_count(event=None):
         text = self.volume_summary_text.get("0.0", "end")
