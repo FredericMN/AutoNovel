@@ -17,6 +17,14 @@ from utils import read_file, save_string_to_txt, clear_file_content
 from tooltips import tooltips
 from volume_utils import validate_volume_config as validate_vol_config, get_volume_info_text
 
+# 【优化：统一检查 CTkToolTip 导入】
+try:
+    from CTkToolTip import CTkToolTip
+    HAS_TOOLTIP = True
+except ImportError:
+    HAS_TOOLTIP = False
+    logging.warning("CTkToolTip 未安装，悬停提示功能将不可用。建议安装: pip install CTkToolTip")
+
 from ui.context_menu import TextWidgetContextMenu
 from ui.main_tab import build_main_tab, build_left_layout, build_right_layout
 from ui.novel_params_tab import build_novel_params_area, build_optional_buttons_area
@@ -52,7 +60,7 @@ class NovelGeneratorGUI:
                 self.master.iconbitmap("icon.ico")
         except Exception:
             pass
-        self.master.geometry("1550x840")
+        self.master.geometry("1600x840")
 
         # --------------- 配置文件路径 ---------------
         self.config_file = "config.json"
@@ -179,6 +187,18 @@ class NovelGeneratorGUI:
         build_summary_tab(self)
         build_chapters_tab(self)
         build_settings_tab(self)
+
+        # 【防呆3：设置小说参数变更监听器】
+        from ui.novel_params_tab import setup_novel_params_change_listeners
+        setup_novel_params_change_listeners(self)
+
+        # 【优化3：初始加载完成后，标记为已保存状态】
+        if hasattr(self, 'save_status_indicator'):
+            self.save_status_indicator.set_saved()
+
+        # 【防呆2：启动时检查并更新配置锁定状态】
+        if self.filepath_var.get().strip():
+            self.check_and_update_config_lock()
 
 
     # ----------------- 通用辅助函数 -----------------
@@ -312,6 +332,8 @@ class NovelGeneratorGUI:
             self.filepath_var.set(selected_dir)
             # 自动加载项目信息
             self.auto_load_project_info(selected_dir)
+            # 【防呆2：检查并更新配置锁定状态】
+            self.check_and_update_config_lock()
 
     def validate_volume_config(self, event=None):
         """
@@ -527,6 +549,10 @@ class NovelGeneratorGUI:
     def save_other_params(self):
         """保存小说参数到配置文件"""
         try:
+            # 【防呆3：设置为保存中状态】
+            if hasattr(self, 'save_status_indicator'):
+                self.save_status_indicator.set_saving()
+
             # 从UI组件获取所有参数
             other_params = {
                 "topic": self.topic_text.get("0.0", "end").strip(),
@@ -543,6 +569,30 @@ class NovelGeneratorGUI:
                 "time_constraint": self.time_constraint_var.get().strip()
             }
 
+            # 【防呆2：配置变更检测】
+            from ui.validation_utils import validate_config_changes
+            filepath = self.filepath_var.get().strip()
+            if filepath:
+                change_result = validate_config_changes(self.loaded_config, {"other_params": other_params}, filepath)
+
+                if change_result["has_critical_changes"]:
+                    # 显示警告对话框
+                    warning_msg = "检测到关键配置变更：\n\n"
+                    warning_msg += "\n".join(f"• {change}" for change in change_result["changes"])
+
+                    if change_result["warnings"]:
+                        warning_msg += "\n\n⚠️ 警告：\n"
+                        warning_msg += "\n".join(change_result["warnings"])
+
+                    warning_msg += "\n\n是否继续保存？"
+
+                    if not messagebox.askyesno("配置变更警告", warning_msg, icon='warning'):
+                        self.safe_log("❌ 用户取消保存（配置变更检测）")
+                        # 【防呆3：恢复未保存状态】
+                        if hasattr(self, 'save_status_indicator'):
+                            self.save_status_indicator.set_unsaved()
+                        return
+
             # 直接更新内存中的配置，避免覆盖其他修改
             self.loaded_config["other_params"] = other_params
 
@@ -554,12 +604,166 @@ class NovelGeneratorGUI:
             # 保存到配置文件
             save_config(self.loaded_config, self.config_file)
 
+            # 【防呆3：设置为已保存状态】
+            if hasattr(self, 'save_status_indicator'):
+                self.save_status_indicator.set_saved()
+
+            # 【防呆2：保存后检查配置锁定状态】
+            if self.filepath_var.get().strip():
+                self.check_and_update_config_lock()
+
             messagebox.showinfo("提示", "小说参数已保存到配置文件")
             self.safe_log("✅ 小说参数已保存")
 
         except Exception as e:
             messagebox.showerror("错误", f"保存小说参数失败: {str(e)}")
             self.safe_log(f"❌ 保存小说参数失败: {str(e)}")
+            # 【防呆3：保存失败，恢复未保存状态】
+            if hasattr(self, 'save_status_indicator'):
+                self.save_status_indicator.set_unsaved()
+
+    def check_and_update_config_lock(self):
+        """检查并更新配置锁定状态"""
+        from ui.validation_utils import check_critical_files_exist
+
+        filepath = self.filepath_var.get().strip()
+        if not filepath:
+            return
+
+        result = check_critical_files_exist(filepath)
+
+        if result["is_locked"]:
+            # 锁定状态
+            self.config_locked = True
+            self.num_chapters_entry.configure(state="disabled")
+            self.num_volumes_entry.configure(state="disabled")
+            self.num_chapters_lock_label.configure(text="🔒")
+            self.num_volumes_lock_label.configure(text="🔒")
+            self.unlock_config_btn.grid()  # 显示解锁按钮
+
+            # 构造锁定原因提示
+            lock_reason = []
+            if result["directory_exists"]:
+                lock_reason.append("已生成章节目录")
+            if result["any_chapter_exists"]:
+                lock_reason.append("已生成章节")
+
+            tooltip_text = (
+                "🔒 此参数已锁定\n\n"
+                f"原因：{', '.join(lock_reason)}\n\n"
+                "如需修改，请：\n"
+                "1. 点击下方\"解锁配置\"按钮\n"
+                "2. 或删除相关文件后重新生成"
+            )
+
+            # 设置悬停提示（使用 CTkToolTip 如果可用）
+            # 只在第一次创建 tooltip，避免重复
+            if HAS_TOOLTIP:
+                if not hasattr(self, '_tooltips_created'):
+                    CTkToolTip(self.num_chapters_lock_label, message=tooltip_text, delay=0.3)
+                    CTkToolTip(self.num_volumes_lock_label, message=tooltip_text, delay=0.3)
+                    self._tooltips_created = True
+        else:
+            # 未锁定状态
+            self.config_locked = False
+            self.num_chapters_entry.configure(state="normal")
+            self.num_volumes_entry.configure(state="normal")
+            self.num_chapters_lock_label.configure(text="")
+            self.num_volumes_lock_label.configure(text="")
+            self.unlock_config_btn.grid_remove()  # 隐藏解锁按钮
+
+            # 清除 tooltip 标志，以便重新锁定时可以创建
+            if hasattr(self, '_tooltips_created'):
+                delattr(self, '_tooltips_created')
+
+    def unlock_critical_config(self):
+        """解锁关键配置（带警告对话框）"""
+        dialog = ctk.CTkToplevel(self.master)
+        dialog.title("警告：解锁关键配置")
+        dialog.geometry("500x380")
+        dialog.transient(self.master)
+        dialog.grab_set()
+
+        # 居中显示
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (380 // 2)
+        dialog.geometry(f"500x380+{x}+{y}")
+
+        # 标题
+        title_label = ctk.CTkLabel(
+            dialog,
+            text="⚠️ 警告：修改关键配置",
+            font=("Microsoft YaHei", 18, "bold"),
+            text_color="#FF6347"
+        )
+        title_label.pack(pady=20)
+
+        # 警告内容
+        warning_frame = ctk.CTkFrame(dialog, fg_color="#FFF5EE")
+        warning_frame.pack(padx=20, pady=10, fill="both", expand=True)
+
+        warning_text = ctk.CTkTextbox(
+            warning_frame,
+            font=("Microsoft YaHei", 11),
+            wrap="word",
+            fg_color="#FFF5EE"
+        )
+        warning_text.pack(padx=10, pady=10, fill="both", expand=True)
+
+        warning_content = (
+            "修改章节数或分卷数可能导致：\n\n"
+            "❌ 章节目录与实际不符\n"
+            "❌ 分卷架构错乱\n"
+            "❌ 向量库元数据不一致\n"
+            "❌ 已生成章节无法正确引用\n\n"
+            "建议操作：\n"
+            "1. 删除 Novel_directory.txt\n"
+            "2. 删除 Volume_architecture.txt（如有分卷）\n"
+            "3. 重新生成架构和目录\n\n"
+            "如果已有章节生成，建议备份后再修改。"
+        )
+        warning_text.insert("1.0", warning_content)
+        warning_text.configure(state="disabled")
+
+        # 按钮区域
+        button_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        button_frame.pack(pady=15)
+
+        def on_unlock():
+            self.config_locked = False
+            self.num_chapters_entry.configure(state="normal")
+            self.num_volumes_entry.configure(state="normal")
+            self.num_chapters_lock_label.configure(text="")
+            self.num_volumes_lock_label.configure(text="")
+            self.unlock_config_btn.grid_remove()
+            self.safe_log("⚠️ 用户已解锁章节数/分卷数配置（高级操作）")
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        btn_unlock = ctk.CTkButton(
+            button_frame,
+            text="我明白风险，继续解锁",
+            command=on_unlock,
+            font=("Microsoft YaHei", 12),
+            width=160,
+            fg_color="#FF6347",
+            hover_color="#FF4500"
+        )
+        btn_unlock.pack(side="left", padx=10)
+
+        btn_cancel = ctk.CTkButton(
+            button_frame,
+            text="取消",
+            command=on_cancel,
+            font=("Microsoft YaHei", 12),
+            width=100
+        )
+        btn_cancel.pack(side="left", padx=10)
+
+        dialog.protocol("WM_DELETE_WINDOW", on_cancel)
 
     # ----------------- 将导入的各模块函数直接赋给类方法 -----------------
     generate_novel_architecture_ui = generate_novel_architecture_ui

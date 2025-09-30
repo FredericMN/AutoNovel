@@ -21,6 +21,7 @@ from novel_generator import (
     build_chapter_prompt
 )
 from consistency_checker import check_consistency
+from ui.validation_utils import validate_chapter_continuity
 
 def generate_novel_architecture_ui(self):
     filepath = self.filepath_var.get().strip()
@@ -158,6 +159,96 @@ def generate_chapter_draft_ui(self):
 
 
             chap_num = self.safe_get_int(self.chapter_num_var, 1)
+
+            # 【防呆1：章节连续性校验】
+            validation_result = validate_chapter_continuity(filepath, chap_num)
+            if not validation_result["valid"]:
+                # 在主线程中显示对话框
+                confirm_result = {"confirmed": False}
+                confirm_event = threading.Event()
+
+                def ask_continuity_override():
+                    dialog = ctk.CTkToplevel(self.master)
+                    dialog.title("章节连续性检查")
+                    dialog.geometry("450x320")
+                    dialog.transient(self.master)
+                    dialog.grab_set()
+
+                    # 居中显示
+                    dialog.update_idletasks()
+                    x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+                    y = (dialog.winfo_screenheight() // 2) - (320 // 2)
+                    dialog.geometry(f"450x320+{x}+{y}")
+
+                    # 标题
+                    title_label = ctk.CTkLabel(
+                        dialog,
+                        text=validation_result["message"],
+                        font=("Microsoft YaHei", 16, "bold"),
+                        text_color="#FF6347"
+                    )
+                    title_label.pack(pady=15)
+
+                    # 建议内容
+                    suggestion_frame = ctk.CTkFrame(dialog, fg_color="#F5F5F5")
+                    suggestion_frame.pack(padx=20, pady=10, fill="both", expand=True)
+
+                    suggestion_text = ctk.CTkTextbox(
+                        suggestion_frame,
+                        font=("Microsoft YaHei", 11),
+                        wrap="word",
+                        height=150,
+                        fg_color="#F5F5F5"
+                    )
+                    suggestion_text.pack(padx=10, pady=10, fill="both", expand=True)
+                    suggestion_text.insert("1.0", validation_result["suggestion"])
+                    suggestion_text.configure(state="disabled")
+
+                    # 按钮区域
+                    button_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+                    button_frame.pack(pady=15)
+
+                    def on_force_generate():
+                        confirm_result["confirmed"] = True
+                        dialog.destroy()
+                        confirm_event.set()
+
+                    def on_cancel():
+                        confirm_result["confirmed"] = False
+                        dialog.destroy()
+                        confirm_event.set()
+
+                    btn_force = ctk.CTkButton(
+                        button_frame,
+                        text="强制生成",
+                        command=on_force_generate,
+                        font=("Microsoft YaHei", 12),
+                        width=120,
+                        fg_color="#FF6347",
+                        hover_color="#FF4500"
+                    )
+                    btn_force.pack(side="left", padx=10)
+
+                    btn_cancel = ctk.CTkButton(
+                        button_frame,
+                        text="返回修改",
+                        command=on_cancel,
+                        font=("Microsoft YaHei", 12),
+                        width=120
+                    )
+                    btn_cancel.pack(side="left", padx=10)
+
+                    # 关闭窗口时也触发取消
+                    dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+
+                self.master.after(0, ask_continuity_override)
+                confirm_event.wait()
+
+                if not confirm_result["confirmed"]:
+                    self.safe_log(f"❌ 章节连续性检查未通过，用户选择返回修改。")
+                    return
+                else:
+                    self.safe_log(f"⚠️ 用户选择强制生成第{chap_num}章（跳过章节连续性检查）")
 
             # 【方案A】检查章节文件是否已存在，警告覆盖风险
             chapters_dir = os.path.join(filepath, "chapters")
