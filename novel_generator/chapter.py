@@ -46,10 +46,11 @@ def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -
     import re
 
     # 分割文本为卷块（通过标题行分割）
-    # 优化正则：仅匹配预期的前导符号，提升安全性和性能
-    # 支持格式: ### **第一卷** 或 ## 第2卷 等
+    # 优化正则：匹配行首的标题格式，排除内容中的引用
+    # 必须以 # 或 * 开头，确保是 Markdown 标题
+    # 支持格式: ### **第一卷（第1-10章）** 等
     volume_header_pattern = re.compile(
-        r'^[\s#*\-]*?第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
+        r'^[#*]+\s*\**\s*第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
         re.MULTILINE
     )
 
