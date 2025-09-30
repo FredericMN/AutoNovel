@@ -777,12 +777,104 @@ def clear_vectorstore_handler(self):
 
     first_confirm = messagebox.askyesno("警告", "确定要清空本地向量库吗？此操作不可恢复！")
     if first_confirm:
-        second_confirm = messagebox.askyesno("二次确认", "你确定真的要删除所有向量数据吗？此操作不可恢复！")
+        second_confirm = messagebox.askyesno("再次确认", "清空向量库后，需要重新定稿所有章节才能使用向量检索功能。\n\n确定继续吗？")
         if second_confirm:
-            if clear_vector_store(filepath):
-                self.log("已清空向量库。")
-            else:
-                self.log(f"未能清空向量库，请关闭程序后手动删除 {filepath} 下的 vectorstore 文件夹。")
+            from novel_generator.vectorstore_utils import clear_vector_store
+            from novel_generator.vectorstore_monitor import clear_stats
+            try:
+                clear_vector_store(filepath)
+                clear_stats(filepath)  # 同时清空统计数据
+                self.safe_log("✅ 向量库和统计数据已清空。")
+            except Exception as e:
+                messagebox.showerror("错误", f"清空向量库失败: {str(e)}")
+
+def show_vectorstore_report(self):
+    """显示向量库质量报告"""
+    filepath = self.filepath_var.get().strip()
+    if not filepath:
+        messagebox.showwarning("警告", "请先配置保存文件路径。")
+        return
+
+    try:
+        from novel_generator.vectorstore_monitor import get_usage_report, analyze_quality
+
+        # 生成报告
+        report = get_usage_report(filepath)
+
+        # 创建弹窗显示报告
+        report_window = ctk.CTkToplevel(self.master)
+        report_window.title("向量库质量报告")
+        report_window.geometry("800x600")
+
+        # 添加标题
+        title_label = ctk.CTkLabel(
+            report_window,
+            text="向量库使用统计与质量分析",
+            font=("Microsoft YaHei", 16, "bold")
+        )
+        title_label.pack(pady=10)
+
+        # 添加文本框显示报告
+        report_text = ctk.CTkTextbox(
+            report_window,
+            wrap="word",
+            font=("Consolas", 11)
+        )
+        report_text.pack(fill="both", expand=True, padx=20, pady=10)
+        report_text.insert("0.0", report)
+        report_text.configure(state="disabled")  # 只读
+
+        # 按钮区域
+        button_frame = ctk.CTkFrame(report_window)
+        button_frame.pack(pady=10)
+
+        # 刷新按钮
+        def refresh_report():
+            new_report = get_usage_report(filepath)
+            report_text.configure(state="normal")
+            report_text.delete("0.0", "end")
+            report_text.insert("0.0", new_report)
+            report_text.configure(state="disabled")
+
+        refresh_btn = ctk.CTkButton(
+            button_frame,
+            text="刷新报告",
+            command=refresh_report,
+            font=("Microsoft YaHei", 12)
+        )
+        refresh_btn.pack(side="left", padx=5)
+
+        # 清空统计按钮
+        def clear_stats_confirm():
+            if messagebox.askyesno("确认", "确定要清空统计数据吗？\n(不会删除向量库内容)"):
+                from novel_generator.vectorstore_monitor import clear_stats
+                clear_stats(filepath)
+                self.safe_log("✅ 向量库统计数据已清空。")
+                refresh_report()
+
+        clear_stats_btn = ctk.CTkButton(
+            button_frame,
+            text="清空统计",
+            command=clear_stats_confirm,
+            font=("Microsoft YaHei", 12),
+            fg_color="orange"
+        )
+        clear_stats_btn.pack(side="left", padx=5)
+
+        # 关闭按钮
+        close_btn = ctk.CTkButton(
+            button_frame,
+            text="关闭",
+            command=report_window.destroy,
+            font=("Microsoft YaHei", 12)
+        )
+        close_btn.pack(side="left", padx=5)
+
+        report_window.transient(self.master)
+        report_window.focus()
+
+    except Exception as e:
+        messagebox.showerror("错误", f"生成报告失败: {str(e)}\n\n{traceback.format_exc()}")
 
 def show_plot_arcs_ui(self):
     filepath = self.filepath_var.get().strip()

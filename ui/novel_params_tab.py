@@ -116,30 +116,37 @@ def build_optional_buttons_area(self, start_row=2):
     self.btn_import_knowledge.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
     self.btn_clear_vectorstore = ctk.CTkButton(
-        self.optional_btn_frame, text="清空向量库", fg_color="red", 
+        self.optional_btn_frame, text="清空向量库", fg_color="red",
         command=self.clear_vectorstore_handler, font=("Microsoft YaHei", 12), width=100
     )
     self.btn_clear_vectorstore.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
+    self.btn_vectorstore_report = ctk.CTkButton(
+        self.optional_btn_frame, text="向量库质量报告",
+        command=self.show_vectorstore_report, font=("Microsoft YaHei", 12), width=100,
+        fg_color="#2B7A78"  # 区别于其他按钮的颜色
+    )
+    self.btn_vectorstore_report.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
 
     self.plot_arcs_btn = ctk.CTkButton(
         self.optional_btn_frame, text="查看剧情要点", command=self.show_plot_arcs_ui,
         font=("Microsoft YaHei", 12), width=100
     )
-    self.plot_arcs_btn.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+    self.plot_arcs_btn.grid(row=0, column=4, padx=5, pady=5, sticky="ew")
 
     # 新增角色库按钮
     self.role_library_btn = ctk.CTkButton(
         self.optional_btn_frame, text="角色库", command=self.show_role_library,
         font=("Microsoft YaHei", 12), width=100
     )
-    self.role_library_btn.grid(row=0, column=4, padx=5, pady=5, sticky="ew")
+    self.role_library_btn.grid(row=0, column=5, padx=5, pady=5, sticky="ew")
 
     self.global_system_prompt_checkbox = ctk.CTkCheckBox(
         self.optional_btn_frame,
         text="启用全局 SYSTEM 提示词",
         variable=self.global_system_prompt_var
     )
-    self.global_system_prompt_checkbox.grid(row=0, column=5, padx=5, pady=5, sticky="w")
+    self.global_system_prompt_checkbox.grid(row=0, column=6, padx=5, pady=5, sticky="w")
 
 def create_label_with_help_for_novel_params(self, parent, label_text, tooltip_key, row, column, font=None, sticky="e", padx=5, pady=5):
     frame = ctk.CTkFrame(parent)

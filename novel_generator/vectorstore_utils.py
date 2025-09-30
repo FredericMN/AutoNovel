@@ -12,6 +12,7 @@ import re
 import ssl
 import requests
 import warnings
+import hashlib
 from langchain_chroma import Chroma
 logging.basicConfig(
     filename='app.log',      # 日志文件名
@@ -237,6 +238,106 @@ def get_relevant_context_from_vector_store(embedding_adapter, query: str, filepa
         logging.warning(f"Similarity search failed: {e}")
         traceback.print_exc()
         return ""
+
+def get_relevant_contexts_deduplicated(
+    embedding_adapter,
+    query_groups: list,
+    filepath: str,
+    k_per_group: int = 2,
+    max_total_results: int = None
+) -> list:
+    """
+    对多组关键词执行向量检索并去重,返回去重后的文档内容列表。
+
+    Args:
+        embedding_adapter: Embedding适配器
+        query_groups: 关键词组列表,如 ["科技公司 数据泄露", "地下实验室 基因编辑"]
+        filepath: 项目文件路径
+        k_per_group: 每组关键词检索的文档数量
+        max_total_results: 最大返回结果数(None表示不限制)
+
+    Returns:
+        list: 去重后的文档内容列表,每个元素为 {"content": str, "queries": [str], "type": str}
+              其中 queries 包含所有命中该文档的关键词组
+    """
+    store = load_vector_store(embedding_adapter, filepath)
+    if not store:
+        logging.info("No vector store found or load failed. Returning empty list.")
+        return []
+
+    try:
+        collection_size = store._collection.count()
+        if collection_size == 0:
+            logging.info("Vector store is empty. Returning empty list.")
+            return []
+
+        # 动态调整每组检索数量
+        # 如果关键词组很多,减少每组数量避免过度检索
+        num_groups = len(query_groups)
+        if num_groups > 5:
+            adjusted_k = max(1, k_per_group // 2)
+        elif num_groups > 3:
+            adjusted_k = k_per_group
+        else:
+            adjusted_k = min(k_per_group * 2, collection_size)
+
+        logging.info(f"Retrieving {adjusted_k} docs per group from {num_groups} keyword groups (collection size: {collection_size})")
+
+        # 收集所有候选文档，使用字典来跟踪相同文档的多个query
+        docs_by_hash = {}  # hash -> {"content": str, "queries": [str], "type": str}
+        seen_hashes = set()
+
+        for query in query_groups:
+            # 检索文档
+            docs = store.similarity_search(query, k=adjusted_k)
+
+            for doc in docs:
+                content = doc.page_content
+
+                # 使用稳定的SHA1哈希进行去重（与monitor模块保持一致）
+                content_hash = hashlib.sha1(
+                    (content[:400] if len(content) > 400 else content).encode('utf-8', errors='ignore')
+                ).hexdigest()
+
+                # 判断内容类型
+                doc_type = "GENERAL"
+                if any(kw in query.lower() for kw in ["技法", "手法", "模板", "写作"]):
+                    doc_type = "TECHNIQUE"
+                elif any(kw in query.lower() for kw in ["设定", "技术", "世界观"]):
+                    doc_type = "SETTING"
+
+                if content_hash not in seen_hashes:
+                    # 首次见到该文档
+                    seen_hashes.add(content_hash)
+                    docs_by_hash[content_hash] = {
+                        "content": content,
+                        "queries": [query],
+                        "type": doc_type
+                    }
+                else:
+                    # 文档已存在，添加新的query到列表
+                    docs_by_hash[content_hash]["queries"].append(query)
+                    # 类型优先级：TECHNIQUE > SETTING > GENERAL
+                    if doc_type == "TECHNIQUE" or (doc_type == "SETTING" and docs_by_hash[content_hash]["type"] == "GENERAL"):
+                        docs_by_hash[content_hash]["type"] = doc_type
+
+                # 达到总量上限则提前结束
+                if max_total_results and len(docs_by_hash) >= max_total_results:
+                    logging.info(f"Reached max total results limit: {max_total_results}")
+                    break
+
+            if max_total_results and len(docs_by_hash) >= max_total_results:
+                break
+
+        # 转换为列表返回
+        all_docs_with_info = list(docs_by_hash.values())
+        logging.info(f"Retrieved {len(all_docs_with_info)} unique documents (total queries across docs: {sum(len(d['queries']) for d in all_docs_with_info)})")
+        return all_docs_with_info
+
+    except Exception as e:
+        logging.error(f"Batch similarity search failed: {e}")
+        traceback.print_exc()
+        return []
 
 def _get_sentence_transformer(model_name: str = 'paraphrase-MiniLM-L6-v2'):
     """获取sentence transformer模型，处理SSL问题"""

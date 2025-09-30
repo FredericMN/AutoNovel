@@ -29,7 +29,8 @@ from ui.generation_handlers import (
     import_knowledge_handler,
     clear_vectorstore_handler,
     show_plot_arcs_ui,
-    generate_batch_ui
+    generate_batch_ui,
+    show_vectorstore_report
 )
 from ui.setting_tab import build_setting_tab, load_novel_architecture, save_novel_architecture
 from ui.directory_tab import build_directory_tab, load_chapter_blueprint, save_chapter_blueprint
@@ -392,6 +393,7 @@ class NovelGeneratorGUI:
     generate_batch_ui = generate_batch_ui
     import_knowledge_handler = import_knowledge_handler
     clear_vectorstore_handler = clear_vectorstore_handler
+    show_vectorstore_report = show_vectorstore_report
     show_plot_arcs_ui = show_plot_arcs_ui
     load_config_btn = load_config_btn
     save_config_btn = save_config_btn
@@ -411,3 +413,11 @@ class NovelGeneratorGUI:
     test_llm_config = test_llm_config
     test_embedding_config = test_embedding_config
     browse_folder = browse_folder
+
+
+
+
+
+
+
+

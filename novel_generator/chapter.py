@@ -62,18 +62,21 @@ def summarize_recent_chapters(
 ) -> str:  # 修改返回值类型为 str，不再是 tuple
     """
     根据前三章内容生成当前章节的精准摘要。
-    如果解析失败，则返回空字符串。
+    增强容错:空值兜底、格式化失败重试、使用章节目录作为后备。
     """
     try:
         combined_text = "\n".join(chapters_text_list).strip()
         if not combined_text:
-            return ""
-            
+            logging.warning("No previous chapters found, using chapter directory as fallback")
+            # 空值兜底:使用章节目录信息生成简要说明
+            chapter_info = chapter_info or {}
+            return f"当前为第{novel_number}章,前文尚无内容。本章将围绕「{chapter_info.get('chapter_title', '未命名')}」展开,核心目标是{chapter_info.get('chapter_purpose', '推进剧情')}。"
+
         # 限制组合文本长度
         max_combined_length = 4000
         if len(combined_text) > max_combined_length:
             combined_text = combined_text[-max_combined_length:]
-            
+
         llm_adapter = create_llm_adapter(
             interface_format=interface_format,
             base_url=base_url,
@@ -83,11 +86,11 @@ def summarize_recent_chapters(
             max_tokens=max_tokens,
             timeout=timeout
         )
-        
+
         # 确保所有参数都有默认值
         chapter_info = chapter_info or {}
         next_chapter_info = next_chapter_info or {}
-        
+
         prompt = summarize_recent_chapters_prompt.format(
             combined_text=combined_text,
             novel_number=novel_number,
@@ -107,46 +110,169 @@ def summarize_recent_chapters(
             next_chapter_foreshadowing=next_chapter_info.get("foreshadowing", "无特殊伏笔"),
             next_chapter_plot_twist_level=next_chapter_info.get("plot_twist_level", "★☆☆☆☆")
         )
-        
+
         active_system_prompt = system_prompt.strip()
 
+        # 第一次尝试生成摘要
         response_text = invoke_with_cleaning(
             llm_adapter,
             prompt,
             system_prompt=active_system_prompt
         )
         summary = extract_summary_from_response(response_text)
-        
+
+        if not summary or len(summary) < 50:
+            logging.warning(f"First attempt summary too short ({len(summary) if summary else 0} chars), retrying with simplified prompt")
+
+            # 重试:使用简化的提示词
+            simplified_prompt = f"""请为以下前文内容生成一个简洁的摘要(300-800字)：
+
+前文内容：
+{combined_text}
+
+当前要写的是第{novel_number}章《{chapter_info.get('chapter_title', '未命名')}》。
+
+请直接输出摘要内容,不需要任何前缀标记。"""
+
+            retry_response = invoke_with_cleaning(
+                llm_adapter,
+                simplified_prompt,
+                system_prompt=active_system_prompt
+            )
+
+            # 重试响应也需要经过格式清洗
+            if retry_response:
+                retry_summary = extract_summary_from_response(retry_response)
+                # 如果提取成功且比第一次好，则使用重试结果
+                if retry_summary and len(retry_summary) >= 50:
+                    summary = retry_summary
+                    logging.info(f"Retry successful, extracted {len(summary)} chars")
+                elif retry_summary:
+                    # 提取结果仍然太短，但比原来好
+                    summary = retry_summary
+                    logging.warning(f"Retry summary still short ({len(retry_summary)} chars) but using it")
+                # 如果提取完全失败，保持第一次的结果不变
+                else:
+                    logging.warning("Retry extraction failed, keeping first attempt result")
+
         if not summary:
-            logging.warning("Failed to extract summary, using full response")
-            return response_text[:2000]  # 限制长度
-            
+            logging.error("Failed to generate summary after retry, using fallback")
+            # 最终兜底:使用章节目录信息
+            fallback_summary = f"前文已完成{len(chapters_text_list)}章内容。"
+            if chapter_info.get("chapter_summary"):
+                fallback_summary += f"接下来第{novel_number}章的核心内容是:{chapter_info.get('chapter_summary')}"
+            return fallback_summary
+
         return summary[:2000]  # 限制摘要长度
-        
+
     except Exception as e:
         logging.error(f"Error in summarize_recent_chapters: {str(e)}")
-        return ""
+        # 异常兜底
+        chapter_info = chapter_info or {}
+        return f"[摘要生成异常] 第{novel_number}章《{chapter_info.get('chapter_title', '未命名')}》,将基于前文继续创作。"
 
 def extract_summary_from_response(response_text: str) -> str:
-    """从响应文本中提取摘要部分"""
+    """
+    从响应文本中提取摘要部分,增强容错能力
+
+    支持多种格式:
+    - 标准格式: "当前章节摘要: xxx"
+    - Markdown格式: "**摘要**: xxx" 或 "### 摘要"
+    - 带装饰: "【摘要】xxx" 或 "━━摘要━━"
+    """
     if not response_text:
         return ""
-        
-    # 查找摘要标记
+
+    # 清理常见的markdown标记
+    cleaned = response_text.strip()
+
+    # 移除代码块标记
+    if cleaned.startswith("```"):
+        parts = cleaned.split("```")
+        if len(parts) >= 3:
+            cleaned = parts[1]  # 取中间内容
+
+    # 定义多种摘要标记,按优先级排序
     summary_markers = [
-        "当前章节摘要:", 
-        "章节摘要:",
-        "摘要:",
-        "本章摘要:"
+        # 标准中文标记
+        ("当前章节摘要:", "当前章节摘要："),
+        ("章节摘要:", "章节摘要："),
+        ("本章摘要:", "本章摘要："),
+        ("摘要:", "摘要："),
+
+        # Markdown格式
+        ("**当前章节摘要**:", "**当前章节摘要**："),
+        ("**章节摘要**:", "**章节摘要**："),
+        ("**摘要**:", "**摘要**："),
+        ("### 当前章节摘要", "### 章节摘要", "### 摘要"),
+        ("## 当前章节摘要", "## 章节摘要", "## 摘要"),
+
+        # 带装饰符号
+        ("【当前章节摘要】", "【章节摘要】", "【摘要】"),
+        ("━━当前章节摘要━━", "━━章节摘要━━", "━━摘要━━"),
+        ("「当前章节摘要」", "「章节摘要」", "「摘要」"),
     ]
-    
-    for marker in summary_markers:
-        if (marker in response_text):
-            parts = response_text.split(marker, 1)
-            if len(parts) > 1:
-                return parts[1].strip()
-    
-    return response_text.strip()
+
+    # 尝试匹配所有标记
+    for markers in summary_markers:
+        if isinstance(markers, str):
+            markers = (markers,)
+
+        for marker in markers:
+            if marker in cleaned:
+                parts = cleaned.split(marker, 1)
+                if len(parts) > 1:
+                    extracted = parts[1].strip()
+
+                    # 移除可能的尾部标记
+                    for end_marker in ["```", "---", "***", "━━━"]:
+                        if end_marker in extracted:
+                            extracted = extracted.split(end_marker)[0].strip()
+
+                    # 移除开头的冒号或空白
+                    extracted = extracted.lstrip("：: \n\t")
+
+                    if extracted:
+                        logging.info(f"Successfully extracted summary using marker: {marker}")
+                        return extracted
+
+    # 如果所有标记都失败,尝试启发式提取
+    # 1. 查找第一个"。"之后的长文本块(可能是摘要)
+    lines = cleaned.split('\n')
+    potential_summary = []
+    found_content = False
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # 跳过明显的标题行
+        if line.startswith('#') or line.startswith('**'):
+            continue
+
+        # 跳过过短的行(可能是标题)
+        if len(line) < 20:
+            continue
+
+        # 找到实质内容
+        if len(line) >= 50 and '。' in line:
+            found_content = True
+            potential_summary.append(line)
+        elif found_content:
+            # 继续收集相邻行
+            potential_summary.append(line)
+            if len('\n'.join(potential_summary)) > 500:
+                break
+
+    if potential_summary:
+        extracted = '\n'.join(potential_summary)
+        logging.warning(f"Used heuristic extraction, found {len(extracted)} chars")
+        return extracted
+
+    # 最后兜底:返回原文(会在调用处截断)
+    logging.warning("No marker matched, returning original response")
+    return cleaned
 
 def format_chapter_info(chapter_info: dict) -> str:
     """将章节信息字典格式化为文本"""
@@ -185,46 +311,68 @@ def parse_search_keywords(response_text: str) -> list:
         if '·' in line
     ][:5]  # 最多取5组
 
-def apply_content_rules(texts: list, novel_number: int) -> list:
-    """应用内容处理规则"""
-    processed = []
-    for text in texts:
-        if re.search(r'第[\d]+章', text) or re.search(r'chapter_[\d]+', text):
-            chap_nums = list(map(int, re.findall(r'\d+', text)))
-            recent_chap = max(chap_nums) if chap_nums else 0
-            time_distance = novel_number - recent_chap
-            
-            if time_distance <= 2:
-                processed.append(f"[SKIP] 跳过近章内容：{text[:120]}...")
-            elif 3 <= time_distance <= 5:
-                processed.append(f"[MOD40%] {text}（需修改≥40%）")
-            else:
-                processed.append(f"[OK] {text}（可引用核心）")
-        else:
-            processed.append(f"[PRIOR] {text}（优先使用）")
-    return processed
+def extract_chapter_numbers(text: str) -> list:
+    """从文本中提取章节编号"""
+    # 匹配"第X章"或"chapter_X"格式
+    if re.search(r'第[\d]+章', text):
+        return list(map(int, re.findall(r'第([\d]+)章', text)))
+    elif re.search(r'chapter_[\d]+', text):
+        return list(map(int, re.findall(r'chapter_([\d]+)', text)))
+    # 兜底:尝试提取所有数字
+    return [int(s) for s in re.findall(r'\d+', text) if s.isdigit()]
 
-def apply_knowledge_rules(contexts: list, chapter_num: int) -> list:
-    """应用知识库使用规则"""
+def apply_unified_content_rules(texts: list, current_chapter: int) -> list:
+    """
+    统一的内容分类与规则处理函数,合并原 apply_content_rules 和 apply_knowledge_rules 逻辑。
+
+    Args:
+        texts: 待处理的文本列表
+        current_chapter: 当前章节号
+
+    Returns:
+        处理后的文本列表,带有规则标记
+    """
     processed = []
-    for text in contexts:
-        # 检测历史章节内容
-        if "第" in text and "章" in text:
-            # 提取章节号判断时间远近
-            chap_nums = [int(s) for s in text.split() if s.isdigit()]
-            recent_chap = max(chap_nums) if chap_nums else 0
-            time_distance = chapter_num - recent_chap
-            
-            # 相似度处理规则
-            if time_distance <= 3:  # 近三章内容
-                processed.append(f"[历史章节限制] 跳过近期内容: {text[:50]}...")
-                continue
-                
-            # 允许引用但需要转换
-            processed.append(f"[历史参考] {text} (需进行30%以上改写)")
+
+    for text in texts:
+        # 检测是否包含历史章节标记
+        has_chapter_marker = (
+            re.search(r'第[\d]+章', text) or
+            re.search(r'chapter_[\d]+', text) or
+            ("第" in text and "章" in text)
+        )
+
+        if has_chapter_marker:
+            # 提取章节编号
+            chap_nums = extract_chapter_numbers(text)
+
+            if chap_nums:
+                recent_chap = max(chap_nums)
+                time_distance = current_chapter - recent_chap
+
+                # 根据时间距离应用不同规则
+                if time_distance <= 2:
+                    # 近2章:直接跳过,防止重复
+                    processed.append(f"[SKIP] 跳过近章内容({time_distance}章距离): {text[:120]}...")
+
+                elif time_distance <= 3:
+                    # 第3章:需要高度修改
+                    processed.append(f"[HISTORY_LIMIT] 近期章节限制(需修改≥50%): {text[:100]}...")
+
+                elif time_distance <= 5:
+                    # 3-5章前:允许引用但需要修改
+                    processed.append(f"[HISTORY_REF] 历史参考(需改写≥40%): {text}")
+
+                else:
+                    # 6章以前:可以引用核心概念
+                    processed.append(f"[HISTORY_OK] 远期章节(可引用核心): {text}")
+            else:
+                # 无法提取章节号,但有章节标记,保守处理
+                processed.append(f"[HISTORY_UNKNOWN] 历史内容(章节号不明): {text[:100]}...")
         else:
-            # 第三方知识优先处理
-            processed.append(f"[外部知识] {text}")
+            # 非历史章节内容,判断为外部知识,优先使用
+            processed.append(f"[EXTERNAL] 外部知识(优先使用): {text}")
+
     return processed
 
 def get_filtered_knowledge_context(
@@ -240,12 +388,18 @@ def get_filtered_knowledge_context(
     timeout: int = 600,
     system_prompt: str = ""
 ) -> str:
-    """优化后的知识过滤处理"""
+    """
+    优化后的知识过滤处理
+
+    注意：retrieved_texts 应该是已经过 apply_unified_content_rules 处理的文本列表
+    """
     if not retrieved_texts:
         return "（无相关知识库内容）"
 
     try:
-        processed_texts = apply_knowledge_rules(retrieved_texts, chapter_info.get('chapter_number', 0))
+        # 直接使用已处理的文本，不再重复调用规则函数
+        processed_texts = retrieved_texts
+
         llm_adapter = create_llm_adapter(
             interface_format=interface_format,
             base_url=base_url,
@@ -431,38 +585,51 @@ def build_chapter_prompt(
         search_response = invoke_with_cleaning(llm_adapter, search_prompt, system_prompt=system_prompt)
         keyword_groups = parse_search_keywords(search_response)
 
-        # 执行向量检索
-        all_contexts = []
+        # 执行向量检索(使用去重优化的批量检索)
         from embedding_adapters import create_embedding_adapter
+        from novel_generator.vectorstore_utils import get_relevant_contexts_deduplicated
+
         embedding_adapter = create_embedding_adapter(
             embedding_interface_format,
             embedding_api_key,
             embedding_url,
             embedding_model_name
         )
-        
-        store = load_vector_store(embedding_adapter, filepath)
-        if store:
-            collection_size = store._collection.count()
-            actual_k = min(embedding_retrieval_k, max(1, collection_size))
-            
-            for group in keyword_groups:
-                context = get_relevant_context_from_vector_store(
-                    embedding_adapter=embedding_adapter,
-                    query=group,
-                    filepath=filepath,
-                    k=actual_k
-                )
-                if context:
-                    if any(kw in group.lower() for kw in ["技法", "手法", "模板"]):
-                        all_contexts.append(f"[TECHNIQUE] {context}")
-                    elif any(kw in group.lower() for kw in ["设定", "技术", "世界观"]):
-                        all_contexts.append(f"[SETTING] {context}")
-                    else:
-                        all_contexts.append(f"[GENERAL] {context}")
 
-        # 应用内容规则
-        processed_contexts = apply_content_rules(all_contexts, novel_number)
+        # 使用新的去重检索函数
+        retrieved_docs = get_relevant_contexts_deduplicated(
+            embedding_adapter=embedding_adapter,
+            query_groups=keyword_groups,
+            filepath=filepath,
+            k_per_group=embedding_retrieval_k,
+            max_total_results=embedding_retrieval_k * len(keyword_groups) if keyword_groups else 10
+        )
+
+        # 记录检索统计
+        from novel_generator.vectorstore_monitor import log_retrieval
+        for keyword_group in keyword_groups:
+            # 为每个关键词组找到所有命中的文档
+            docs_for_group = [
+                {"content": d["content"], "type": d["type"]}
+                for d in retrieved_docs
+                if keyword_group in d.get("queries", [])
+            ]
+            log_retrieval(
+                filepath=filepath,
+                query=keyword_group,
+                retrieved_docs=docs_for_group,
+                chapter_number=novel_number
+            )
+
+        # 格式化检索结果
+        all_contexts = []
+        for doc_info in retrieved_docs:
+            content = doc_info["content"]
+            doc_type = doc_info["type"]
+            all_contexts.append(f"[{doc_type}] {content}")
+
+        # 应用统一的内容规则
+        processed_contexts = apply_unified_content_rules(all_contexts, novel_number)
         
         # 执行知识过滤
         chapter_info_for_filter = {
