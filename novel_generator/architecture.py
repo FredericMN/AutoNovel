@@ -121,66 +121,94 @@ def Novel_architecture_generate(
             word_number=word_number,
             user_guidance=user_guidance  # 修复：添加内容指导
         )
+        gui_log("   ├─ 向LLM发起请求...")
         core_seed_result = invoke_with_cleaning(llm_adapter, prompt_core, system_prompt=system_prompt)
         if not core_seed_result.strip():
+            gui_log("   └─ ❌ 生成失败，返回空内容")
             logging.warning("core_seed_prompt generation failed and returned empty.")
             save_partial_architecture_data(filepath, partial_data)
             return
+        gui_log("   └─ ✅ 核心种子生成完成\n")
         partial_data["core_seed_result"] = core_seed_result
         save_partial_architecture_data(filepath, partial_data)
     else:
+        gui_log("▷ [1/5] 核心种子 (已完成，跳过)\n")
         logging.info("Step1 already done. Skipping...")
+
     # Step2: 角色动力学
     if "character_dynamics_result" not in partial_data:
+        gui_log("▶ [2/5] 角色动力学生成")
+        gui_log("   ├─ 基于核心种子设计角色...")
         logging.info("Step2: Generating character_dynamics_prompt ...")
         prompt_character = character_dynamics_prompt.format(
             core_seed=partial_data["core_seed_result"].strip(),
             user_guidance=user_guidance
         )
+        gui_log("   ├─ 向LLM发起请求...")
         character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character, system_prompt=system_prompt)
         if not character_dynamics_result.strip():
+            gui_log("   └─ ❌ 生成失败")
             logging.warning("character_dynamics_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
             return
+        gui_log("   └─ ✅ 角色动力学生成完成\n")
         partial_data["character_dynamics_result"] = character_dynamics_result
         save_partial_architecture_data(filepath, partial_data)
     else:
+        gui_log("▷ [2/5] 角色动力学 (已完成，跳过)\n")
         logging.info("Step2 already done. Skipping...")
+
     # 生成初始角色状态
     if "character_dynamics_result" in partial_data and "character_state_result" not in partial_data:
+        gui_log("▶ [3/5] 初始角色状态生成")
+        gui_log("   ├─ 基于角色动力学建立状态表...")
         logging.info("Generating initial character state from character dynamics ...")
         prompt_char_state_init = create_character_state_prompt.format(
             character_dynamics=partial_data["character_dynamics_result"].strip()
         )
+        gui_log("   ├─ 向LLM发起请求...")
         character_state_init = invoke_with_cleaning(llm_adapter, prompt_char_state_init, system_prompt=system_prompt)
         if not character_state_init.strip():
+            gui_log("   └─ ❌ 生成失败")
             logging.warning("create_character_state_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
             return
+        gui_log("   ├─ 保存角色状态到 character_state.txt...")
         partial_data["character_state_result"] = character_state_init
         character_state_file = os.path.join(filepath, "character_state.txt")
         clear_file_content(character_state_file)
         save_string_to_txt(character_state_init, character_state_file)
         save_partial_architecture_data(filepath, partial_data)
+        gui_log("   └─ ✅ 初始角色状态生成完成\n")
         logging.info("Initial character state created and saved.")
+
     # Step3: 世界观
     if "world_building_result" not in partial_data:
+        gui_log("▶ [4/5] 世界观构建")
+        gui_log("   ├─ 构建世界观设定...")
         logging.info("Step3: Generating world_building_prompt ...")
         prompt_world = world_building_prompt.format(
             core_seed=partial_data["core_seed_result"].strip(),
             user_guidance=user_guidance  # 修复：添加用户指导
         )
+        gui_log("   ├─ 向LLM发起请求...")
         world_building_result = invoke_with_cleaning(llm_adapter, prompt_world, system_prompt=system_prompt)
         if not world_building_result.strip():
+            gui_log("   └─ ❌ 生成失败")
             logging.warning("world_building_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
             return
+        gui_log("   └─ ✅ 世界观构建完成\n")
         partial_data["world_building_result"] = world_building_result
         save_partial_architecture_data(filepath, partial_data)
     else:
+        gui_log("▷ [4/5] 世界观 (已完成，跳过)\n")
         logging.info("Step3 already done. Skipping...")
+
     # Step4: 三幕式情节
     if "plot_arch_result" not in partial_data:
+        gui_log("▶ [5/5] 三幕式情节架构")
+        gui_log("   ├─ 整合前述要素设计情节...")
         logging.info("Step4: Generating plot_architecture_prompt ...")
         prompt_plot = plot_architecture_prompt.format(
             core_seed=partial_data["core_seed_result"].strip(),
@@ -188,14 +216,18 @@ def Novel_architecture_generate(
             world_building=partial_data["world_building_result"].strip(),
             user_guidance=user_guidance  # 修复：添加用户指导
         )
+        gui_log("   ├─ 向LLM发起请求...")
         plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot, system_prompt=system_prompt)
         if not plot_arch_result.strip():
+            gui_log("   └─ ❌ 生成失败")
             logging.warning("plot_architecture_prompt generation failed.")
             save_partial_architecture_data(filepath, partial_data)
             return
+        gui_log("   └─ ✅ 三幕式情节架构完成\n")
         partial_data["plot_arch_result"] = plot_arch_result
         save_partial_architecture_data(filepath, partial_data)
     else:
+        gui_log("▷ [5/5] 三幕式情节 (已完成，跳过)\n")
         logging.info("Step4 already done. Skipping...")
 
     core_seed_result = partial_data["core_seed_result"]
@@ -219,6 +251,11 @@ def Novel_architecture_generate(
     arch_file = os.path.join(filepath, "Novel_architecture.txt")
     clear_file_content(arch_file)
     save_string_to_txt(final_content, arch_file)
+
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log("✅ 小说架构生成完毕")
+    gui_log(f"   已保存至: Novel_architecture.txt")
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info("Novel_architecture.txt has been generated successfully.")
 
     partial_arch_file = os.path.join(filepath, "partial_architecture.json")

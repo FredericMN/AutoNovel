@@ -589,7 +589,8 @@ def build_chapter_prompt(
     interface_format: str = "openai",
     max_tokens: int = 2048,
     timeout: int = 600,
-    system_prompt: str = ""
+    system_prompt: str = "",
+    gui_log_callback=None  # 新增GUI日志回调
 ) -> str:
     """
     构造当前章节的请求提示词（完整实现版）
@@ -598,6 +599,12 @@ def build_chapter_prompt(
     2. 新增内容重复检测机制
     3. 集成提示词应用规则
     """
+    # GUI日志辅助函数
+    def gui_log(msg):
+        if gui_log_callback:
+            gui_log_callback(msg)
+        logging.info(msg)
+
     # 读取基础文件
     arch_file = os.path.join(filepath, "Novel_architecture.txt")
     novel_architecture_text = read_file(arch_file)
@@ -686,7 +693,11 @@ def build_chapter_prompt(
 
     # 知识库检索和处理
     try:
+        gui_log("\n━━━━ 知识库检索 ━━━━")
+        gui_log("▶ 开始向量检索流程...")
+
         # 生成检索关键词
+        gui_log("   ├─ 生成检索关键词...")
         llm_adapter = create_llm_adapter(
             interface_format=interface_format,
             base_url=base_url,
@@ -696,7 +707,7 @@ def build_chapter_prompt(
             max_tokens=max_tokens,
             timeout=timeout
         )
-        
+
         search_prompt = knowledge_search_prompt.format(
             chapter_number=novel_number,
             chapter_title=chapter_title,
@@ -710,9 +721,16 @@ def build_chapter_prompt(
             user_guidance=user_guidance,
             time_constraint=time_constraint
         )
-        
+
         search_response = invoke_with_cleaning(llm_adapter, search_prompt, system_prompt=system_prompt)
         keyword_groups = parse_search_keywords(search_response)
+
+        if keyword_groups:
+            gui_log(f"   ├─ 生成关键词组: {len(keyword_groups)}组")
+            for idx, kw in enumerate(keyword_groups, 1):
+                gui_log(f"       {idx}. {kw}")
+        else:
+            gui_log("   ├─ ⚠ 未能生成关键词，跳过检索")
 
         # 执行向量检索(使用去重优化的批量检索)
         from embedding_adapters import create_embedding_adapter
@@ -725,6 +743,7 @@ def build_chapter_prompt(
             embedding_model_name
         )
 
+        gui_log("   ├─ 执行向量检索...")
         # 使用新的去重检索函数
         retrieved_docs = get_relevant_contexts_deduplicated(
             embedding_adapter=embedding_adapter,
@@ -736,6 +755,20 @@ def build_chapter_prompt(
 
         # 记录检索统计
         from novel_generator.vectorstore_monitor import log_retrieval
+
+        gui_log(f"   ├─ 检索结果: 共{len(retrieved_docs)}条文档")
+
+        # 统计文档类型
+        type_counts = {}
+        for doc_info in retrieved_docs:
+            doc_type = doc_info.get("type", "Unknown")
+            type_counts[doc_type] = type_counts.get(doc_type, 0) + 1
+
+        if type_counts:
+            gui_log("   ├─ 文档类型分布:")
+            for doc_type, count in type_counts.items():
+                gui_log(f"       · {doc_type}: {count}条")
+
         for keyword_group in keyword_groups:
             # 为每个关键词组找到所有命中的文档
             docs_for_group = [
@@ -758,9 +791,21 @@ def build_chapter_prompt(
             all_contexts.append(f"[{doc_type}] {content}")
 
         # 应用统一的内容规则
+        gui_log("   ├─ 应用内容过滤规则...")
         processed_contexts = apply_unified_content_rules(all_contexts, novel_number)
-        
+
+        # 统计过滤结果
+        skip_count = sum(1 for ctx in processed_contexts if ctx.startswith("[SKIP]"))
+        external_count = sum(1 for ctx in processed_contexts if ctx.startswith("[EXTERNAL]"))
+        history_count = len(processed_contexts) - skip_count - external_count
+
+        gui_log(f"   ├─ 过滤统计:")
+        gui_log(f"       · 跳过近章内容: {skip_count}条")
+        gui_log(f"       · 外部知识: {external_count}条")
+        gui_log(f"       · 历史参考: {history_count}条")
+
         # 执行知识过滤
+        gui_log("   ├─ LLM二次过滤与整合...")
         chapter_info_for_filter = {
             "chapter_number": novel_number,
             "chapter_title": chapter_title,
@@ -789,8 +834,15 @@ def build_chapter_prompt(
             timeout=timeout,
             system_prompt=system_prompt
         )
-        
+
+        # 统计最终使用的知识
+        final_length = len(filtered_context)
+        gui_log(f"   └─ ✅ 知识整合完成 (输出{final_length}字)")
+        gui_log("━━━━━━━━━━━━━━━━━━━━\n")
+
     except Exception as e:
+        gui_log(f"   └─ ❌ 知识检索异常: {str(e)[:100]}")
+        gui_log("━━━━━━━━━━━━━━━━━━━━\n")
         logging.error(f"知识处理流程异常：{str(e)}")
         filtered_context = "（知识库处理失败）"
 
@@ -828,7 +880,7 @@ def build_chapter_prompt(
 def generate_chapter_draft(
     api_key: str,
     base_url: str,
-    model_name: str, 
+    model_name: str,
     filepath: str,
     novel_number: int,
     word_number: int,
@@ -847,7 +899,8 @@ def generate_chapter_draft(
     max_tokens: int = 2048,
     timeout: int = 600,
     custom_prompt_text: str = None,
-    use_global_system_prompt: bool = False
+    use_global_system_prompt: bool = False,
+    gui_log_callback=None  # 新增GUI日志回调
 ) -> str:
     """
     生成章节草稿，支持自定义提示词
@@ -876,7 +929,8 @@ def generate_chapter_draft(
             interface_format=interface_format,
             max_tokens=max_tokens,
             timeout=timeout,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            gui_log_callback=gui_log_callback  # 传递回调
         )
     else:
         prompt_text = custom_prompt_text

@@ -69,7 +69,8 @@ def generate_novel_architecture_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 user_guidance=user_guidance,  # 添加内容指导参数
-                use_global_system_prompt=self.global_system_prompt_var.get()
+                use_global_system_prompt=self.global_system_prompt_var.get(),
+                gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
             self.safe_log("✅ 小说架构生成完成。请在 'Novel Architecture' 标签页查看或编辑。")
         except Exception:
@@ -116,7 +117,8 @@ def generate_chapter_blueprint_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 user_guidance=user_guidance,  # 新增参数
-                use_global_system_prompt=self.global_system_prompt_var.get()
+                use_global_system_prompt=self.global_system_prompt_var.get(),
+                gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
             self.safe_log("✅ 章节蓝图生成完成。请在 'Chapter Blueprint' 标签页查看或编辑。")
         except Exception:
@@ -161,7 +163,7 @@ def generate_chapter_draft_ui(self):
 
             self.safe_log(f"生成第{chap_num}章草稿：准备生成请求提示词...")
 
-            # 调用新添加的 build_chapter_prompt 函数构造初始提示词
+            # 调用新添加的 build_chapter_prompt 函数构造初始提示词（包含向量检索过程）
             prompt_text = build_chapter_prompt(
                 api_key=api_key,
                 base_url=base_url,
@@ -183,7 +185,8 @@ def generate_chapter_draft_ui(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get())
+                system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get()),
+                gui_log_callback=self.safe_log  # 传入GUI日志回调，向量检索信息会在这里输出
             )
 
             # 弹出可编辑提示词对话框，等待用户确认或取消
@@ -391,7 +394,8 @@ def finalize_chapter_ui(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                use_global_system_prompt=self.global_system_prompt_var.get()
+                use_global_system_prompt=self.global_system_prompt_var.get(),
+                gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
             self.safe_log(f"✅ 第{chap_num}章定稿完成（已更新前文摘要、角色状态、向量库）。")
 

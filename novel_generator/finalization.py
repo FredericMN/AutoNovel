@@ -33,19 +33,33 @@ def finalize_chapter(
     interface_format: str,
     max_tokens: int,
     timeout: int = 600,
-    use_global_system_prompt: bool = False
+    use_global_system_prompt: bool = False,
+    gui_log_callback=None  # 新增GUI日志回调
 ):
     """
     对指定章节做最终处理：更新前文摘要、更新角色状态、插入向量库等。
     默认无需再做扩写操作，若有需要可在外部调用 enrich_chapter_text 处理后再定稿。
     """
+    # GUI日志辅助函数
+    def gui_log(msg):
+        if gui_log_callback:
+            gui_log_callback(msg)
+        logging.info(msg)
+
+    gui_log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log(f"📝 开始定稿第{novel_number}章")
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
     chapters_dir = os.path.join(filepath, "chapters")
     chapter_file = os.path.join(chapters_dir, f"chapter_{novel_number}.txt")
     chapter_text = read_file(chapter_file).strip()
     if not chapter_text:
+        gui_log("❌ 章节文件为空，无法定稿")
         logging.warning(f"Chapter {novel_number} is empty, cannot finalize.")
         return
 
+    gui_log(f"▶ [1/3] 更新前文摘要")
+    gui_log("   ├─ 读取旧摘要...")
     global_summary_file = os.path.join(filepath, "global_summary.txt")
     old_global_summary = read_file(global_summary_file)
     character_state_file = os.path.join(filepath, "character_state.txt")
@@ -66,23 +80,36 @@ def finalize_chapter(
         chapter_text=chapter_text,
         global_summary=old_global_summary
     )
+    gui_log("   ├─ 向LLM发起请求...")
     new_global_summary = invoke_with_cleaning(llm_adapter, prompt_summary, system_prompt=system_prompt)
     if not new_global_summary.strip():
+        gui_log("   ├─ ⚠ 生成失败，保留旧摘要")
         new_global_summary = old_global_summary
+    else:
+        gui_log("   └─ ✅ 前文摘要更新完成\n")
 
+    gui_log("▶ [2/3] 更新角色状态")
+    gui_log("   ├─ 读取旧状态...")
     prompt_char_state = update_character_state_prompt.format(
         chapter_text=chapter_text,
         old_state=old_character_state
     )
+    gui_log("   ├─ 向LLM发起请求...")
     new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state, system_prompt=system_prompt)
     if not new_char_state.strip():
+        gui_log("   ├─ ⚠ 生成失败，保留旧状态")
         new_char_state = old_character_state
+    else:
+        gui_log("   └─ ✅ 角色状态更新完成\n")
 
+    gui_log("   ├─ 保存更新结果...")
     clear_file_content(global_summary_file)
     save_string_to_txt(new_global_summary, global_summary_file)
     clear_file_content(character_state_file)
     save_string_to_txt(new_char_state, character_state_file)
 
+    gui_log("▶ [3/3] 插入向量库")
+    gui_log("   ├─ 切分章节文本...")
     update_vector_store(
         embedding_adapter=create_embedding_adapter(
             embedding_interface_format,
@@ -93,7 +120,11 @@ def finalize_chapter(
         new_chapter=chapter_text,
         filepath=filepath
     )
+    gui_log("   └─ ✅ 向量库更新完成\n")
 
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log(f"✅ 第{novel_number}章定稿完成")
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info(f"Chapter {novel_number} has been finalized.")
 
 def enrich_chapter_text(
