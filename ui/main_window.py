@@ -19,7 +19,6 @@ from volume_utils import validate_volume_config as validate_vol_config, get_volu
 
 from ui.context_menu import TextWidgetContextMenu
 from ui.main_tab import build_main_tab, build_left_layout, build_right_layout
-from ui.config_tab import build_config_tabview, load_config_btn, save_config_btn
 from ui.novel_params_tab import build_novel_params_area, build_optional_buttons_area
 from ui.generation_handlers import (
     generate_novel_architecture_ui,
@@ -38,7 +37,7 @@ from ui.directory_tab import build_directory_tab, load_chapter_blueprint, save_c
 from ui.character_tab import build_character_tab, load_character_state, save_character_state
 from ui.summary_tab import build_summary_tab, load_global_summary, save_global_summary
 from ui.chapters_tab import build_chapters_tab, refresh_chapters_list, on_chapter_selected, load_chapter_content, save_current_chapter, prev_chapter, next_chapter
-from ui.other_settings import build_other_settings_tab
+from ui.settings_tab import build_settings_tab
 
 
 class NovelGeneratorGUI:
@@ -53,7 +52,7 @@ class NovelGeneratorGUI:
                 self.master.iconbitmap("icon.ico")
         except Exception:
             pass
-        self.master.geometry("1350x840")
+        self.master.geometry("1550x840")
 
         # --------------- 配置文件路径 ---------------
         self.config_file = "config.json"
@@ -172,15 +171,14 @@ class NovelGeneratorGUI:
 
         # 创建各个标签页
         build_main_tab(self)
-        build_config_tabview(self)
-        build_novel_params_area(self, start_row=1)
-        build_optional_buttons_area(self, start_row=2)
+        build_novel_params_area(self, start_row=0)
+        build_optional_buttons_area(self, start_row=1)
         build_setting_tab(self)
         build_directory_tab(self)
         build_character_tab(self)
         build_summary_tab(self)
         build_chapters_tab(self)
-        build_other_settings_tab(self)
+        build_settings_tab(self)
 
 
     # ----------------- 通用辅助函数 -----------------
@@ -574,8 +572,6 @@ class NovelGeneratorGUI:
     clear_vectorstore_handler = clear_vectorstore_handler
     show_vectorstore_report = show_vectorstore_report
     show_plot_arcs_ui = show_plot_arcs_ui
-    load_config_btn = load_config_btn
-    save_config_btn = save_config_btn
     load_novel_architecture = load_novel_architecture
     save_novel_architecture = save_novel_architecture
     load_chapter_blueprint = load_chapter_blueprint
