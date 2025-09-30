@@ -8,6 +8,7 @@ import re
 import time
 import traceback
 from typing import Optional
+
 logging.basicConfig(
     filename='app.log',      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
@@ -15,6 +16,26 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+def is_rate_limit_error(error: Exception) -> bool:
+    """
+    判断是否为速率限制错误（429）
+    支持检测:
+    - Google Gemini: "Resource exhausted"
+    - OpenAI: "Rate limit exceeded"
+    - 通用 HTTP 429 错误
+    """
+    error_msg = str(error).lower()
+    rate_limit_keywords = [
+        "resource exhausted",  # Gemini
+        "rate limit",           # OpenAI
+        "429",                  # HTTP 状态码
+        "quota",                # 配额
+        "too many requests",    # 通用
+    ]
+    return any(keyword in error_msg for keyword in rate_limit_keywords)
+
+
 def call_with_retry(func, max_retries=3, sleep_time=2, fallback_return=None, **kwargs):
     """
     通用的重试机制封装。
@@ -50,7 +71,12 @@ def debug_log(prompt: str, response_content: str):
     )
 
 def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_prompt: Optional[str] = None) -> str:
-    """调用 LLM 并清理返回结果，支持附加 system prompt。"""
+    """
+    调用 LLM 并清理返回结果，支持附加 system prompt。
+    增强功能：
+    - 针对 429 错误使用指数退避策略
+    - 自动识别速率限制并延长等待时间
+    """
     active_system_prompt = (system_prompt or "").strip()
 
     print("" + "=" * 50)
@@ -65,6 +91,7 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_
 
     result = ""
     retry_count = 0
+    base_wait_time = 2  # 基础等待时间（秒）
 
     while retry_count < max_retries:
         try:
@@ -79,12 +106,42 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_
             result = result.replace("```", "").strip()
             if result:
                 return result
+
+            logging.warning(f"LLM 返回空内容，重试 {retry_count + 1}/{max_retries}")
             retry_count += 1
+
         except Exception as e:
-            print(f"调用失败 ({retry_count + 1}/{max_retries}): {str(e)}")
             retry_count += 1
-            if retry_count >= max_retries:
-                raise e
+            error_msg = str(e)
+
+            # 检测是否为速率限制错误
+            if is_rate_limit_error(e):
+                # 使用指数退避策略：2^n * base_wait_time
+                wait_time = (2 ** retry_count) * base_wait_time
+                # 最长等待60秒
+                wait_time = min(wait_time, 60)
+
+                print(f"⚠️ 遇到速率限制 ({retry_count}/{max_retries})")
+                print(f"   错误信息: {error_msg[:100]}...")
+                print(f"   等待 {wait_time} 秒后重试...")
+                logging.warning(f"[Rate Limit] Attempt {retry_count}/{max_retries}, waiting {wait_time}s. Error: {error_msg[:200]}")
+
+                time.sleep(wait_time)
+
+                if retry_count >= max_retries:
+                    print(f"❌ 已达到最大重试次数，请稍后再试")
+                    logging.error(f"Rate limit exceeded after {max_retries} retries")
+                    raise e
+            else:
+                # 非速率限制错误，使用普通重试
+                print(f"调用失败 ({retry_count}/{max_retries}): {error_msg[:100]}")
+                logging.error(f"[LLM Error] Attempt {retry_count}/{max_retries}: {error_msg}")
+
+                if retry_count >= max_retries:
+                    raise e
+
+                # 普通错误等待较短时间
+                time.sleep(base_wait_time)
 
     return result
 
