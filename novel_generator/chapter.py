@@ -905,6 +905,16 @@ def generate_chapter_draft(
     """
     生成章节草稿，支持自定义提示词
     """
+    # GUI日志辅助函数
+    def gui_log(msg):
+        if gui_log_callback:
+            gui_log_callback(msg)
+        logging.info(msg)
+
+    gui_log(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    gui_log(f"📝 开始生成第{novel_number}章草稿")
+    gui_log(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
     system_prompt = resolve_global_system_prompt(use_global_system_prompt)
 
     if custom_prompt_text is None:
@@ -948,11 +958,18 @@ def generate_chapter_draft(
         timeout=timeout
     )
 
+    gui_log("   ├─ 向LLM发起请求生成草稿...")
     chapter_content = invoke_with_cleaning(llm_adapter, prompt_text, system_prompt=system_prompt)
     if not chapter_content.strip():
+        gui_log("   └─ ⚠️ 生成内容为空")
         logging.warning("Generated chapter draft is empty.")
+    else:
+        gui_log(f"   └─ ✅ 草稿生成完成 (共{len(chapter_content)}字)\n")
+
     chapter_file = os.path.join(chapters_dir, f"chapter_{novel_number}.txt")
     clear_file_content(chapter_file)
     save_string_to_txt(chapter_content, chapter_file)
+
+    gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info(f"[Draft] Chapter {novel_number} generated as a draft.")
     return chapter_content

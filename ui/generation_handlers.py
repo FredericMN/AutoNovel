@@ -54,7 +54,6 @@ def generate_novel_architecture_ui(self):
             # 获取内容指导
             user_guidance = self.user_guide_text.get("0.0", "end").strip()
 
-            self.safe_log("开始生成小说架构...")
             Novel_architecture_generate(
                 interface_format=interface_format,
                 api_key=api_key,
@@ -72,7 +71,6 @@ def generate_novel_architecture_ui(self):
                 use_global_system_prompt=self.global_system_prompt_var.get(),
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
-            self.safe_log("✅ 小说架构生成完成。请在 'Novel Architecture' 标签页查看或编辑。")
         except Exception:
             self.handle_exception("生成小说架构时出错")
         finally:
@@ -105,7 +103,6 @@ def generate_chapter_blueprint_ui(self):
 
             user_guidance = self.user_guide_text.get("0.0", "end").strip()  # 新增获取用户指导
 
-            self.safe_log("开始生成章节蓝图...")
             Chapter_blueprint_generate(
                 interface_format=interface_format,
                 api_key=api_key,
@@ -120,7 +117,6 @@ def generate_chapter_blueprint_ui(self):
                 use_global_system_prompt=self.global_system_prompt_var.get(),
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
-            self.safe_log("✅ 章节蓝图生成完成。请在 'Chapter Blueprint' 标签页查看或编辑。")
         except Exception:
             self.handle_exception("生成章节蓝图时出错")
         finally:
@@ -160,8 +156,6 @@ def generate_chapter_draft_ui(self):
             embedding_interface_format = self.embedding_interface_format_var.get().strip()
             embedding_model_name = self.embedding_model_name_var.get().strip()
             embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
-
-            self.safe_log(f"生成第{chap_num}章草稿：准备生成请求提示词...")
 
             # 调用新添加的 build_chapter_prompt 函数构造初始提示词（包含向量检索过程）
             prompt_text = build_chapter_prompt(
@@ -281,7 +275,6 @@ def generate_chapter_draft_ui(self):
                 self.safe_log("❌ 用户取消了草稿生成请求。")
                 return
 
-            self.safe_log("开始生成章节草稿...")
             from novel_generator.chapter import generate_chapter_draft
             draft_text = generate_chapter_draft(
                 api_key=api_key,
@@ -305,10 +298,11 @@ def generate_chapter_draft_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 custom_prompt_text=edited_prompt,  # 使用用户编辑后的提示词
-                use_global_system_prompt=self.global_system_prompt_var.get()
+                use_global_system_prompt=self.global_system_prompt_var.get(),
+                gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
             if draft_text:
-                self.safe_log(f"✅ 第{chap_num}章草稿生成完成。请在左侧查看或编辑。")
+                self.safe_log(f"✅ 第{chap_num}章草稿已保存，请在左侧查看或编辑。")
                 self.master.after(0, lambda: self.show_chapter_in_textbox(draft_text))
             else:
                 self.safe_log("⚠️ 本章草稿生成失败或无内容。")
@@ -348,8 +342,6 @@ def finalize_chapter_ui(self):
 
             chap_num = self.safe_get_int(self.chapter_num_var, 1)
             word_number = self.safe_get_int(self.word_number_var, 3000)
-
-            self.safe_log(f"开始定稿第{chap_num}章...")
 
             chapters_dir = os.path.join(filepath, "chapters")
             os.makedirs(chapters_dir, exist_ok=True)
@@ -397,7 +389,6 @@ def finalize_chapter_ui(self):
                 use_global_system_prompt=self.global_system_prompt_var.get(),
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
-            self.safe_log(f"✅ 第{chap_num}章定稿完成（已更新前文摘要、角色状态、向量库）。")
 
             final_text = read_file(chapter_file)
             self.master.after(0, lambda: self.show_chapter_in_textbox(final_text))
