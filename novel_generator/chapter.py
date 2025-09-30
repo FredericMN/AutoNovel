@@ -20,7 +20,11 @@ from chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
 from novel_generator.vectorstore_utils import load_vector_store
-from volume_utils import get_volume_number, is_volume_last_chapter  # 新增：分卷工具函数
+from volume_utils import (
+    get_volume_number,
+    is_volume_last_chapter,
+    calculate_volume_ranges  # 优化：统一导入，避免动态导入
+)
 
 def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -> str:
     """
@@ -37,20 +41,25 @@ def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -
         ### **第一卷（第1-10章）**
         ### **第1卷（第1-10章）**
         ## 第二卷
+        ### 第三卷
     """
     import re
 
     # 分割文本为卷块（通过标题行分割）
-    # 匹配任意组合的 #、*、-、空白 + "第X卷"
+    # 优化正则：仅匹配预期的前导符号，提升安全性和性能
+    # 支持格式: ### **第一卷** 或 ## 第2卷 等
     volume_header_pattern = re.compile(
-        r'^[#*\-\s]*第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
+        r'^[\s#*\-]*?第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
         re.MULTILINE
     )
 
     matches = list(volume_header_pattern.finditer(volume_arch_text))
     if not matches:
         logging.warning("Volume_architecture.txt 中未找到卷标题")
+        logging.debug(f"文件内容前500字符: {volume_arch_text[:500]}")
         return ""
+
+    logging.info(f"找到{len(matches)}个卷标题标记")
 
     # 转换中文数字
     from chapter_directory_parser import _to_int_from_chinese
@@ -62,6 +71,8 @@ def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -
             vol_num = int(vol_num_str)
         else:
             vol_num = _to_int_from_chinese(vol_num_str)
+
+        logging.debug(f"解析到卷号: '{vol_num_str}' -> {vol_num}, 目标: {target_volume_num}")
 
         if vol_num == target_volume_num:
             # 找到目标卷，提取从当前位置到下一个卷标题（或文件末尾）的内容
@@ -125,8 +136,6 @@ def get_volume_context(
             "current_volume_summary": str     # 当前卷的摘要（如果已完成部分章节）
         }
     """
-    from volume_utils import calculate_volume_ranges
-
     # 非分卷模式
     if num_volumes <= 1:
         return {
@@ -788,15 +797,33 @@ def build_chapter_prompt(
 
     # 读取当前卷架构信息（新增）
     current_volume_architecture = ""
-    if num_volumes > 1 and current_vol_num:
+
+    # 优化判断逻辑：即使 current_vol_num 为空，也尝试根据 num_volumes 推断
+    if num_volumes > 1:
         volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
         if os.path.exists(volume_arch_file):
             volume_arch_text = read_file(volume_arch_file).strip()
+
+            # 如果章节信息中没有卷号，尝试根据章节号推断
+            if not current_vol_num:
+                volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+                current_vol_num = get_volume_number(novel_number, volume_ranges)
+                logging.info(f"章节 {novel_number} 根据范围推断卷号为: {current_vol_num}")
+
             # 提取当前卷的架构信息
-            current_volume_architecture = extract_volume_architecture(
-                volume_arch_text,
-                current_vol_num
-            )
+            if current_vol_num:
+                current_volume_architecture = extract_volume_architecture(
+                    volume_arch_text,
+                    current_vol_num
+                )
+                if current_volume_architecture:
+                    logging.info(f"成功为第{novel_number}章提取第{current_vol_num}卷架构")
+                else:
+                    logging.warning(f"第{novel_number}章提取第{current_vol_num}卷架构失败")
+            else:
+                logging.warning(f"无法确定第{novel_number}章的卷号,跳过卷架构提取")
+        else:
+            logging.warning(f"分卷模式已启用但 Volume_architecture.txt 不存在: {volume_arch_file}")
 
     # 获取下一章节信息
     next_chapter_number = novel_number + 1
@@ -872,7 +899,6 @@ def build_chapter_prompt(
 
         # 渐进式遗忘策略：平滑过渡前一卷与当前卷的上下文权重
         # 计算当前章节距离卷首的偏移量
-        from volume_utils import calculate_volume_ranges
         volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
         vol_start, vol_end = volume_ranges[volume_context["volume_number"] - 1]
         chapters_since_volume_start = novel_number - vol_start + 1
