@@ -39,7 +39,7 @@ def build_chapters_tab(self):
     self.chapters_word_count_label = ctk.CTkLabel(top_frame, text="字数：0", font=("Microsoft YaHei", 12))
     self.chapters_word_count_label.grid(row=0, column=4, padx=(0,10), sticky="e")
 
-    self.chapter_view_text = ctk.CTkTextbox(self.chapters_view_tab, wrap="word", font=("Microsoft YaHei", 12))
+    self.chapter_view_text = ctk.CTkTextbox(self.chapters_view_tab, wrap="word", font=("Microsoft YaHei", 15))
     
     def update_word_count(event=None):
         text = self.chapter_view_text.get("0.0", "end-1c")
