@@ -76,6 +76,8 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_
     增强功能：
     - 针对 429 错误使用指数退避策略
     - 自动识别速率限制并延长等待时间
+    - 空回复时使用递增等待时间重试
+    - 向用户汇报所有重试状态
     """
     active_system_prompt = (system_prompt or "").strip()
 
@@ -105,10 +107,28 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_
             # 清理结果中的特殊格式标记
             result = result.replace("```", "").strip()
             if result:
+                if retry_count > 0:
+                    print(f"✅ 重试成功！（第 {retry_count + 1} 次尝试）")
+                    logging.info(f"LLM call succeeded after {retry_count} retries")
                 return result
 
-            logging.warning(f"LLM 返回空内容，重试 {retry_count + 1}/{max_retries}")
+            # 空回复处理
             retry_count += 1
+            if retry_count < max_retries:
+                # 使用递增等待策略：2秒 -> 4秒 -> 8秒
+                wait_time = base_wait_time * retry_count
+                wait_time = min(wait_time, 10)  # 最多等待10秒
+
+                print(f"⚠️ LLM 返回空内容 (第 {retry_count}/{max_retries} 次尝试)")
+                print(f"   等待 {wait_time} 秒后重试...")
+                logging.warning(f"LLM returned empty content, retry {retry_count}/{max_retries}, waiting {wait_time}s")
+
+                time.sleep(wait_time)
+            else:
+                print(f"❌ LLM 连续 {max_retries} 次返回空内容，生成失败")
+                logging.error(f"LLM returned empty content after {max_retries} attempts")
+                # 返回空字符串，由上层代码处理
+                return ""
 
         except Exception as e:
             retry_count += 1
@@ -121,28 +141,37 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_
                 # 最长等待60秒
                 wait_time = min(wait_time, 60)
 
-                print(f"⚠️ 遇到速率限制 ({retry_count}/{max_retries})")
+                print(f"⚠️ 遇到速率限制 (第 {retry_count}/{max_retries} 次尝试)")
                 print(f"   错误信息: {error_msg[:100]}...")
                 print(f"   等待 {wait_time} 秒后重试...")
                 logging.warning(f"[Rate Limit] Attempt {retry_count}/{max_retries}, waiting {wait_time}s. Error: {error_msg[:200]}")
-
-                time.sleep(wait_time)
 
                 if retry_count >= max_retries:
                     print(f"❌ 已达到最大重试次数，请稍后再试")
                     logging.error(f"Rate limit exceeded after {max_retries} retries")
                     raise e
+
+                time.sleep(wait_time)
+
             else:
                 # 非速率限制错误，使用普通重试
-                print(f"调用失败 ({retry_count}/{max_retries}): {error_msg[:100]}")
+                print(f"⚠️ 调用失败 (第 {retry_count}/{max_retries} 次尝试)")
+                print(f"   错误信息: {error_msg[:100]}...")
                 logging.error(f"[LLM Error] Attempt {retry_count}/{max_retries}: {error_msg}")
 
                 if retry_count >= max_retries:
+                    print(f"❌ 已达到最大重试次数")
+                    logging.error(f"LLM call failed after {max_retries} attempts")
                     raise e
 
-                # 普通错误等待较短时间
-                time.sleep(base_wait_time)
+                # 普通错误使用递增等待：2秒 -> 4秒 -> 6秒
+                wait_time = base_wait_time * retry_count
+                wait_time = min(wait_time, 10)  # 最多等待10秒
+                print(f"   等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
 
+    # 理论上不会到达这里（空回复已在循环内返回）
+    logging.error("Unexpected: invoke_with_cleaning loop ended without return")
     return result
 
 
