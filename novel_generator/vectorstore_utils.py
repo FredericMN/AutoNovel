@@ -164,28 +164,46 @@ def delete_volume_summary_from_store(embedding_adapter, filepath: str, volume_nu
         # 获取所有文档
         collection = store._collection
 
-        # 查询包含卷摘要标记的文档
-        results = collection.get(
-            where={"volume": volume_num}
-        )
+        # 优先使用元数据过滤（新版向量库）
+        try:
+            results = collection.get(
+                where={"volume": volume_num, "doc_type": "volume_summary"}
+            )
 
-        if not results or not results.get('ids'):
-            logging.info(f"No existing volume {volume_num} summary found in vector store.")
-            return
+            if results and results.get('ids'):
+                ids_to_delete = results['ids']
+                if ids_to_delete:
+                    collection.delete(ids=ids_to_delete)
+                    logging.info(f"Deleted {len(ids_to_delete)} volume {volume_num} summary documents using metadata filter.")
+                    return
+                else:
+                    logging.info(f"No volume summary found for volume {volume_num} using metadata filter.")
+                    return
+        except Exception as meta_error:
+            # 降级：旧版向量库没有doc_type字段，使用内容匹配
+            logging.info(f"Metadata filter failed (legacy vector store?), falling back to content matching: {meta_error}")
 
-        # 过滤出卷摘要（通过内容特征识别）
-        ids_to_delete = []
-        for i, doc_id in enumerate(results['ids']):
-            content = results['documents'][i] if 'documents' in results else ""
-            # 识别卷摘要标记
-            if content.startswith(f"【第{volume_num}卷总结】"):
-                ids_to_delete.append(doc_id)
+            results = collection.get(
+                where={"volume": volume_num}
+            )
 
-        if ids_to_delete:
-            collection.delete(ids=ids_to_delete)
-            logging.info(f"Deleted {len(ids_to_delete)} old volume {volume_num} summary documents from vector store.")
-        else:
-            logging.info(f"No volume summary documents found for volume {volume_num}.")
+            if not results or not results.get('ids'):
+                logging.info(f"No existing volume {volume_num} summary found in vector store.")
+                return
+
+            # 通过内容特征识别卷摘要
+            ids_to_delete = []
+            for i, doc_id in enumerate(results['ids']):
+                content = results['documents'][i] if 'documents' in results else ""
+                # 识别卷摘要标记
+                if content.startswith(f"【第{volume_num}卷总结】"):
+                    ids_to_delete.append(doc_id)
+
+            if ids_to_delete:
+                collection.delete(ids=ids_to_delete)
+                logging.info(f"Deleted {len(ids_to_delete)} old volume {volume_num} summary documents using content matching (legacy mode).")
+            else:
+                logging.info(f"No volume summary documents found for volume {volume_num}.")
 
     except Exception as e:
         logging.warning(f"Failed to delete volume summary from vector store: {e}")
@@ -242,7 +260,7 @@ def split_text_for_vectorstore(chapter_text: str, max_length: int = 500, similar
         final_segments.append(" ".join(current_segment))
 
     return final_segments
-def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chapter_num: int = None, volume_num: int = None):
+def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chapter_num: int = None, volume_num: int = None, doc_type: str = "chapter"):
     """
     将最新章节文本插入到向量库中。
     若库不存在则初始化；若初始化/更新失败，则跳过。
@@ -253,6 +271,7 @@ def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chap
         filepath: 小说保存路径
         chapter_num: 章节号（用于元数据，可选）
         volume_num: 卷号（用于分卷检索，可选）
+        doc_type: 文档类型（"chapter" 或 "volume_summary"，默认 "chapter"）
     """
     from utils import read_file, clear_file_content, save_string_to_txt
     splitted_texts = split_text_for_vectorstore(new_chapter)
@@ -270,6 +289,7 @@ def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chap
             metadata["chapter"] = chapter_num
         if volume_num is not None:
             metadata["volume"] = volume_num
+        metadata["doc_type"] = doc_type  # 添加文档类型标记
 
         # 创建带元数据的文档
         docs = [Document(page_content=str(t), metadata=metadata) for t in splitted_texts]
@@ -278,7 +298,7 @@ def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chap
         if not store:
             logging.warning("Init vector store failed, skip embedding.")
         else:
-            logging.info(f"New vector store created successfully with metadata: chapter={chapter_num}, volume={volume_num}")
+            logging.info(f"New vector store created successfully with metadata: chapter={chapter_num}, volume={volume_num}, doc_type={doc_type}")
         return
 
     try:
@@ -288,15 +308,13 @@ def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chap
             metadata["chapter"] = chapter_num
         if volume_num is not None:
             metadata["volume"] = volume_num
+        metadata["doc_type"] = doc_type  # 添加文档类型标记
 
         # 创建带元数据的文档
         docs = [Document(page_content=str(t), metadata=metadata) for t in splitted_texts]
         store.add_documents(docs)
 
-        if metadata:
-            logging.info(f"Vector store updated with metadata: {metadata}")
-        else:
-            logging.info("Vector store updated with the new chapter splitted segments.")
+        logging.info(f"Vector store updated with metadata: chapter={chapter_num}, volume={volume_num}, doc_type={doc_type}")
     except Exception as e:
         logging.warning(f"Failed to update vector store: {e}")
         traceback.print_exc()

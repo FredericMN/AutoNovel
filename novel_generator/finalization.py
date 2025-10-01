@@ -37,6 +37,10 @@ def finalize_volume(
     max_tokens: int,
     timeout: int = 600,
     use_global_system_prompt: bool = False,
+    embedding_api_key: str = "",
+    embedding_url: str = "",
+    embedding_interface_format: str = "openai",
+    embedding_model_name: str = "text-embedding-ada-002",
     gui_log_callback=None
 ):
     """
@@ -46,6 +50,10 @@ def finalize_volume(
         volume_number: 卷号（1-based）
         volume_start: 卷的起始章节号
         volume_end: 卷的结束章节号
+        embedding_api_key: Embedding API Key
+        embedding_url: Embedding API URL
+        embedding_interface_format: Embedding 接口格式
+        embedding_model_name: Embedding 模型名称
         其他参数同 finalize_chapter
 
     生成文件：
@@ -84,7 +92,7 @@ def finalize_volume(
     combined_volume_text = "\n\n".join(volume_chapters_text)
 
     # 限制总文本长度（避免超过 context 窗口）
-    max_combined_length = 50000  # 约50K字符
+    max_combined_length = 150000  # 约150K字符
     if len(combined_volume_text) > max_combined_length:
         gui_log(f"⚠️ 卷内容过长({len(combined_volume_text)}字)，截取后{max_combined_length}字符")
         combined_volume_text = combined_volume_text[-max_combined_length:]
@@ -138,42 +146,35 @@ def finalize_volume(
 
     # 将卷摘要也存入向量库（标记为特殊类型，方便跨卷检索）
     try:
-        from embedding_adapters import create_embedding_adapter
-        # 尝试从配置读取 embedding 配置（降级策略：如果无法获取则跳过）
-        import json
-        config_file = "config.json"
-        if os.path.exists(config_file):
-            with open(config_file, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                embedding_config = config.get("embedding_configs", {})
-                if embedding_config:
-                    embedding_adapter = create_embedding_adapter(
-                        embedding_config.get("interface_format", "openai"),
-                        embedding_config.get("api_key", ""),
-                        embedding_config.get("base_url", ""),
-                        embedding_config.get("model_name", "text-embedding-ada-002")
-                    )
+        # 使用传入的 embedding 配置参数（复用章节写入的配置）
+        embedding_adapter = create_embedding_adapter(
+            embedding_interface_format,
+            embedding_api_key,
+            embedding_url,
+            embedding_model_name
+        )
 
-                    # 先删除旧的卷摘要（避免重复存储）
-                    from novel_generator.vectorstore_utils import delete_volume_summary_from_store
-                    delete_volume_summary_from_store(embedding_adapter, filepath, volume_number)
-                    gui_log(f"▶ 已清理旧卷摘要（如存在）")
+        # 先删除旧的卷摘要（避免重复存储）
+        from novel_generator.vectorstore_utils import delete_volume_summary_from_store
+        delete_volume_summary_from_store(embedding_adapter, filepath, volume_number)
+        gui_log(f"▶ 已清理旧卷摘要（如存在）")
 
-                    # 将卷摘要切分后存入向量库，标记为卷摘要类型
-                    from novel_generator.vectorstore_utils import update_vector_store
+        # 将卷摘要切分后存入向量库，标记为卷摘要类型
+        from novel_generator.vectorstore_utils import update_vector_store
 
-                    # 构建卷摘要标题（便于检索时识别）
-                    volume_summary_with_title = f"【第{volume_number}卷总结】\n{volume_summary_result}"
+        # 构建卷摘要标题（便于检索时识别）
+        volume_summary_with_title = f"【第{volume_number}卷总结】\n{volume_summary_result}"
 
-                    update_vector_store(
-                        embedding_adapter=embedding_adapter,
-                        new_chapter=volume_summary_with_title,
-                        filepath=filepath,
-                        chapter_num=volume_end,  # 使用卷的末章号作为标记
-                        volume_num=volume_number
-                    )
-                    gui_log(f"▶ 卷摘要已存入向量库（便于跨卷检索）\n")
-                    logging.info(f"Volume {volume_number} summary stored in vector store")
+        update_vector_store(
+            embedding_adapter=embedding_adapter,
+            new_chapter=volume_summary_with_title,
+            filepath=filepath,
+            chapter_num=volume_end,  # 使用卷的末章号作为标记
+            volume_num=volume_number,
+            doc_type="volume_summary"  # 明确标记为卷摘要
+        )
+        gui_log(f"▶ 卷摘要已存入向量库（便于跨卷检索）\n")
+        logging.info(f"Volume {volume_number} summary stored in vector store")
     except Exception as e:
         # 非关键操作，失败不影响主流程
         logging.warning(f"Failed to store volume summary in vector store: {e}")
@@ -303,7 +304,8 @@ def finalize_chapter(
         new_chapter=chapter_text,
         filepath=filepath,
         chapter_num=novel_number,  # 新增：章节号
-        volume_num=volume_num  # 新增：卷号
+        volume_num=volume_num,  # 新增：卷号
+        doc_type="chapter"  # 明确标记为章节
     )
     gui_log("   └─ ✅ 向量库更新完成\n")
 
@@ -339,6 +341,10 @@ def finalize_chapter(
                     max_tokens=max_tokens,
                     timeout=timeout,
                     use_global_system_prompt=use_global_system_prompt,
+                    embedding_api_key=embedding_api_key,
+                    embedding_url=embedding_url,
+                    embedding_interface_format=embedding_interface_format,
+                    embedding_model_name=embedding_model_name,
                     gui_log_callback=gui_log_callback
                 )
 
