@@ -9,11 +9,12 @@ import logging
 from novel_generator.common import invoke_with_cleaning
 from llm_adapters import create_llm_adapter
 from prompt_definitions import (
-    chapter_blueprint_prompt,
-    chunked_chapter_blueprint_prompt,
+    chapter_blueprint_prompt,  # 用于 fallback
+    chunked_chapter_blueprint_prompt,  # 用于 fallback
     volume_chapter_blueprint_prompt,  # 新增：分卷蓝图提示词
     resolve_global_system_prompt
 )
+from prompt_manager import PromptManager  # 新增：提示词管理器
 from utils import read_file, clear_file_content, save_string_to_txt
 from volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
 logging.basicConfig(
@@ -104,6 +105,23 @@ def Chapter_blueprint_generate(
     )
 
     system_prompt = resolve_global_system_prompt(use_global_system_prompt if use_global_system_prompt is not None else None)
+
+    # 初始化 PromptManager 以动态加载提示词（带异常保护）
+    try:
+        pm = PromptManager()
+    except Exception as e:
+        # 如果 PromptManager 初始化失败，创建 fallback 对象
+        logging.error(f"Failed to initialize PromptManager in blueprint: {e}")
+
+        class FallbackPromptManager:
+            def is_module_enabled(self, category, name):
+                return True
+            def get_prompt(self, category, name):
+                return None  # 返回 None，触发使用默认常量
+
+        pm = FallbackPromptManager()
+        if gui_log_callback:
+            gui_log_callback(f"⚠️ 提示词管理器初始化失败，将使用默认提示词")
 
     # GUI日志辅助函数
     def gui_log(msg):
@@ -252,7 +270,13 @@ def Chapter_blueprint_generate(
             current_end = min(current_start + chunk_size - 1, number_of_chapters)
             gui_log(f"\n▶ [{chunk_index}/{total_chunks}] 生成第{current_start}-{current_end}章...")
             limited_blueprint = limit_chapter_blueprint(final_blueprint, 100)
-            chunk_prompt = chunked_chapter_blueprint_prompt.format(
+            # 从 PromptManager 动态加载提示词（带兜底处理）
+            chunked_prompt_template = pm.get_prompt("blueprint", "chunked_blueprint")
+            if not chunked_prompt_template:
+                logging.warning("Chunked blueprint prompt not found, using default")
+                chunked_prompt_template = chunked_chapter_blueprint_prompt
+
+            chunk_prompt = chunked_prompt_template.format(
                 novel_architecture=architecture_text,
                 chapter_list=limited_blueprint,
                 number_of_chapters=number_of_chapters,
@@ -284,7 +308,13 @@ def Chapter_blueprint_generate(
 
     if chunk_size >= number_of_chapters:
         gui_log("▶ 章节数量适中，一次性生成所有章节...")
-        prompt = chapter_blueprint_prompt.format(
+        # 从 PromptManager 动态加载提示词（带兜底处理）
+        blueprint_prompt_template = pm.get_prompt("blueprint", "chapter_blueprint")
+        if not blueprint_prompt_template:
+            logging.warning("Chapter blueprint prompt not found, using default")
+            blueprint_prompt_template = chapter_blueprint_prompt
+
+        prompt = blueprint_prompt_template.format(
             novel_architecture=architecture_text,
             number_of_chapters=number_of_chapters,
             user_guidance=user_guidance  # 新增参数
@@ -317,7 +347,13 @@ def Chapter_blueprint_generate(
         current_end = min(current_start + chunk_size - 1, number_of_chapters)
         gui_log(f"\n▶ [{chunk_index}/{total_chunks}] 生成第{current_start}-{current_end}章...")
         limited_blueprint = limit_chapter_blueprint(final_blueprint, 100)
-        chunk_prompt = chunked_chapter_blueprint_prompt.format(
+        # 从 PromptManager 动态加载提示词（带兜底处理）
+        chunked_prompt_template = pm.get_prompt("blueprint", "chunked_blueprint")
+        if not chunked_prompt_template:
+            logging.warning("Chunked blueprint prompt not found, using default")
+            chunked_prompt_template = chunked_chapter_blueprint_prompt
+
+        chunk_prompt = chunked_prompt_template.format(
             novel_architecture=architecture_text,
             chapter_list=limited_blueprint,
             number_of_chapters=number_of_chapters,

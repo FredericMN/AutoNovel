@@ -9,13 +9,14 @@ import logging
 import re  # 添加re模块导入
 from llm_adapters import create_llm_adapter
 from prompt_definitions import (
-    first_chapter_draft_prompt,
-    next_chapter_draft_prompt,
-    summarize_recent_chapters_prompt,
-    knowledge_filter_prompt,
-    knowledge_search_prompt,
+    first_chapter_draft_prompt,  # 用于 fallback
+    next_chapter_draft_prompt,  # 用于 fallback
+    summarize_recent_chapters_prompt,  # 用于 fallback
+    knowledge_filter_prompt,  # 用于 fallback
+    knowledge_search_prompt,  # 用于 fallback
     resolve_global_system_prompt
 )
+from prompt_manager import PromptManager  # 新增：提示词管理器
 from chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
@@ -256,7 +257,23 @@ def summarize_recent_chapters(
         chapter_info = chapter_info or {}
         next_chapter_info = next_chapter_info or {}
 
-        prompt = summarize_recent_chapters_prompt.format(
+        # 从 PromptManager 动态加载提示词（带异常保护）
+        try:
+            pm = PromptManager()
+        except Exception as e:
+            logging.error(f"Failed to initialize PromptManager in summarize_recent_chapters: {e}")
+            pm = None
+
+        if pm:
+            summary_prompt_template = pm.get_prompt("chapter", "chapter_summary")
+        else:
+            summary_prompt_template = None
+
+        if not summary_prompt_template:
+            logging.warning("Chapter summary prompt not found, using default")
+            summary_prompt_template = summarize_recent_chapters_prompt
+
+        prompt = summary_prompt_template.format(
             combined_text=combined_text,
             novel_number=novel_number,
             chapter_title=chapter_info.get("chapter_title", "未命名"),
@@ -689,7 +706,23 @@ def get_filtered_knowledge_context(
             f"{chapter_info.get('scene_location', '')}"
         )
 
-        prompt = knowledge_filter_prompt.format(
+        # 从 PromptManager 动态加载提示词（带异常保护）
+        try:
+            pm = PromptManager()
+        except Exception as e:
+            logging.error(f"Failed to initialize PromptManager in filter_knowledge_context: {e}")
+            pm = None
+
+        if pm:
+            filter_prompt_template = pm.get_prompt("helper", "knowledge_filter")
+        else:
+            filter_prompt_template = None
+
+        if not filter_prompt_template:
+            logging.warning("Knowledge filter prompt not found, using default")
+            filter_prompt_template = knowledge_filter_prompt
+
+        prompt = filter_prompt_template.format(
             chapter_info=formatted_chapter_info,
             retrieved_texts="\n\n".join(formatted_texts) if formatted_texts else "（无检索结果）"
         )
@@ -858,7 +891,23 @@ def build_chapter_prompt(
 
     # 第一章特殊处理
     if novel_number == 1:
-        return first_chapter_draft_prompt.format(
+        # 从 PromptManager 动态加载提示词（带异常保护）
+        try:
+            pm = PromptManager()
+        except Exception as e:
+            logging.error(f"Failed to initialize PromptManager in build_first_chapter_prompt: {e}")
+            pm = None
+
+        if pm:
+            first_prompt_template = pm.get_prompt("chapter", "first_chapter")
+        else:
+            first_prompt_template = None
+
+        if not first_prompt_template:
+            logging.warning("First chapter prompt not found, using default")
+            first_prompt_template = first_chapter_draft_prompt
+
+        return first_prompt_template.format(
             volume_display=current_volume_display,  # 新增：传递卷信息
             volume_architecture=current_volume_architecture,  # 新增：传递卷架构
             novel_number=novel_number,
@@ -965,7 +1014,23 @@ def build_chapter_prompt(
             timeout=timeout
         )
 
-        search_prompt = knowledge_search_prompt.format(
+        # 从 PromptManager 动态加载提示词（带异常保护）
+        try:
+            pm = PromptManager()
+        except Exception as e:
+            logging.error(f"Failed to initialize PromptManager in build_next_chapter_prompt (knowledge search): {e}")
+            pm = None
+
+        if pm:
+            search_prompt_template = pm.get_prompt("helper", "knowledge_search")
+        else:
+            search_prompt_template = None
+
+        if not search_prompt_template:
+            logging.warning("Knowledge search prompt not found, using default")
+            search_prompt_template = knowledge_search_prompt
+
+        search_prompt = search_prompt_template.format(
             chapter_number=novel_number,
             chapter_title=chapter_title,
             characters_involved=characters_involved,
@@ -1106,8 +1171,24 @@ def build_chapter_prompt(
         logging.error(f"知识处理流程异常：{str(e)}")
         filtered_context = "（知识库处理失败）"
 
+    # 从 PromptManager 动态加载提示词（带异常保护）
+    try:
+        pm = PromptManager()
+    except Exception as e:
+        logging.error(f"Failed to initialize PromptManager in build_next_chapter_prompt (final): {e}")
+        pm = None
+
+    if pm:
+        next_prompt_template = pm.get_prompt("chapter", "next_chapter")
+    else:
+        next_prompt_template = None
+
+    if not next_prompt_template:
+        logging.warning("Next chapter prompt not found, using default")
+        next_prompt_template = next_chapter_draft_prompt
+
     # 返回最终提示词
-    return next_chapter_draft_prompt.format(
+    return next_prompt_template.format(
         user_guidance=user_guidance if user_guidance else "无特殊指导",
         global_summary=global_summary_text,
         volume_info=volume_info_text,  # 新增：分卷信息
