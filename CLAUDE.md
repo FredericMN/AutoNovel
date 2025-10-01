@@ -86,8 +86,15 @@ pyinstaller main.spec  # 生成 dist/main.exe
 - **proxy_setting**: 可选的代理配置
 - **webdav_config**: WebDAV 同步配置(可选)
 
-### global_prompt.json
-全局 system prompt,可通过界面开关控制是否注入到所有 LLM 调用中。
+### prompts_config.json
+提示词模块配置文件，控制各个提示词模块的启用状态和自定义内容路径。
+
+### 全局 System Prompt
+全局系统提示词现已集成到提示词管理系统中：
+- **配置位置**: 提示词管理页签 → 辅助功能 → 全局System Prompt
+- **存储文件**: `custom_prompts/system_prompt.txt`
+- **开关控制**: 通过 `prompts_config.json` 中的 `modules.helper.global_system.enabled` 控制
+- **使用方式**: 在提示词管理页签中编辑和保存，所有 LLM 调用自动注入
 
 ## 关键技术细节
 

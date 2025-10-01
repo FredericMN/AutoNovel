@@ -644,14 +644,14 @@ for category, modules in pm.config["modules"].items():
 - 不使用提示词管理功能，系统按原方式运行
 - `prompt_definitions.py` 保留，作为默认值来源
 
-### 8.2 迁移方案
+### 8.2 全局 System Prompt 已集成
 
-**从 `global_prompt.json` 迁移到新系统**：
+**全局提示词现已完全集成到提示词管理系统**：
 
-1. 首次启动时，检测到 `global_prompt.json` 存在
-2. 读取其中的 `system_prompt` 内容
-3. 写入到 `custom_prompts/system_prompt.txt`
-4. 删除或重命名 `global_prompt.json`（可选）
+1. 开关控制：`prompts_config.json` → `modules.helper.global_system.enabled`
+2. 内容存储：`custom_prompts/system_prompt.txt`
+3. UI 管理：提示词管理页签 → 辅助功能 → 全局System Prompt
+4. 旧文件 `global_prompt.json` 已不再使用
 
 ---
 
@@ -759,11 +759,13 @@ A：是的，保存后下次生成会使用新的提示词。
 - `novel_generator/blueprint.py` - 支持可选模块
 - `novel_generator/chapter.py` - 支持可选模块
 - `novel_generator/finalization.py` - 支持可选模块
-- `prompt_definitions.py` - 集成System Prompt
+- `prompt_definitions.py` - 集成System Prompt到PromptManager
 - `ui/main_window.py` - 添加提示词管理页签
 
-**废弃文件**：
-- `global_prompt.json` - 迁移到 `custom_prompts/system_prompt.txt`
+**已完成的集成**：
+- ✅ 全局 System Prompt 已完全集成到 PromptManager
+- ✅ 旧文件 `global_prompt.json` 已弃用，改用 `custom_prompts/system_prompt.txt`
+- ✅ 所有生成流程统一使用 PromptManager 读取配置
 
 ---
 
