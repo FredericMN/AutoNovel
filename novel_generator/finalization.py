@@ -13,6 +13,7 @@ from prompt_definitions import (
     volume_summary_prompt,  # 新增：分卷总结提示词
     resolve_global_system_prompt
 )
+from prompt_manager import PromptManager  # 新增：提示词管理器
 from novel_generator.common import invoke_with_cleaning
 from utils import read_file, clear_file_content, save_string_to_txt
 from novel_generator.vectorstore_utils import update_vector_store
@@ -65,6 +66,22 @@ def finalize_volume(
             gui_log_callback(msg)
         logging.info(msg)
 
+    # 创建提示词管理器实例（带异常保护）
+    try:
+        pm = PromptManager()
+    except Exception as e:
+        logging.error(f"Failed to initialize PromptManager: {e}")
+        gui_log(f"⚠️ 提示词管理器初始化失败，将使用默认提示词: {str(e)}")
+
+        # Fallback对象
+        class FallbackPromptManager:
+            def is_module_enabled(self, category, name):
+                return True
+            def get_prompt(self, category, name):
+                return None
+
+        pm = FallbackPromptManager()
+
     gui_log(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     gui_log(f"📖 开始生成第{volume_number}卷总结")
     gui_log(f"   卷范围: 第{volume_start}-{volume_end}章")
@@ -115,9 +132,15 @@ def finalize_volume(
     )
     system_prompt = resolve_global_system_prompt(use_global_system_prompt)
 
-    # 生成卷摘要
+    # 生成卷摘要（使用PromptManager获取提示词）
     gui_log("▶ 向LLM发起请求生成卷摘要...")
-    volume_summary_prompt_text = volume_summary_prompt.format(
+
+    prompt_template = pm.get_prompt("finalization", "volume_summary")
+    if not prompt_template:
+        gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+        prompt_template = volume_summary_prompt
+
+    volume_summary_prompt_text = prompt_template.format(
         volume_number=volume_number,
         volume_start=volume_start,
         volume_end=volume_end,
@@ -224,6 +247,22 @@ def finalize_chapter(
             gui_log_callback(msg)
         logging.info(msg)
 
+    # 创建提示词管理器实例（带异常保护）
+    try:
+        pm = PromptManager()
+    except Exception as e:
+        logging.error(f"Failed to initialize PromptManager: {e}")
+        gui_log(f"⚠️ 提示词管理器初始化失败，将使用默认提示词: {str(e)}")
+
+        # Fallback对象
+        class FallbackPromptManager:
+            def is_module_enabled(self, category, name):
+                return True
+            def get_prompt(self, category, name):
+                return None
+
+        pm = FallbackPromptManager()
+
     gui_log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     gui_log(f"📝 开始定稿第{novel_number}章")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
@@ -236,13 +275,6 @@ def finalize_chapter(
         logging.warning(f"Chapter {novel_number} is empty, cannot finalize.")
         return False
 
-    gui_log(f"▶ [1/3] 更新前文摘要")
-    gui_log("   ├─ 读取旧摘要...")
-    global_summary_file = os.path.join(filepath, "global_summary.txt")
-    old_global_summary = read_file(global_summary_file)
-    character_state_file = os.path.join(filepath, "character_state.txt")
-    old_character_state = read_file(character_state_file)
-
     llm_adapter = create_llm_adapter(
         interface_format=interface_format,
         base_url=base_url,
@@ -254,37 +286,63 @@ def finalize_chapter(
     )
     system_prompt = resolve_global_system_prompt(use_global_system_prompt)
 
-    prompt_summary = summary_prompt.format(
-        chapter_text=chapter_text,
-        global_summary=old_global_summary
-    )
-    gui_log("   ├─ 向LLM发起请求...")
-    new_global_summary = invoke_with_cleaning(llm_adapter, prompt_summary, system_prompt=system_prompt)
-    if not new_global_summary.strip():
-        gui_log("   ├─ ⚠ 生成失败，保留旧摘要")
-        new_global_summary = old_global_summary
-    else:
-        gui_log("   └─ ✅ 前文摘要更新完成\n")
+    # [1/3] 更新前文摘要（可选）
+    if pm.is_module_enabled("finalization", "summary_update"):
+        gui_log(f"▶ [1/3] 更新前文摘要")
+        gui_log("   ├─ 读取旧摘要...")
+        global_summary_file = os.path.join(filepath, "global_summary.txt")
+        old_global_summary = read_file(global_summary_file)
 
-    gui_log("▶ [2/3] 更新角色状态")
-    gui_log("   ├─ 读取旧状态...")
-    prompt_char_state = update_character_state_prompt.format(
-        chapter_text=chapter_text,
-        old_state=old_character_state
-    )
-    gui_log("   ├─ 向LLM发起请求...")
-    new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state, system_prompt=system_prompt)
-    if not new_char_state.strip():
-        gui_log("   ├─ ⚠ 生成失败，保留旧状态")
-        new_char_state = old_character_state
-    else:
-        gui_log("   └─ ✅ 角色状态更新完成\n")
+        prompt_template = pm.get_prompt("finalization", "summary_update")
+        if not prompt_template:
+            gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+            prompt_template = summary_prompt
 
-    gui_log("   ├─ 保存更新结果...")
-    clear_file_content(global_summary_file)
-    save_string_to_txt(new_global_summary, global_summary_file)
-    clear_file_content(character_state_file)
-    save_string_to_txt(new_char_state, character_state_file)
+        prompt_summary = prompt_template.format(
+            chapter_text=chapter_text,
+            global_summary=old_global_summary
+        )
+        gui_log("   ├─ 向LLM发起请求...")
+        new_global_summary = invoke_with_cleaning(llm_adapter, prompt_summary, system_prompt=system_prompt)
+        if not new_global_summary.strip():
+            gui_log("   ├─ ⚠ 生成失败，保留旧摘要")
+            new_global_summary = old_global_summary
+        else:
+            gui_log("   └─ ✅ 前文摘要更新完成\n")
+
+        clear_file_content(global_summary_file)
+        save_string_to_txt(new_global_summary, global_summary_file)
+    else:
+        gui_log(f"▷ [1/3] 更新前文摘要 (已禁用，跳过)\n")
+
+    # [2/3] 更新角色状态（可选）
+    if pm.is_module_enabled("finalization", "character_state_update"):
+        gui_log("▶ [2/3] 更新角色状态")
+        gui_log("   ├─ 读取旧状态...")
+        character_state_file = os.path.join(filepath, "character_state.txt")
+        old_character_state = read_file(character_state_file)
+
+        prompt_template = pm.get_prompt("finalization", "character_state_update")
+        if not prompt_template:
+            gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+            prompt_template = update_character_state_prompt
+
+        prompt_char_state = prompt_template.format(
+            chapter_text=chapter_text,
+            old_state=old_character_state
+        )
+        gui_log("   ├─ 向LLM发起请求...")
+        new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state, system_prompt=system_prompt)
+        if not new_char_state.strip():
+            gui_log("   ├─ ⚠ 生成失败，保留旧状态")
+            new_char_state = old_character_state
+        else:
+            gui_log("   └─ ✅ 角色状态更新完成\n")
+
+        clear_file_content(character_state_file)
+        save_string_to_txt(new_char_state, character_state_file)
+    else:
+        gui_log(f"▷ [2/3] 更新角色状态 (已禁用，跳过)\n")
 
     gui_log("▶ [3/3] 插入向量库")
     gui_log("   ├─ 切分章节文本...")
@@ -317,8 +375,8 @@ def finalize_chapter(
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info(f"Chapter {novel_number} has been finalized.")
 
-    # 检查是否需要生成卷总结（分卷模式 + 卷末章节）
-    if num_volumes > 1 and total_chapters > 0:
+    # 检查是否需要生成卷总结（分卷模式 + 卷末章节 + 模块已启用）
+    if num_volumes > 1 and total_chapters > 0 and pm.is_module_enabled("finalization", "volume_summary"):
         volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
 
         if is_volume_last_chapter(novel_number, volume_ranges):
@@ -350,6 +408,14 @@ def finalize_chapter(
                     embedding_model_name=embedding_model_name,
                     gui_log_callback=gui_log_callback
                 )
+    elif num_volumes > 1 and total_chapters > 0 and not pm.is_module_enabled("finalization", "volume_summary"):
+        # 卷总结已禁用，检查是否是卷末章节并提示
+        volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
+        if is_volume_last_chapter(novel_number, volume_ranges):
+            from volume_utils import get_volume_number
+            volume_num = get_volume_number(novel_number, volume_ranges)
+            gui_log(f"\n🔔 第{novel_number}章是第{volume_num}卷的最后一章")
+            gui_log("   卷总结模块已禁用，跳过生成\n")
 
     return True  # 定稿成功
 

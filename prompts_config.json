@@ -1,0 +1,241 @@
+{
+  "_version": "1.0",
+  "_description": "提示词模块配置文件 - Prompt Module Configuration",
+  "_last_modified": "2025-10-01",
+  "_note": "enabled=true表示启用，required=true表示必需模块不可禁用，dependencies列出依赖的其他模块",
+  "modules": {
+    "architecture": {
+      "core_seed": {
+        "enabled": true,
+        "required": true,
+        "display_name": "核心种子生成",
+        "description": "生成小说的核心主题、类型和冲突",
+        "file": "custom_prompts/core_seed_prompt.txt",
+        "dependencies": [],
+        "variables": [
+          "topic",
+          "genre",
+          "number_of_chapters",
+          "word_number",
+          "user_guidance"
+        ]
+      },
+      "character_dynamics": {
+        "enabled": true,
+        "required": false,
+        "display_name": "角色动力学",
+        "description": "角色设定、性格、关系网络",
+        "file": "custom_prompts/character_dynamics_prompt.txt",
+        "dependencies": [],
+        "variables": [
+          "core_seed",
+          "user_guidance"
+        ]
+      },
+      "world_building": {
+        "enabled": true,
+        "required": false,
+        "display_name": "世界观构建",
+        "description": "世界观、背景设定、规则体系",
+        "file": "custom_prompts/world_building_prompt.txt",
+        "dependencies": [],
+        "variables": [
+          "core_seed",
+          "user_guidance"
+        ]
+      },
+      "plot_architecture": {
+        "enabled": true,
+        "required": false,
+        "display_name": "三幕式情节",
+        "description": "情节架构（起承转合）",
+        "file": "custom_prompts/plot_architecture_prompt.txt",
+        "dependencies": [
+          "character_dynamics",
+          "world_building"
+        ],
+        "variables": [
+          "core_seed",
+          "character_dynamics",
+          "world_building",
+          "user_guidance"
+        ]
+      },
+      "volume_breakdown": {
+        "enabled": true,
+        "required": false,
+        "display_name": "分卷架构",
+        "description": "分卷小说的卷架构规划",
+        "file": "custom_prompts/volume_breakdown_prompt.txt",
+        "variables": [
+          "novel_architecture",
+          "num_volumes",
+          "num_chapters",
+          "volume_format_examples"
+        ],
+        "dependencies": []
+      }
+    },
+    "blueprint": {
+      "chapter_blueprint": {
+        "enabled": true,
+        "required": true,
+        "display_name": "章节蓝图",
+        "description": "生成所有章节的标题和大纲",
+        "file": "custom_prompts/chapter_blueprint_prompt.txt",
+        "variables": [
+          "novel_architecture",
+          "number_of_chapters",
+          "user_guidance"
+        ],
+        "dependencies": []
+      },
+      "chunked_blueprint": {
+        "enabled": true,
+        "required": true,
+        "display_name": "分块蓝图生成",
+        "description": "分块生成大量章节的蓝图",
+        "file": "custom_prompts/chunked_chapter_blueprint_prompt.txt",
+        "variables": [
+          "novel_architecture",
+          "start_chapter",
+          "end_chapter",
+          "user_guidance"
+        ],
+        "dependencies": []
+      }
+    },
+    "chapter": {
+      "first_chapter": {
+        "enabled": true,
+        "required": true,
+        "display_name": "第一章草稿",
+        "description": "生成第一章的草稿内容",
+        "file": "custom_prompts/first_chapter_draft_prompt.txt",
+        "variables": [
+          "novel_number",
+          "chapter_title",
+          "chapter_role",
+          "chapter_purpose",
+          "word_number"
+        ],
+        "dependencies": []
+      },
+      "next_chapter": {
+        "enabled": true,
+        "required": true,
+        "display_name": "后续章节草稿",
+        "description": "生成第二章及以后的草稿内容",
+        "file": "custom_prompts/next_chapter_draft_prompt.txt",
+        "variables": [
+          "novel_number",
+          "chapter_title",
+          "chapter_role",
+          "chapter_purpose",
+          "word_number"
+        ],
+        "dependencies": []
+      },
+      "chapter_summary": {
+        "enabled": true,
+        "required": false,
+        "display_name": "章节摘要生成",
+        "description": "生成当前章节的摘要",
+        "file": "custom_prompts/summarize_recent_chapters_prompt.txt",
+        "variables": [
+          "combined_text",
+          "novel_number",
+          "chapter_title"
+        ],
+        "dependencies": []
+      }
+    },
+    "finalization": {
+      "summary_update": {
+        "enabled": true,
+        "required": false,
+        "display_name": "前文摘要更新",
+        "description": "定稿时更新全局摘要",
+        "file": "custom_prompts/summary_prompt.txt",
+        "variables": [
+          "chapter_text",
+          "global_summary"
+        ],
+        "dependencies": []
+      },
+      "character_state_update": {
+        "enabled": true,
+        "required": false,
+        "display_name": "角色状态更新",
+        "description": "定稿时更新角色状态表",
+        "file": "custom_prompts/update_character_state_prompt.txt",
+        "variables": [
+          "chapter_text",
+          "old_state"
+        ],
+        "dependencies": []
+      },
+      "volume_summary": {
+        "enabled": true,
+        "required": false,
+        "display_name": "卷总结生成",
+        "description": "生成每卷的总结",
+        "file": "custom_prompts/volume_summary_prompt.txt",
+        "variables": [
+          "volume_number",
+          "volume_start",
+          "volume_end"
+        ],
+        "dependencies": []
+      }
+    },
+    "helper": {
+      "knowledge_search": {
+        "enabled": true,
+        "required": false,
+        "display_name": "知识库搜索",
+        "description": "从知识库中搜索相关内容",
+        "file": "custom_prompts/knowledge_search_prompt.txt",
+        "variables": [
+          "chapter_info",
+          "knowledge_content"
+        ],
+        "dependencies": []
+      },
+      "knowledge_filter": {
+        "enabled": true,
+        "required": false,
+        "display_name": "知识库过滤",
+        "description": "过滤知识库搜索结果",
+        "file": "custom_prompts/knowledge_filter_prompt.txt",
+        "variables": [
+          "chapter_info",
+          "knowledge_chunks"
+        ],
+        "dependencies": []
+      },
+      "create_character_state": {
+        "enabled": true,
+        "required": false,
+        "display_name": "初始角色状态",
+        "description": "创建初始角色状态表",
+        "file": "custom_prompts/create_character_state_prompt.txt",
+        "variables": [
+          "character_dynamics"
+        ],
+        "dependencies": [
+          "character_dynamics"
+        ]
+      },
+      "global_system": {
+        "enabled": false,
+        "required": false,
+        "display_name": "全局System Prompt",
+        "description": "全局系统提示词（所有LLM调用都会注入）",
+        "file": "custom_prompts/system_prompt.txt",
+        "variables": [],
+        "dependencies": []
+      }
+    }
+  }
+}

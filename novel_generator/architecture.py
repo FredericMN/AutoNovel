@@ -18,6 +18,7 @@ from prompt_definitions import (
     create_character_state_prompt,
     resolve_global_system_prompt
 )
+from prompt_manager import PromptManager  # 新增：提示词管理器
 logging.basicConfig(
     filename='app.log',      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
@@ -29,6 +30,24 @@ from utils import clear_file_content, save_string_to_txt
 from volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
 
 
+def sanitize_prompt_variable(value: str) -> str:
+    """
+    清理提示词变量，移除占位文本
+
+    当模块被禁用时，会生成 "（已跳过XXX）" 的占位文本。
+    此函数检测并替换这些占位文本，避免传递给LLM。
+
+    Args:
+        value: 原始变量值
+
+    Returns:
+        清理后的变量值
+    """
+    if value.startswith("（已跳过") and value.endswith("）"):
+        return "[该模块已禁用，无相关设定]"
+    return value
+
+
 def generate_volume_architecture(
     llm_adapter,
     novel_architecture: str,
@@ -36,7 +55,8 @@ def generate_volume_architecture(
     num_chapters: int,
     volume_ranges: list,
     system_prompt: str = "",
-    gui_log_callback=None
+    gui_log_callback=None,
+    prompt_template: str = None  # 新增：自定义提示词模板
 ) -> str:
     """
     生成分卷架构规划
@@ -49,6 +69,7 @@ def generate_volume_architecture(
         volume_ranges: 卷范围列表 [(start, end), ...]
         system_prompt: 系统提示词
         gui_log_callback: GUI日志回调函数
+        prompt_template: 自定义提示词模板（可选）
 
     Returns:
         分卷架构文本
@@ -104,7 +125,11 @@ def generate_volume_architecture(
     }
 
     gui_log("   ├─ 向LLM发起请求...")
-    prompt = volume_breakdown_prompt.format(**format_params)
+    # 使用自定义提示词或默认提示词
+    if prompt_template:
+        prompt = prompt_template.format(**format_params)
+    else:
+        prompt = volume_breakdown_prompt.format(**format_params)
     result = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
 
     if not result or not result.strip():
@@ -176,6 +201,26 @@ def Novel_architecture_generate(
     """
     os.makedirs(filepath, exist_ok=True)
     partial_data = load_partial_architecture_data(filepath)
+
+    # 创建提示词管理器实例（带异常保护）
+    try:
+        pm = PromptManager()
+    except Exception as e:
+        # 如果PromptManager初始化失败（如导入prompt_definitions失败、权限问题等）
+        # 创建一个最小化的fallback对象，确保后续代码不崩溃
+        logging.error(f"Failed to initialize PromptManager: {e}")
+        if gui_log_callback:
+            gui_log_callback(f"⚠️ 提示词管理器初始化失败，将使用默认提示词: {str(e)}")
+
+        # 创建fallback对象（所有模块默认启用，get_prompt返回None触发使用默认常量）
+        class FallbackPromptManager:
+            def is_module_enabled(self, category, name):
+                return True  # 默认全部启用
+            def get_prompt(self, category, name):
+                return None  # 返回None，触发调用方使用默认常量
+
+        pm = FallbackPromptManager()
+
     llm_adapter = create_llm_adapter(
         interface_format=interface_format,
         base_url=base_url,
@@ -207,12 +252,19 @@ def Novel_architecture_generate(
         gui_log(f"▶ [1/{total_steps}] 核心种子生成")
         gui_log("   ├─ 分析主题与类型...")
         logging.info("Step1: Generating core_seed_prompt (核心种子) ...")
-        prompt_core = core_seed_prompt.format(
+
+        # 使用PromptManager获取提示词
+        prompt_template = pm.get_prompt("architecture", "core_seed")
+        if not prompt_template:
+            gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+            prompt_template = core_seed_prompt
+
+        prompt_core = prompt_template.format(
             topic=topic,
             genre=genre,
             number_of_chapters=number_of_chapters,
             word_number=word_number,
-            user_guidance=user_guidance  # 修复：添加内容指导
+            user_guidance=user_guidance
         )
         gui_log("   ├─ 向LLM发起请求...")
         core_seed_result = invoke_with_cleaning(llm_adapter, prompt_core, system_prompt=system_prompt)
@@ -228,35 +280,68 @@ def Novel_architecture_generate(
         gui_log(f"▷ [1/{total_steps}] 核心种子 (已完成，跳过)\n")
         logging.info("Step1 already done. Skipping...")
 
-    # Step2: 角色动力学
-    if "character_dynamics_result" not in partial_data:
-        gui_log(f"▶ [2/{total_steps}] 角色动力学生成")
-        gui_log("   ├─ 基于核心种子设计角色...")
-        logging.info("Step2: Generating character_dynamics_prompt ...")
-        prompt_character = character_dynamics_prompt.format(
-            core_seed=partial_data["core_seed_result"].strip(),
-            user_guidance=user_guidance
-        )
-        gui_log("   ├─ 向LLM发起请求...")
-        character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character, system_prompt=system_prompt)
-        if not character_dynamics_result.strip():
-            gui_log("   └─ ❌ 生成失败")
-            logging.warning("character_dynamics_prompt generation failed.")
-            save_partial_architecture_data(filepath, partial_data)
-            return
-        gui_log("   └─ ✅ 角色动力学生成完成\n")
-        partial_data["character_dynamics_result"] = character_dynamics_result
-        save_partial_architecture_data(filepath, partial_data)
-    else:
-        gui_log(f"▷ [2/{total_steps}] 角色动力学 (已完成，跳过)\n")
-        logging.info("Step2 already done. Skipping...")
+    # Step2: 角色动力学（可选）
+    if pm.is_module_enabled("architecture", "character_dynamics"):
+        # 检查是否需要生成（键不存在 OR 值为占位文本）
+        existing_value = partial_data.get("character_dynamics_result", "")
+        is_placeholder = existing_value.startswith("（已跳过") and existing_value.endswith("）")
 
-    # 生成初始角色状态
-    if "character_dynamics_result" in partial_data and "character_state_result" not in partial_data:
+        if "character_dynamics_result" not in partial_data or is_placeholder:
+            if is_placeholder:
+                gui_log(f"▶ [2/{total_steps}] 角色动力学生成（检测到占位值，重新生成）")
+            else:
+                gui_log(f"▶ [2/{total_steps}] 角色动力学生成")
+
+            gui_log("   ├─ 基于核心种子设计角色...")
+            logging.info("Step2: Generating character_dynamics_prompt ...")
+
+            # 使用PromptManager获取提示词
+            prompt_template = pm.get_prompt("architecture", "character_dynamics")
+            if not prompt_template:
+                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                prompt_template = character_dynamics_prompt
+
+            prompt_character = prompt_template.format(
+                core_seed=partial_data["core_seed_result"].strip(),
+                user_guidance=user_guidance
+            )
+            gui_log("   ├─ 向LLM发起请求...")
+            character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character, system_prompt=system_prompt)
+            if not character_dynamics_result.strip():
+                gui_log("   └─ ❌ 生成失败")
+                logging.warning("character_dynamics_prompt generation failed.")
+                save_partial_architecture_data(filepath, partial_data)
+                return
+            gui_log("   └─ ✅ 角色动力学生成完成\n")
+            partial_data["character_dynamics_result"] = character_dynamics_result
+            save_partial_architecture_data(filepath, partial_data)
+        else:
+            gui_log(f"▷ [2/{total_steps}] 角色动力学 (已完成，跳过)\n")
+            logging.info("Step2 already done. Skipping...")
+    else:
+        gui_log(f"▷ [2/{total_steps}] 角色动力学 (已禁用，跳过)\n")
+        partial_data["character_dynamics_result"] = "（已跳过角色动力学生成）"
+        save_partial_architecture_data(filepath, partial_data)
+        logging.info("Step2 disabled by user configuration")
+
+    # 生成初始角色状态（仅当角色动力学已启用时）
+    if (
+        pm.is_module_enabled("architecture", "character_dynamics") and
+        pm.is_module_enabled("helper", "create_character_state") and
+        "character_dynamics_result" in partial_data and
+        partial_data["character_dynamics_result"] != "（已跳过角色动力学生成）" and
+        "character_state_result" not in partial_data
+    ):
         gui_log(f"▶ [3/{total_steps}] 初始角色状态生成")
         gui_log("   ├─ 基于角色动力学建立状态表...")
         logging.info("Generating initial character state from character dynamics ...")
-        prompt_char_state_init = create_character_state_prompt.format(
+
+        prompt_template = pm.get_prompt("helper", "create_character_state")
+        if not prompt_template:
+            gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+            prompt_template = create_character_state_prompt
+
+        prompt_char_state_init = prompt_template.format(
             character_dynamics=partial_data["character_dynamics_result"].strip()
         )
         gui_log("   ├─ 向LLM发起请求...")
@@ -274,54 +359,96 @@ def Novel_architecture_generate(
         save_partial_architecture_data(filepath, partial_data)
         gui_log("   └─ ✅ 初始角色状态生成完成\n")
         logging.info("Initial character state created and saved.")
+    elif not pm.is_module_enabled("architecture", "character_dynamics"):
+        gui_log(f"▷ [3/{total_steps}] 初始角色状态 (角色动力学已禁用，跳过)\n")
 
-    # Step3: 世界观
-    if "world_building_result" not in partial_data:
-        gui_log(f"▶ [4/{total_steps}] 世界观构建")
-        gui_log("   ├─ 构建世界观设定...")
-        logging.info("Step3: Generating world_building_prompt ...")
-        prompt_world = world_building_prompt.format(
-            core_seed=partial_data["core_seed_result"].strip(),
-            user_guidance=user_guidance  # 修复：添加用户指导
-        )
-        gui_log("   ├─ 向LLM发起请求...")
-        world_building_result = invoke_with_cleaning(llm_adapter, prompt_world, system_prompt=system_prompt)
-        if not world_building_result.strip():
-            gui_log("   └─ ❌ 生成失败")
-            logging.warning("world_building_prompt generation failed.")
-            save_partial_architecture_data(filepath, partial_data)
-            return
-        gui_log("   └─ ✅ 世界观构建完成\n")
-        partial_data["world_building_result"] = world_building_result
-        save_partial_architecture_data(filepath, partial_data)
-    else:
-        gui_log(f"▷ [4/{total_steps}] 世界观 (已完成，跳过)\n")
-        logging.info("Step3 already done. Skipping...")
+    # Step3: 世界观（可选）
+    if pm.is_module_enabled("architecture", "world_building"):
+        # 检查是否需要生成（键不存在 OR 值为占位文本）
+        existing_value = partial_data.get("world_building_result", "")
+        is_placeholder = existing_value.startswith("（已跳过") and existing_value.endswith("）")
 
-    # Step4: 三幕式情节
-    if "plot_arch_result" not in partial_data:
-        gui_log(f"▶ [5/{total_steps}] 三幕式情节架构")
-        gui_log("   ├─ 整合前述要素设计情节...")
-        logging.info("Step4: Generating plot_architecture_prompt ...")
-        prompt_plot = plot_architecture_prompt.format(
-            core_seed=partial_data["core_seed_result"].strip(),
-            character_dynamics=partial_data["character_dynamics_result"].strip(),
-            world_building=partial_data["world_building_result"].strip(),
-            user_guidance=user_guidance  # 修复：添加用户指导
-        )
-        gui_log("   ├─ 向LLM发起请求...")
-        plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot, system_prompt=system_prompt)
-        if not plot_arch_result.strip():
-            gui_log("   └─ ❌ 生成失败")
-            logging.warning("plot_architecture_prompt generation failed.")
+        if "world_building_result" not in partial_data or is_placeholder:
+            if is_placeholder:
+                gui_log(f"▶ [4/{total_steps}] 世界观构建（检测到占位值，重新生成）")
+            else:
+                gui_log(f"▶ [4/{total_steps}] 世界观构建")
+
+            gui_log("   ├─ 构建世界观设定...")
+            logging.info("Step3: Generating world_building_prompt ...")
+
+            prompt_template = pm.get_prompt("architecture", "world_building")
+            if not prompt_template:
+                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                prompt_template = world_building_prompt
+
+            prompt_world = prompt_template.format(
+                core_seed=partial_data["core_seed_result"].strip(),
+                user_guidance=user_guidance
+            )
+            gui_log("   ├─ 向LLM发起请求...")
+            world_building_result = invoke_with_cleaning(llm_adapter, prompt_world, system_prompt=system_prompt)
+            if not world_building_result.strip():
+                gui_log("   └─ ❌ 生成失败")
+                logging.warning("world_building_prompt generation failed.")
+                save_partial_architecture_data(filepath, partial_data)
+                return
+            gui_log("   └─ ✅ 世界观构建完成\n")
+            partial_data["world_building_result"] = world_building_result
             save_partial_architecture_data(filepath, partial_data)
-            return
-        gui_log("   └─ ✅ 三幕式情节架构完成\n")
-        partial_data["plot_arch_result"] = plot_arch_result
-        save_partial_architecture_data(filepath, partial_data)
+        else:
+            gui_log(f"▷ [4/{total_steps}] 世界观 (已完成，跳过)\n")
+            logging.info("Step3 already done. Skipping...")
     else:
-        gui_log(f"▷ [5/{total_steps}] 三幕式情节 (已完成，跳过)\n")
-        logging.info("Step4 already done. Skipping...")
+        gui_log(f"▷ [4/{total_steps}] 世界观 (已禁用，跳过)\n")
+        partial_data["world_building_result"] = "（已跳过世界观构建）"
+        save_partial_architecture_data(filepath, partial_data)
+        logging.info("Step3 disabled by user configuration")
+
+    # Step4: 三幕式情节（可选）
+    if pm.is_module_enabled("architecture", "plot_architecture"):
+        # 检查是否需要生成（键不存在 OR 值为占位文本）
+        existing_value = partial_data.get("plot_arch_result", "")
+        is_placeholder = existing_value.startswith("（已跳过") and existing_value.endswith("）")
+
+        if "plot_arch_result" not in partial_data or is_placeholder:
+            if is_placeholder:
+                gui_log(f"▶ [5/{total_steps}] 三幕式情节架构（检测到占位值，重新生成）")
+            else:
+                gui_log(f"▶ [5/{total_steps}] 三幕式情节架构")
+
+            gui_log("   ├─ 整合前述要素设计情节...")
+            logging.info("Step4: Generating plot_architecture_prompt ...")
+
+            prompt_template = pm.get_prompt("architecture", "plot_architecture")
+            if not prompt_template:
+                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                prompt_template = plot_architecture_prompt
+
+            prompt_plot = prompt_template.format(
+                core_seed=partial_data["core_seed_result"].strip(),
+                character_dynamics=sanitize_prompt_variable(partial_data["character_dynamics_result"].strip()),
+                world_building=sanitize_prompt_variable(partial_data["world_building_result"].strip()),
+                user_guidance=user_guidance
+            )
+            gui_log("   ├─ 向LLM发起请求...")
+            plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot, system_prompt=system_prompt)
+            if not plot_arch_result.strip():
+                gui_log("   └─ ❌ 生成失败")
+                logging.warning("plot_architecture_prompt generation failed.")
+                save_partial_architecture_data(filepath, partial_data)
+                return
+            gui_log("   └─ ✅ 三幕式情节架构完成\n")
+            partial_data["plot_arch_result"] = plot_arch_result
+            save_partial_architecture_data(filepath, partial_data)
+        else:
+            gui_log(f"▷ [5/{total_steps}] 三幕式情节 (已完成，跳过)\n")
+            logging.info("Step4 already done. Skipping...")
+    else:
+        gui_log(f"▷ [5/{total_steps}] 三幕式情节 (已禁用，跳过)\n")
+        partial_data["plot_arch_result"] = "（已跳过三幕式情节架构）"
+        save_partial_architecture_data(filepath, partial_data)
+        logging.info("Step4 disabled by user configuration")
 
     core_seed_result = partial_data["core_seed_result"]
     character_dynamics_result = partial_data["character_dynamics_result"]
@@ -347,45 +474,57 @@ def Novel_architecture_generate(
     clear_file_content(arch_file)
     save_string_to_txt(final_content, arch_file)
 
-    # Step5: 分卷规划（仅在分卷模式下执行）
-    if num_volumes > 1 and "volume_arch_result" not in partial_data:
-        gui_log(f"▶ [6/{total_steps}] 分卷架构规划")
-        gui_log(f"   ├─ 将{number_of_chapters}章分为{num_volumes}卷...")
-        logging.info(f"Step5: Generating volume architecture ({num_volumes} volumes)...")
+    # Step5: 分卷规划（仅在分卷模式下执行，且模块已启用）
+    if num_volumes > 1 and pm.is_module_enabled("architecture", "volume_breakdown"):
+        if "volume_arch_result" not in partial_data:
+            gui_log(f"▶ [6/{total_steps}] 分卷架构规划")
+            gui_log(f"   ├─ 将{number_of_chapters}章分为{num_volumes}卷...")
+            logging.info(f"Step5: Generating volume architecture ({num_volumes} volumes)...")
 
-        volume_ranges = calculate_volume_ranges(number_of_chapters, num_volumes)
+            volume_ranges = calculate_volume_ranges(number_of_chapters, num_volumes)
 
-        # 显示分卷范围
-        for i, (vol_start, vol_end) in enumerate(volume_ranges, 1):
-            chapter_count = vol_end - vol_start + 1
-            gui_log(f"       第{i}卷: 第{vol_start}-{vol_end}章 (共{chapter_count}章)")
+            # 显示分卷范围
+            for i, (vol_start, vol_end) in enumerate(volume_ranges, 1):
+                chapter_count = vol_end - vol_start + 1
+                gui_log(f"       第{i}卷: 第{vol_start}-{vol_end}章 (共{chapter_count}章)")
 
-        volume_arch_result = generate_volume_architecture(
-            llm_adapter=llm_adapter,
-            novel_architecture=final_content,
-            num_volumes=num_volumes,
-            num_chapters=number_of_chapters,
-            volume_ranges=volume_ranges,
-            system_prompt=system_prompt,
-            gui_log_callback=gui_log_callback
-        )
+            # 使用PromptManager获取提示词
+            prompt_template = pm.get_prompt("architecture", "volume_breakdown")
+            if not prompt_template:
+                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                prompt_template = volume_breakdown_prompt
 
-        if not volume_arch_result.strip():
-            gui_log("   └─ ⚠ 分卷架构生成失败，继续使用总架构")
-            logging.warning("Volume architecture generation failed, continuing without it.")
+            volume_arch_result = generate_volume_architecture(
+                llm_adapter=llm_adapter,
+                novel_architecture=final_content,
+                num_volumes=num_volumes,
+                num_chapters=number_of_chapters,
+                volume_ranges=volume_ranges,
+                system_prompt=system_prompt,
+                gui_log_callback=gui_log_callback,
+                prompt_template=prompt_template  # 传递自定义提示词
+            )
+
+            if not volume_arch_result.strip():
+                gui_log("   └─ ⚠ 分卷架构生成失败，继续使用总架构")
+                logging.warning("Volume architecture generation failed, continuing without it.")
+            else:
+                gui_log("   └─ ✅ 分卷架构完成\n")
+                partial_data["volume_arch_result"] = volume_arch_result
+                save_partial_architecture_data(filepath, partial_data)
+
+                # 保存分卷架构到独立文件
+                volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
+                clear_file_content(volume_arch_file)
+                save_string_to_txt(volume_arch_result, volume_arch_file)
+                logging.info("Volume_architecture.txt has been generated successfully.")
         else:
-            gui_log("   └─ ✅ 分卷架构完成\n")
-            partial_data["volume_arch_result"] = volume_arch_result
-            save_partial_architecture_data(filepath, partial_data)
-
-            # 保存分卷架构到独立文件
-            volume_arch_file = os.path.join(filepath, "Volume_architecture.txt")
-            clear_file_content(volume_arch_file)
-            save_string_to_txt(volume_arch_result, volume_arch_file)
-            logging.info("Volume_architecture.txt has been generated successfully.")
-    elif num_volumes > 1 and "volume_arch_result" in partial_data:
-        gui_log(f"▷ [6/{total_steps}] 分卷架构 (已完成，跳过)\n")
-        logging.info("Step5 (volume architecture) already done. Skipping...")
+            # volume_arch_result 已存在，跳过生成
+            gui_log(f"▷ [6/{total_steps}] 分卷架构 (已完成，跳过)\n")
+            logging.info("Step5 (volume architecture) already done. Skipping...")
+    elif num_volumes > 1 and not pm.is_module_enabled("architecture", "volume_breakdown"):
+        gui_log(f"▷ [6/{total_steps}] 分卷架构 (已禁用，跳过)\n")
+        logging.info("Step5 (volume architecture) disabled by user configuration.")
 
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     gui_log("✅ 小说架构生成完毕")

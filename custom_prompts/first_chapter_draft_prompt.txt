@@ -1,0 +1,47 @@
+即将创作：【{volume_display}】第 {novel_number} 章《{chapter_title}》
+本章定位：{chapter_role}
+核心作用：{chapter_purpose}
+悬念密度：{suspense_level}
+伏笔操作：{foreshadowing}
+认知颠覆：{plot_twist_level}
+本章简述：{chapter_summary}
+
+可用元素：
+- 核心人物(可能未指定)：{characters_involved}
+- 关键道具(可能未指定)：{key_items}
+- 空间坐标(可能未指定)：{scene_location}
+- 时间压力(可能未指定)：{time_constraint}
+
+参考文档：
+- 小说设定：
+{novel_setting}
+
+- 本卷架构（如有）：
+{volume_architecture}
+
+完成第 {novel_number} 章的正文，字数要求{word_number}字，至少设计下方2个或以上具有动态张力的场景：
+1. 对话场景：
+   - 潜台词冲突（表面谈论A，实际博弈B）
+   - 权力关系变化（通过非对称对话长度体现）
+
+2. 动作场景：
+   - 环境交互细节（至少3个感官描写）
+   - 节奏控制（短句加速+比喻减速）
+   - 动作揭示人物隐藏特质
+
+3. 心理场景：
+   - 认知失调的具体表现（行为矛盾）
+   - 隐喻系统的运用（连接世界观符号）
+   - 决策前的价值天平描写
+
+4. 环境场景：
+   - 空间透视变化（宏观→微观→异常焦点）
+   - 非常规感官组合（如"听见阳光的重量"）
+   - 动态环境反映心理（环境与人物心理对应）
+
+格式要求：
+- 仅返回章节正文文本；
+- 不使用分章节小标题；
+- 不要使用markdown格式。
+
+额外指导(可能未指定)：{user_guidance}

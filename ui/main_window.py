@@ -49,6 +49,7 @@ from ui.summary_tab import build_summary_tab, load_global_summary, save_global_s
 from ui.volume_summary_tab import build_volume_summary_tab, refresh_volume_list, load_volume_summary, save_volume_summary, on_volume_selected
 from ui.chapters_tab import build_chapters_tab, refresh_chapters_list, on_chapter_selected, load_chapter_content, save_current_chapter, prev_chapter, next_chapter
 from ui.settings_tab import build_settings_tab
+from ui.prompt_manager_builder import build_prompt_manager_tab
 
 
 class NovelGeneratorGUI:
@@ -255,6 +256,7 @@ class NovelGeneratorGUI:
         build_summary_tab(self)
         build_volume_summary_tab(self)
         build_chapters_tab(self)
+        build_prompt_manager_tab(self)  # 提示词管理放在设置之前
         build_settings_tab(self)
 
         # 【防呆3：设置小说参数变更监听器】

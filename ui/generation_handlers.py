@@ -1224,7 +1224,7 @@ def generate_single_chapter_batch(
     self.safe_log("\n▶ [阶段3/3] 章节定稿")
     self.update_chapter_progress("定稿中...", 0.66)
 
-    finalize_chapter(
+    success = finalize_chapter(
         novel_number=chapter_num,
         word_number=word,
         api_key=finalize_api_key,
@@ -1245,7 +1245,11 @@ def generate_single_chapter_batch(
         gui_log_callback=self.safe_log  # 传入回调
     )
 
-    self.update_chapter_progress("完成", 1.0)
+    if success:
+        self.update_chapter_progress("完成", 1.0)
+        self.safe_log(f"✅ 第 {chapter_num} 章定稿完成")
+    else:
+        self.safe_log(f"⚠️ 第 {chapter_num} 章定稿失败（章节内容为空）")
 
 
 def import_knowledge_handler(self):
