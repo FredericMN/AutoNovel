@@ -15,14 +15,31 @@ GLOBAL_PROMPT_FILE = os.path.join(BASE_DIR, "global_prompt.json")
 GLOBAL_PROMPT_JSON_KEY = "system_prompt"
 
 def load_global_system_prompt() -> str:
-    """读取全局 system prompt JSON 文件，失败时返回空字符串。"""
+    """
+    读取全局 system prompt JSON 文件，失败时返回空字符串。
+    支持两种格式：
+    1. 字符串格式：直接返回字符串内容
+    2. JSON对象格式：将JSON结构转换为格式化的文本
+    """
     data = _read_global_prompt_file()
     if not data:
         return ""
     value = data.get(GLOBAL_PROMPT_JSON_KEY)
+
+    # 支持字符串格式（向后兼容）
     if isinstance(value, str):
         return value if value.strip() else ""
-    logging.warning("global_prompt.json 中缺少有效的 system_prompt 字段")
+
+    # 支持JSON对象格式
+    elif isinstance(value, dict):
+        formatted_prompt = _format_json_to_prompt(value)
+        if formatted_prompt:
+            logging.info("全局 system prompt 已从 JSON 对象格式转换")
+            return formatted_prompt
+        logging.warning("JSON 对象格式的 system_prompt 转换后为空")
+        return ""
+
+    logging.warning("global_prompt.json 中的 system_prompt 格式不支持，需要字符串或JSON对象")
     return ""
 
 def resolve_global_system_prompt(enabled: bool) -> str:
@@ -48,6 +65,123 @@ def _read_global_prompt_file() -> Optional[dict]:
     except Exception as exc:  # pylint: disable=broad-except
         logging.warning("读取 global_prompt.json 时出现未知异常: %s", exc)
     return None
+
+def _format_json_to_prompt(data: dict) -> str:
+    """
+    将 JSON 对象转换为适合 LLM 的结构化文本格式。
+    支持常见字段（role, style, constraints等）和任意自定义字段。
+
+    Args:
+        data: JSON对象，包含system prompt的结构化配置
+
+    Returns:
+        格式化后的文本字符串
+
+    示例输入:
+    {
+        "role": "资深小说编辑",
+        "style": "简洁明了",
+        "constraints": ["不超过5000字", "保持角色一致性"],
+        "output_format": "markdown"
+    }
+
+    示例输出:
+    你的角色：资深小说编辑
+    写作风格：简洁明了
+    约束条件：
+      - 不超过5000字
+      - 保持角色一致性
+    输出格式：markdown
+    """
+    if not data:
+        return ""
+
+    lines = []
+
+    # 预定义字段映射（中文标签）
+    field_mappings = {
+        "role": "你的角色",
+        "style": "写作风格",
+        "tone": "语气与视角",
+        "pacing": "节奏控制",
+        "output_format": "输出格式",
+        "language": "语言要求",
+        "priority": "优先级",
+    }
+
+    # 处理预定义字段
+    for key, label in field_mappings.items():
+        if key in data:
+            value = data[key]
+            if isinstance(value, str) and value.strip():
+                lines.append(f"{label}：{value}")
+            elif isinstance(value, (list, dict)):
+                lines.append(f"{label}：{_format_value(value)}")
+
+    # 处理特殊字段：constraints（约束条件）
+    if "constraints" in data:
+        constraints = data["constraints"]
+        if isinstance(constraints, list) and constraints:
+            lines.append("约束条件：")
+            for constraint in constraints:
+                lines.append(f"  - {constraint}")
+        elif isinstance(constraints, str) and constraints.strip():
+            lines.append(f"约束条件：{constraints}")
+
+    # 处理特殊字段：rules（规则）
+    if "rules" in data:
+        rules = data["rules"]
+        if isinstance(rules, list) and rules:
+            lines.append("遵循规则：")
+            for i, rule in enumerate(rules, 1):
+                lines.append(f"  {i}. {rule}")
+        elif isinstance(rules, str) and rules.strip():
+            lines.append(f"遵循规则：{rules}")
+
+    # 处理特殊字段：guidelines（指南）
+    if "guidelines" in data:
+        guidelines = data["guidelines"]
+        if isinstance(guidelines, dict):
+            lines.append("创作指南：")
+            for key, val in guidelines.items():
+                lines.append(f"  • {key}: {_format_value(val)}")
+        elif isinstance(guidelines, list) and guidelines:
+            lines.append("创作指南：")
+            for item in guidelines:
+                lines.append(f"  • {item}")
+
+    # 处理所有其他自定义字段
+    processed_keys = set(field_mappings.keys()) | {"constraints", "rules", "guidelines"}
+    for key, val in data.items():
+        if key not in processed_keys:
+            # 自定义字段使用原始key作为标签
+            formatted_key = key.replace("_", " ").title()  # user_guidance -> User Guidance
+            lines.append(f"{formatted_key}: {_format_value(val)}")
+
+    return "\n".join(lines)
+
+def _format_value(value) -> str:
+    """
+    格式化各种类型的值为字符串。
+
+    Args:
+        value: 任意类型的值
+
+    Returns:
+        格式化后的字符串
+    """
+    if isinstance(value, str):
+        return value
+    elif isinstance(value, list):
+        # 列表转换为逗号分隔
+        return ", ".join(str(item) for item in value)
+    elif isinstance(value, dict):
+        # 字典转换为 key=value 格式
+        items = [f"{k}={v}" for k, v in value.items()]
+        return "; ".join(items)
+    else:
+        return str(value)
+
 
 # =============== 生成草稿提示词当前章节摘要、知识库提炼 ===============
 
