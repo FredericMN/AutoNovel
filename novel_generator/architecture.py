@@ -199,9 +199,12 @@ def Novel_architecture_generate(
     gui_log(f"   章节数: {number_of_chapters} | 每章字数: {word_number}")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
+    # 确定总步骤数
+    total_steps = 6 if num_volumes > 1 else 5
+
     # Step1: 核心种子
     if "core_seed_result" not in partial_data:
-        gui_log("▶ [1/5] 核心种子生成")
+        gui_log(f"▶ [1/{total_steps}] 核心种子生成")
         gui_log("   ├─ 分析主题与类型...")
         logging.info("Step1: Generating core_seed_prompt (核心种子) ...")
         prompt_core = core_seed_prompt.format(
@@ -222,12 +225,12 @@ def Novel_architecture_generate(
         partial_data["core_seed_result"] = core_seed_result
         save_partial_architecture_data(filepath, partial_data)
     else:
-        gui_log("▷ [1/5] 核心种子 (已完成，跳过)\n")
+        gui_log(f"▷ [1/{total_steps}] 核心种子 (已完成，跳过)\n")
         logging.info("Step1 already done. Skipping...")
 
     # Step2: 角色动力学
     if "character_dynamics_result" not in partial_data:
-        gui_log("▶ [2/5] 角色动力学生成")
+        gui_log(f"▶ [2/{total_steps}] 角色动力学生成")
         gui_log("   ├─ 基于核心种子设计角色...")
         logging.info("Step2: Generating character_dynamics_prompt ...")
         prompt_character = character_dynamics_prompt.format(
@@ -245,12 +248,12 @@ def Novel_architecture_generate(
         partial_data["character_dynamics_result"] = character_dynamics_result
         save_partial_architecture_data(filepath, partial_data)
     else:
-        gui_log("▷ [2/5] 角色动力学 (已完成，跳过)\n")
+        gui_log(f"▷ [2/{total_steps}] 角色动力学 (已完成，跳过)\n")
         logging.info("Step2 already done. Skipping...")
 
     # 生成初始角色状态
     if "character_dynamics_result" in partial_data and "character_state_result" not in partial_data:
-        gui_log("▶ [3/5] 初始角色状态生成")
+        gui_log(f"▶ [3/{total_steps}] 初始角色状态生成")
         gui_log("   ├─ 基于角色动力学建立状态表...")
         logging.info("Generating initial character state from character dynamics ...")
         prompt_char_state_init = create_character_state_prompt.format(
@@ -274,7 +277,7 @@ def Novel_architecture_generate(
 
     # Step3: 世界观
     if "world_building_result" not in partial_data:
-        gui_log("▶ [4/5] 世界观构建")
+        gui_log(f"▶ [4/{total_steps}] 世界观构建")
         gui_log("   ├─ 构建世界观设定...")
         logging.info("Step3: Generating world_building_prompt ...")
         prompt_world = world_building_prompt.format(
@@ -292,13 +295,12 @@ def Novel_architecture_generate(
         partial_data["world_building_result"] = world_building_result
         save_partial_architecture_data(filepath, partial_data)
     else:
-        gui_log("▷ [4/5] 世界观 (已完成，跳过)\n")
+        gui_log(f"▷ [4/{total_steps}] 世界观 (已完成，跳过)\n")
         logging.info("Step3 already done. Skipping...")
 
     # Step4: 三幕式情节
     if "plot_arch_result" not in partial_data:
-        step_label = "[5/6]" if num_volumes > 1 else "[5/5]"  # 动态调整步骤标签
-        gui_log(f"▶ {step_label} 三幕式情节架构")
+        gui_log(f"▶ [5/{total_steps}] 三幕式情节架构")
         gui_log("   ├─ 整合前述要素设计情节...")
         logging.info("Step4: Generating plot_architecture_prompt ...")
         prompt_plot = plot_architecture_prompt.format(
@@ -318,8 +320,7 @@ def Novel_architecture_generate(
         partial_data["plot_arch_result"] = plot_arch_result
         save_partial_architecture_data(filepath, partial_data)
     else:
-        step_label = "[5/6]" if num_volumes > 1 else "[5/5]"
-        gui_log(f"▷ {step_label} 三幕式情节 (已完成，跳过)\n")
+        gui_log(f"▷ [5/{total_steps}] 三幕式情节 (已完成，跳过)\n")
         logging.info("Step4 already done. Skipping...")
 
     core_seed_result = partial_data["core_seed_result"]
@@ -348,7 +349,7 @@ def Novel_architecture_generate(
 
     # Step5: 分卷规划（仅在分卷模式下执行）
     if num_volumes > 1 and "volume_arch_result" not in partial_data:
-        gui_log("▶ [6/6] 分卷架构规划")
+        gui_log(f"▶ [6/{total_steps}] 分卷架构规划")
         gui_log(f"   ├─ 将{number_of_chapters}章分为{num_volumes}卷...")
         logging.info(f"Step5: Generating volume architecture ({num_volumes} volumes)...")
 
@@ -383,7 +384,7 @@ def Novel_architecture_generate(
             save_string_to_txt(volume_arch_result, volume_arch_file)
             logging.info("Volume_architecture.txt has been generated successfully.")
     elif num_volumes > 1 and "volume_arch_result" in partial_data:
-        gui_log("▷ [6/6] 分卷架构 (已完成，跳过)\n")
+        gui_log(f"▷ [6/{total_steps}] 分卷架构 (已完成，跳过)\n")
         logging.info("Step5 (volume architecture) already done. Skipping...")
 
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
