@@ -447,11 +447,6 @@ def generate_chapter_draft_ui(self):
             if draft_text:
                 self.safe_log(f"✅ 第{chap_num}章草稿已保存，请在左侧查看或编辑。")
                 self.master.after(0, lambda: self.show_chapter_in_textbox(draft_text))
-
-                # 【方案B】草稿生成成功后自动递增章节号
-                next_chap = chap_num + 1
-                self.master.after(0, lambda: self.chapter_num_var.set(str(next_chap)))
-                self.safe_log(f"💡 章节号已自动更新为 {next_chap}")
             else:
                 self.safe_log("⚠️ 本章草稿生成失败或无内容。")
         except Exception:
