@@ -129,7 +129,6 @@ class NovelGeneratorGUI:
         self.max_tokens_var = ctk.IntVar(value=llm_conf.get("max_tokens", 8192))
         self.timeout_var = ctk.IntVar(value=llm_conf.get("timeout", 600))
         self.interface_config_var = ctk.StringVar(value=selected_config_name)  # 使用上次选择的配置名
-        self.global_system_prompt_var = ctk.BooleanVar(value=False)
 
 
         # -- Embedding相关 --
@@ -613,7 +612,7 @@ class NovelGeneratorGUI:
             if self._role_lib.window and self._role_lib.window.winfo_exists():
                 self._role_lib.window.destroy()
         
-        system_prompt = resolve_global_system_prompt(self.global_system_prompt_var.get())
+        system_prompt = resolve_global_system_prompt()  # 从PromptManager读取配置
 
         self._role_lib = RoleLibrary(self.master, save_path, llm_adapter, system_prompt=system_prompt)
 

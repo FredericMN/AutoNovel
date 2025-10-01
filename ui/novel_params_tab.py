@@ -177,10 +177,10 @@ def build_novel_params_area(self, start_row=1):
 def build_optional_buttons_area(self, start_row=2):
     self.optional_btn_frame = ctk.CTkFrame(self.right_frame)
     self.optional_btn_frame.grid(row=start_row, column=0, sticky="ew", padx=5, pady=5)
-    # 配置为4列（与第一行按钮数量对应）
-    self.optional_btn_frame.columnconfigure((0, 1, 2, 3), weight=1)
+    # 配置为3列
+    self.optional_btn_frame.columnconfigure((0, 1, 2), weight=1)
 
-    # ========== 第一行：4个按钮 ==========
+    # ========== 第一行：3个按钮 ==========
     self.btn_check_consistency = ctk.CTkButton(
         self.optional_btn_frame,
         text="一致性审校",
@@ -209,17 +209,7 @@ def build_optional_buttons_area(self, start_row=2):
     )
     self.btn_clear_vectorstore.grid(row=0, column=2, padx=3, pady=3, sticky="ew")
 
-    self.btn_vectorstore_report = ctk.CTkButton(
-        self.optional_btn_frame,
-        text="向量库质量报告",
-        command=self.show_vectorstore_report,
-        font=("Microsoft YaHei", 11),
-        height=30,
-        fg_color="#2B7A78"
-    )
-    self.btn_vectorstore_report.grid(row=0, column=3, padx=3, pady=3, sticky="ew")
-
-    # ========== 第二行：2个按钮 + 勾选框 ==========
+    # ========== 第二行：3个按钮 ==========
     self.plot_arcs_btn = ctk.CTkButton(
         self.optional_btn_frame,
         text="查看剧情要点",
@@ -238,14 +228,15 @@ def build_optional_buttons_area(self, start_row=2):
     )
     self.role_library_btn.grid(row=1, column=1, padx=3, pady=3, sticky="ew")
 
-    # 勾选框占用剩余两列
-    self.global_system_prompt_checkbox = ctk.CTkCheckBox(
+    self.btn_vectorstore_report = ctk.CTkButton(
         self.optional_btn_frame,
-        text="启用全局 SYSTEM 提示词",
-        variable=self.global_system_prompt_var,
-        font=("Microsoft YaHei", 11)
+        text="向量库质量报告",
+        command=self.show_vectorstore_report,
+        font=("Microsoft YaHei", 11),
+        height=30,
+        fg_color="#2B7A78"
     )
-    self.global_system_prompt_checkbox.grid(row=1, column=2, columnspan=2, padx=3, pady=3, sticky="w")
+    self.btn_vectorstore_report.grid(row=1, column=2, padx=3, pady=3, sticky="ew")
 
 def create_label_with_help_for_novel_params(self, parent, label_text, tooltip_key, row, column, font=None, sticky="e", padx=5, pady=5):
     frame = ctk.CTkFrame(parent)

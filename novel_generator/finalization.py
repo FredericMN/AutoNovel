@@ -130,7 +130,7 @@ def finalize_volume(
         max_tokens=max_tokens,
         timeout=timeout
     )
-    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt if use_global_system_prompt is not None else None)
 
     # 生成卷摘要（使用PromptManager获取提示词）
     gui_log("▶ 向LLM发起请求生成卷摘要...")
@@ -284,7 +284,7 @@ def finalize_chapter(
         max_tokens=max_tokens,
         timeout=timeout
     )
-    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt if use_global_system_prompt is not None else None)
 
     # [1/3] 更新前文摘要（可选）
     if pm.is_module_enabled("finalization", "summary_update"):
@@ -443,7 +443,7 @@ def enrich_chapter_text(
         max_tokens=max_tokens,
         timeout=timeout
     )
-    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt if use_global_system_prompt is not None else None)
     prompt = f"""以下章节文本较短，请在保持剧情连贯的前提下进行扩写，使其更充实，接近 {word_number} 字左右，仅给出最终文本，不要解释任何内容。：
 原内容：
 {chapter_text}

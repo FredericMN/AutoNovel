@@ -1181,7 +1181,7 @@ def generate_chapter_draft(
     gui_log(f"📝 开始生成第{novel_number}章草稿")
     gui_log(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt if use_global_system_prompt is not None else None)
 
     if custom_prompt_text is None:
         prompt_text = build_chapter_prompt(

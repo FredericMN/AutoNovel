@@ -230,7 +230,7 @@ def Novel_architecture_generate(
         max_tokens=max_tokens,
         timeout=timeout
     )
-    system_prompt = resolve_global_system_prompt(use_global_system_prompt)
+    system_prompt = resolve_global_system_prompt(use_global_system_prompt if use_global_system_prompt is not None else None)
 
     # GUI日志辅助函数
     def gui_log(msg):

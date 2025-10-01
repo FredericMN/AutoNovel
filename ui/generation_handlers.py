@@ -77,7 +77,7 @@ def generate_novel_architecture_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 user_guidance=user_guidance,  # 添加内容指导参数
-                use_global_system_prompt=self.global_system_prompt_var.get(),
+                use_global_system_prompt=None,  # 使用PromptManager配置
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
         except Exception:
@@ -130,7 +130,7 @@ def generate_chapter_blueprint_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 user_guidance=user_guidance,  # 新增参数
-                use_global_system_prompt=self.global_system_prompt_var.get(),
+                use_global_system_prompt=None,  # 使用PromptManager配置
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
         except Exception:
@@ -318,7 +318,7 @@ def generate_chapter_draft_ui(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get()),
+                system_prompt=resolve_global_system_prompt(),  # 从PromptManager读取配置
                 num_volumes=num_volumes,  # 新增：传递分卷数量
                 total_chapters=total_chapters,  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调，向量检索信息会在这里输出
@@ -439,7 +439,7 @@ def generate_chapter_draft_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 custom_prompt_text=edited_prompt,  # 使用用户编辑后的提示词
-                use_global_system_prompt=self.global_system_prompt_var.get(),
+                use_global_system_prompt=None,  # 使用PromptManager配置
                 num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
                 total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
@@ -539,7 +539,7 @@ def finalize_chapter_ui(self):
                         interface_format=interface_format,
                         max_tokens=max_tokens,
                         timeout=timeout_val,
-                        use_global_system_prompt=self.global_system_prompt_var.get()
+                        use_global_system_prompt=None  # 使用PromptManager配置
                     )
                     edited_text = enriched
                     self.master.after(0, lambda: self.chapter_result.delete("0.0", "end"))
@@ -563,7 +563,7 @@ def finalize_chapter_ui(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout_val,
-                use_global_system_prompt=self.global_system_prompt_var.get(),
+                use_global_system_prompt=None,  # 使用PromptManager配置
                 num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
                 total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
@@ -626,7 +626,7 @@ def do_consistency_check(self):
                 max_tokens=max_tokens,
                 timeout=timeout,
                 plot_arcs="",
-                system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get())
+                system_prompt=resolve_global_system_prompt()  # 从PromptManager读取配置
             )
             self.safe_log("审校结果：")
             self.safe_log(result)
@@ -1099,7 +1099,7 @@ def generate_single_chapter_batch(
         interface_format=draft_interface_format,
         max_tokens=draft_max_tokens,
         timeout=draft_timeout,
-        system_prompt=resolve_global_system_prompt(self.global_system_prompt_var.get()),
+        system_prompt=resolve_global_system_prompt(),  # 从PromptManager读取配置
         num_volumes=num_volumes,  # 新增：传递分卷数量
         total_chapters=total_chapters,  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调，显示向量检索详情
@@ -1183,7 +1183,7 @@ def generate_single_chapter_batch(
         max_tokens=draft_max_tokens,
         timeout=draft_timeout,
         custom_prompt_text=final_prompt,
-        use_global_system_prompt=self.global_system_prompt_var.get(),
+        use_global_system_prompt=None,  # 使用PromptManager配置
         num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
         total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调
@@ -1209,7 +1209,7 @@ def generate_single_chapter_batch(
             interface_format=draft_interface_format,
             max_tokens=draft_max_tokens,
             timeout=draft_timeout,
-            use_global_system_prompt=self.global_system_prompt_var.get()
+            use_global_system_prompt=None  # 使用PromptManager配置
         )
         draft_text = enriched
         self.safe_log(f"   └─ ✅ 扩写完成 (现{len(draft_text)}字)\n")
@@ -1239,7 +1239,7 @@ def generate_single_chapter_batch(
         interface_format=finalize_interface_format,
         max_tokens=finalize_max_tokens,
         timeout=finalize_timeout,
-        use_global_system_prompt=self.global_system_prompt_var.get(),
+        use_global_system_prompt=None,  # 使用PromptManager配置
         num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
         total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调

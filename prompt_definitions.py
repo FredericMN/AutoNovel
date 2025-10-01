@@ -42,8 +42,22 @@ def load_global_system_prompt() -> str:
     logging.warning("global_prompt.json 中的 system_prompt 格式不支持，需要字符串或JSON对象")
     return ""
 
-def resolve_global_system_prompt(enabled: bool) -> str:
-    """根据开关决定是否加载全局 system prompt。"""
+def resolve_global_system_prompt(enabled: bool = None) -> str:
+    """
+    根据开关决定是否加载全局 system prompt。
+
+    Args:
+        enabled: 兼容旧版本的布尔参数，如果为None则从PromptManager读取配置
+
+    Returns:
+        全局system prompt内容，如果未启用或内容为空则返回空字符串
+    """
+    # 优先使用PromptManager的配置（新版本）
+    if enabled is None:
+        from prompt_manager import PromptManager
+        pm = PromptManager()
+        enabled = pm.is_module_enabled("helper", "global_system")
+
     if not enabled:
         return ""
 
