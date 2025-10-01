@@ -547,7 +547,8 @@ def finalize_chapter_ui(self):
             clear_file_content(chapter_file)
             save_string_to_txt(edited_text, chapter_file)
 
-            finalize_chapter(
+            # 调用定稿函数，获取成功状态
+            success = finalize_chapter(
                 novel_number=chap_num,
                 word_number=word_number,
                 api_key=api_key,
@@ -568,13 +569,17 @@ def finalize_chapter_ui(self):
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
 
-            final_text = read_file(chapter_file)
-            self.master.after(0, lambda: self.show_chapter_in_textbox(final_text))
+            # 只有定稿成功才更新章节号和显示内容
+            if success:
+                final_text = read_file(chapter_file)
+                self.master.after(0, lambda: self.show_chapter_in_textbox(final_text))
 
-            # 【方案B】定稿成功后自动递增章节号
-            next_chap = chap_num + 1
-            self.master.after(0, lambda: self.chapter_num_var.set(str(next_chap)))
-            self.safe_log(f"💡 章节号已自动更新为 {next_chap}")
+                # 定稿成功后自动递增章节号
+                next_chap = chap_num + 1
+                self.master.after(0, lambda: self.chapter_num_var.set(str(next_chap)))
+                self.safe_log(f"💡 章节号已自动更新为 {next_chap}")
+            else:
+                self.safe_log("⚠️ 定稿失败，章节号保持不变")
         except Exception:
             self.handle_exception("定稿章节时出错")
         finally:

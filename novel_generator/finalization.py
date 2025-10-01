@@ -214,6 +214,9 @@ def finalize_chapter(
     """
     对指定章节做最终处理：更新前文摘要、更新角色状态、插入向量库等。
     默认无需再做扩写操作，若有需要可在外部调用 enrich_chapter_text 处理后再定稿。
+
+    Returns:
+        bool: 定稿是否成功。True表示成功，False表示失败（如章节为空等）
     """
     # GUI日志辅助函数
     def gui_log(msg):
@@ -231,7 +234,7 @@ def finalize_chapter(
     if not chapter_text:
         gui_log("❌ 章节文件为空，无法定稿")
         logging.warning(f"Chapter {novel_number} is empty, cannot finalize.")
-        return
+        return False
 
     gui_log(f"▶ [1/3] 更新前文摘要")
     gui_log("   ├─ 读取旧摘要...")
@@ -347,6 +350,8 @@ def finalize_chapter(
                     embedding_model_name=embedding_model_name,
                     gui_log_callback=gui_log_callback
                 )
+
+    return True  # 定稿成功
 
 def enrich_chapter_text(
     chapter_text: str,
