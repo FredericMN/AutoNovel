@@ -4,6 +4,7 @@
 悬念密度：{suspense_level}
 伏笔操作：{foreshadowing}
 认知颠覆：{plot_twist_level}
+卷内位置：{volume_position}
 本章简述：{chapter_summary}
 
 可用元素：
