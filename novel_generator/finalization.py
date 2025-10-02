@@ -4,7 +4,7 @@
 定稿章节和扩写章节（finalize_chapter、enrich_chapter_text）
 """
 import os
-import re  # 新增：用于提取精简版伏笔
+import re  # 用于正则匹配和伏笔提取
 import logging
 from core.adapters.llm_adapters import create_llm_adapter
 from core.adapters.embedding_adapters import create_embedding_adapter
@@ -15,6 +15,7 @@ from core.prompting.prompt_definitions import (
     plot_arcs_update_prompt,  # 新增：剧情要点更新提示词
     plot_arcs_distill_prompt,  # 新增：剧情要点提炼提示词
     plot_arcs_compress_prompt,  # 新增：剧情要点压缩提示词
+    plot_arcs_compress_auto_prompt,  # 🆕 剧情要点自动压缩提示词
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
@@ -177,28 +178,45 @@ def finalize_volume(
     if os.path.exists(global_summary_file):
         global_summary = read_file(global_summary_file)
 
-        # 提取精简版伏笔段（使用正则匹配）
+        # 提取精简版伏笔段（使用正则匹配，支持新旧格式）
         foreshadow_match = re.search(
-            r'(━━━ 未解决伏笔 ━━━.*)',
+            r'━━━ 未解决伏笔.*?━━━\n(.*?)(?=\n\n|$)',
             global_summary,
             re.DOTALL
         )
 
         if foreshadow_match:
-            foreshadow_section = foreshadow_match.group(1).strip()
+            foreshadow_content = foreshadow_match.group(1).strip()
 
-            # 读取当前卷摘要
-            current_volume_summary = read_file(volume_summary_file)
+            # 筛选A+B级伏笔（移除C级细节）
+            foreshadow_lines = foreshadow_content.split('\n')
+            volume_foreshadow_lines = [
+                line for line in foreshadow_lines
+                if line.strip() and (
+                    line.strip().startswith('[A级-主线]') or
+                    line.strip().startswith('[B级-支线]')
+                )
+            ]
 
-            # 追加伏笔到卷摘要末尾
-            updated_volume_summary = f"{current_volume_summary}\n\n{foreshadow_section}"
+            if volume_foreshadow_lines:
+                # 拼接筛选后的伏笔
+                volume_foreshadow = '\n'.join(volume_foreshadow_lines)
 
-            # 保存更新后的卷摘要
-            clear_file_content(volume_summary_file)
-            save_string_to_txt(updated_volume_summary, volume_summary_file)
+                # 读取当前卷摘要
+                current_volume_summary = read_file(volume_summary_file)
 
-            gui_log(f"   └─ ✅ 精简版伏笔已附加到卷摘要 (共{len(foreshadow_section)}字)\n")
-            logging.info(f"Appended plot arcs to volume {volume_number} summary")
+                # 附加伏笔到卷摘要，使用卷专用分隔符
+                volume_foreshadow_section = f"━━━ 第{volume_number}卷未解决伏笔 ━━━\n{volume_foreshadow}"
+                updated_volume_summary = f"{current_volume_summary}\n\n{volume_foreshadow_section}"
+
+                # 保存更新后的卷摘要
+                clear_file_content(volume_summary_file)
+                save_string_to_txt(updated_volume_summary, volume_summary_file)
+
+                gui_log(f"   └─ ✅ A+B级伏笔已附加到卷摘要 (共{len(volume_foreshadow)}字，{len(volume_foreshadow_lines)}条)\n")
+                logging.info(f"Appended A+B level plot arcs to volume {volume_number} summary")
+            else:
+                gui_log("   └─ ⚠️ 未发现A/B级伏笔，跳过附加\n")
         else:
             gui_log("   └─ ⚠️ 未发现精简版伏笔段，跳过附加\n")
     else:
@@ -414,6 +432,80 @@ def finalize_chapter(
         gui_log(f"▷ [2.5/3] 更新剧情要点 (已禁用，跳过)\n")
         new_plot_arcs = ""
 
+    # [2.6/3] 智能压缩剧情要点（每10章自动触发）
+    if pm.is_module_enabled("finalization", "plot_arcs_compress_auto"):
+        # 检查是否需要压缩（每10章触发一次）
+        if novel_number % 10 == 0:
+            gui_log("▶ [2.6/3] 智能压缩剧情要点（周期性优化）")
+            gui_log(f"   ├─ 检测到第{novel_number}章（10的倍数），触发自动压缩")
+
+            plot_arcs_file = os.path.join(filepath, "plot_arcs.txt")
+            current_plot_arcs = read_file(plot_arcs_file) if os.path.exists(plot_arcs_file) else ""
+
+            if current_plot_arcs.strip():
+                # 统计当前伏笔数量（宽松匹配，提高鲁棒性）
+                # 未解决伏笔：匹配 [A级-...] 或 [B级-...] 或 [C级-...]，允许前导符号和空格
+                unresolved_pattern = r'^\s*[-•·\*]?\s*\[([ABC]级[-\s]*[^\]]+)\]'
+                unresolved_lines = [line for line in current_plot_arcs.split('\n')
+                                   if re.match(unresolved_pattern, line.strip())]
+                unresolved_count = len(unresolved_lines)
+
+                # 已解决伏笔：匹配 ✓已解决 或 ✅已解决 或 已解决: 等变体，允许前导符号和空格
+                resolved_pattern = r'^\s*[-•·\*]?\s*[✓✅☑]\s*已解决[:：]?'
+                resolved_lines = [line for line in current_plot_arcs.split('\n')
+                                 if re.match(resolved_pattern, line.strip())]
+                resolved_count = len(resolved_lines)
+
+                gui_log(f"   ├─ 当前状态：未解决{unresolved_count}条，已解决{resolved_count}条")
+
+                # 判断是否需要压缩（未解决>50条 或 已解决>20条）
+                if unresolved_count > 50 or resolved_count > 20:
+                    gui_log("   ├─ 超过阈值，启动压缩流程...")
+
+                    # 由于记录时已分级，直接进行智能压缩（跳过分层标记步骤）
+                    gui_log("   └─ 基于已分级的伏笔进行智能压缩...")
+                    compress_prompt_template = pm.get_prompt("finalization", "plot_arcs_compress_auto")
+                    if not compress_prompt_template:
+                        gui_log("       └─ ⚠️ 提示词加载失败，使用默认提示词")
+                        compress_prompt_template = plot_arcs_compress_auto_prompt
+
+                    compress_prompt = compress_prompt_template.format(
+                        classified_plot_arcs=current_plot_arcs,  # 直接使用已分级的内容
+                        current_chapter=novel_number,
+                        unresolved_count=unresolved_count,
+                        resolved_count=resolved_count
+                    )
+
+                    compressed_arcs = invoke_with_cleaning(llm_adapter, compress_prompt, system_prompt=system_prompt)
+
+                    if not compressed_arcs.strip():
+                        gui_log("       └─ ⚠️ 压缩失败，保留原内容")
+                    else:
+                        # 统计压缩后数量（宽松匹配）
+                        new_unresolved = len([line for line in compressed_arcs.split('\n')
+                                            if re.match(unresolved_pattern, line.strip())])
+                        new_resolved = len([line for line in compressed_arcs.split('\n')
+                                          if re.match(resolved_pattern, line.strip())])
+
+                        gui_log(f"       ├─ ✅ 压缩完成：{unresolved_count}→{new_unresolved}条未解决，{resolved_count}→{new_resolved}条已解决")
+
+                        # 保存压缩后的结果
+                        clear_file_content(plot_arcs_file)
+                        save_string_to_txt(compressed_arcs, plot_arcs_file)
+                        gui_log("       └─ ✅ 已保存压缩后的剧情要点\n")
+
+                        # 更新 new_plot_arcs 供后续步骤2.8使用
+                        new_plot_arcs = compressed_arcs
+                else:
+                    gui_log("   └─ 未达到压缩阈值，跳过本次压缩\n")
+            else:
+                gui_log("   └─ 剧情要点文件为空，跳过压缩\n")
+        # 非10的倍数章节，静默跳过（不输出日志）
+    else:
+        # 模块已禁用，仅在10的倍数章节输出提示
+        if novel_number % 10 == 0:
+            gui_log(f"▷ [2.6/3] 智能压缩剧情要点 (已禁用，跳过)\n")
+
     # [2.8/3] 提炼伏笔到摘要（精简版）
     if pm.is_module_enabled("finalization", "plot_arcs_distill"):
         gui_log("▶ [2.8/3] 提炼伏笔到摘要（精简版）")
@@ -462,16 +554,16 @@ def finalize_chapter(
                 global_summary_file = os.path.join(filepath, "global_summary.txt")
                 current_summary = read_file(global_summary_file) if os.path.exists(global_summary_file) else ""
 
-                # 移除旧的伏笔部分（如果存在）
+                # 移除旧的伏笔部分（如果存在），支持旧格式和新格式
                 current_summary = re.sub(
-                    r'\n*━━━ 未解决伏笔 ━━━\n.*?(?=\n\n|$)',
+                    r'\n*━━━ 未解决伏笔.*?━━━\n.*?(?=\n\n|$)',
                     '',
                     current_summary,
                     flags=re.DOTALL
                 ).strip()
 
-                # 由程序添加分隔符，确保格式统一
-                formatted_foreshadow = f"━━━ 未解决伏笔 ━━━\n{distilled_arcs.strip()}"
+                # 由程序添加分隔符，确保格式统一（新格式：带章节号）
+                formatted_foreshadow = f"━━━ 未解决伏笔（至第{novel_number}章） ━━━\n{distilled_arcs.strip()}"
 
                 # 追加新的伏笔（带换行隔离）
                 if current_summary:

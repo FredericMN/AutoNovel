@@ -110,7 +110,8 @@ class PromptManager:
                     "volume_summary": {"enabled": True, "required": False},
                     "plot_arcs_update": {"enabled": True, "required": False},  # 新增
                     "plot_arcs_distill": {"enabled": True, "required": False},  # 新增
-                    "plot_arcs_compress": {"enabled": True, "required": False}  # 新增
+                    "plot_arcs_compress": {"enabled": True, "required": False},  # 新增
+                    "plot_arcs_compress_auto": {"enabled": True, "required": False}  # 🆕 新增
                 },
                 "helper": {
                     "knowledge_search": {"enabled": True, "required": False},
@@ -143,7 +144,8 @@ class PromptManager:
                 create_character_state_prompt,
                 plot_arcs_update_prompt,  # 新增：剧情要点更新
                 plot_arcs_distill_prompt,  # 新增：剧情要点提炼
-                plot_arcs_compress_prompt  # 新增：剧情要点压缩
+                plot_arcs_compress_prompt,  # 新增：剧情要点压缩
+                plot_arcs_compress_auto_prompt  # 🆕 剧情要点自动压缩
             )
             return {
                 "core_seed_prompt": core_seed_prompt,
@@ -165,6 +167,7 @@ class PromptManager:
                 "plot_arcs_update_prompt": plot_arcs_update_prompt,  # 新增
                 "plot_arcs_distill_prompt": plot_arcs_distill_prompt,  # 新增
                 "plot_arcs_compress_prompt": plot_arcs_compress_prompt,  # 新增
+                "plot_arcs_compress_auto_prompt": plot_arcs_compress_auto_prompt,  # 🆕 新增
                 "system_prompt": ""  # 空字符串作为默认值
             }
         except ImportError as e:
@@ -308,6 +311,7 @@ class PromptManager:
             ("finalization", "plot_arcs_update"): "plot_arcs_update_prompt",  # 新增
             ("finalization", "plot_arcs_distill"): "plot_arcs_distill_prompt",  # 新增
             ("finalization", "plot_arcs_compress"): "plot_arcs_compress_prompt",  # 新增
+            ("finalization", "plot_arcs_compress_auto"): "plot_arcs_compress_auto_prompt",  # 🆕 新增
             ("helper", "knowledge_search"): "knowledge_search_prompt",
             ("helper", "knowledge_filter"): "knowledge_filter_prompt",
             ("helper", "create_character_state"): "create_character_state_prompt",

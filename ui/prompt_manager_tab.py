@@ -43,7 +43,14 @@ class PromptManagerTab(ctk.CTkFrame):
         "chapter_outline": "章节大纲",
         "retrieved_context": "检索到的历史上下文",
         "character_state": "当前角色状态",
-        "plot_arcs": "剧情要点"
+        "plot_arcs": "剧情要点",
+        "old_plot_arcs": "旧的剧情要点（详细版）",
+        "plot_arcs_text": "剧情要点文本（完整内容）",
+        "current_chapter": "当前章节号",
+        "classified_plot_arcs": "经过分层标记的剧情要点",
+        "unresolved_count": "未解决伏笔数量",
+        "resolved_count": "已解决伏笔数量",
+        "distilled_arcs": "提炼后的精简伏笔"
     }
 
     def __init__(self, parent):

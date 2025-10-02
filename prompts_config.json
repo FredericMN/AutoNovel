@@ -191,8 +191,8 @@
       "plot_arcs_update": {
         "enabled": true,
         "required": false,
-        "display_name": "剧情要点更新（详细版）",
-        "description": "定稿时更新剧情要点和未解决伏笔（保存到plot_arcs.txt）",
+        "display_name": "剧情要点更新",
+        "description": "记录未解决伏笔，按ABC级分类（步骤2.5/3）",
         "file": "custom_prompts/plot_arcs_update_prompt.txt",
         "variables": [
           "chapter_text",
@@ -204,7 +204,7 @@
         "enabled": true,
         "required": false,
         "display_name": "伏笔提炼（精简版）",
-        "description": "从详细版提炼核心伏笔融入前文摘要（≤200字）",
+        "description": "提炼核心伏笔融入摘要：A级5条+B级3条（步骤2.8/3）",
         "file": "custom_prompts/plot_arcs_distill_prompt.txt",
         "variables": [
           "plot_arcs_text"
@@ -217,13 +217,29 @@
         "enabled": true,
         "required": false,
         "display_name": "伏笔二次压缩",
-        "description": "当精简版超过200字时触发二次压缩",
+        "description": "当精简版超过200字时触发二次压缩（步骤2.8/3）",
         "file": "custom_prompts/plot_arcs_compress_prompt.txt",
         "variables": [
           "distilled_arcs"
         ],
         "dependencies": [
           "plot_arcs_distill"
+        ]
+      },
+      "plot_arcs_compress_auto": {
+        "enabled": true,
+        "required": false,
+        "display_name": "智能自动压缩",
+        "description": "周期性压缩详细版：A级≤30条、B级≤10条、C级≤3条（步骤2.6/3，每10章触发）",
+        "file": "custom_prompts/plot_arcs_compress_auto.txt",
+        "variables": [
+          "classified_plot_arcs",
+          "current_chapter",
+          "unresolved_count",
+          "resolved_count"
+        ],
+        "dependencies": [
+          "plot_arcs_update"
         ]
       }
     },

@@ -5,7 +5,11 @@
 从 core.prompting.prompt_definitions 导出所有默认提示词到 custom_prompts/ 目录
 """
 import os
+import sys
 import logging
+
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # 导入所有提示词
 from core.prompting.prompt_definitions import (
@@ -24,7 +28,11 @@ from core.prompting.prompt_definitions import (
     volume_summary_prompt,
     knowledge_search_prompt,
     knowledge_filter_prompt,
-    create_character_state_prompt
+    create_character_state_prompt,
+    plot_arcs_update_prompt,  # 新增：剧情要点更新
+    plot_arcs_distill_prompt,  # 新增：剧情要点提炼
+    plot_arcs_compress_prompt,  # 新增：剧情要点压缩
+    plot_arcs_compress_auto_prompt  # 🆕 剧情要点自动压缩
 )
 
 # 提示词映射表
@@ -45,6 +53,10 @@ PROMPT_MAPPING = {
     "custom_prompts/knowledge_search_prompt.txt": knowledge_search_prompt,
     "custom_prompts/knowledge_filter_prompt.txt": knowledge_filter_prompt,
     "custom_prompts/create_character_state_prompt.txt": create_character_state_prompt,
+    "custom_prompts/plot_arcs_update_prompt.txt": plot_arcs_update_prompt,  # 新增
+    "custom_prompts/plot_arcs_distill_prompt.txt": plot_arcs_distill_prompt,  # 新增
+    "custom_prompts/plot_arcs_compress_prompt.txt": plot_arcs_compress_prompt,  # 新增
+    "custom_prompts/plot_arcs_compress_auto.txt": plot_arcs_compress_auto_prompt,  # 🆕 新增
     "custom_prompts/system_prompt.txt": ""  # 空文件，等待用户配置
 }
 
