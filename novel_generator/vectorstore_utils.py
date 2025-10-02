@@ -51,6 +51,90 @@ def clear_vector_store(filepath: str) -> bool:
         traceback.print_exc()
         return False
 
+
+def check_chapter_in_vectorstore(embedding_adapter, filepath: str, chapter_num: int) -> bool:
+    """
+    检查特定章节是否已存在于向量库中（用于避免重复定稿）
+
+    策略：
+    1) 优先使用元数据严格匹配：chapter=chapter_num 且 doc_type="chapter"。
+    2) 向后兼容：若 doc_type 不存在或查询失败，则按 chapter=chapter_num 获取候选，
+       通过 metadata/documents 排除卷摘要（识别以 "【第N卷总结】" 开头的内容）。
+    3) 任何异常均不视为已存在（避免误报）。
+    """
+    try:
+        store = load_vector_store(embedding_adapter, filepath)
+        if not store:
+            return False
+
+        collection = store._collection
+
+        # 1) 严格匹配（有 doc_type 元数据的新版向量库）
+        try:
+            results = collection.get(where={"chapter": chapter_num, "doc_type": "chapter"})
+            if results and results.get("ids"):
+                logging.info(
+                    f"Chapter {chapter_num} found in vector store with doc_type=chapter, count={len(results['ids'])}."
+                )
+                return True
+        except Exception as e:
+            # 旧版向量库或驱动不支持 doc_type 过滤，进入降级逻辑
+            logging.info(f"Metadata filter (doc_type) not available or failed: {e}")
+
+        # 2) 向后兼容：按 chapter 获取候选，再排除卷摘要
+        try:
+            results = collection.get(where={"chapter": chapter_num})
+            if not results or not results.get("ids"):
+                logging.info(f"No documents found for chapter={chapter_num} in fallback mode.")
+                return False
+
+            ids = results.get("ids", [])
+            metadatas = results.get("metadatas", []) or []
+            documents = results.get("documents", []) or []
+
+            # 若任意文档显式标注为 chapter，则判定为已存在
+            for i, _ in enumerate(ids):
+                md = metadatas[i] if i < len(metadatas) else {}
+                dt = (md or {}).get("doc_type")
+                if dt == "chapter":
+                    logging.info(
+                        f"Chapter {chapter_num} found in vector store (legacy fallback with explicit doc_type=chapter)."
+                    )
+                    return True
+            
+            # 无显式 doc_type 的情况下：若存在卷摘要特征，则判定为未定稿（避免误报）
+            has_volume_summary_marker = False
+            for i, _ in enumerate(ids):
+                md = metadatas[i] if i < len(metadatas) else {}
+                dt = (md or {}).get("doc_type")
+                if dt is not None:
+                    if dt == "volume_summary":
+                        has_volume_summary_marker = True
+                        break
+                else:
+                    content = documents[i] if i < len(documents) else ""
+                    if re.match(r"^【第\d+卷总结】", str(content)):
+                        has_volume_summary_marker = True
+                        break
+            
+            if has_volume_summary_marker:
+                logging.info(
+                    f"Volume summary detected for chapter={chapter_num} (legacy fallback); treat as not finalized."
+                )
+                return False
+            
+            # 未检测到卷摘要特征，保守认为该章节存在
+            logging.info(
+                f"Chapter {chapter_num} found in vector store (legacy fallback, no volume summary markers)."
+            )
+            return True
+        except Exception as e:
+            logging.warning(f"Fallback chapter-only query failed: {e}")
+            return False
+
+    except Exception as e:
+        logging.warning(f"Failed to check chapter in vector store: {e}", exc_info=True)
+        return False
 def init_vector_store(embedding_adapter, texts=None, filepath: str = None, documents=None):
     """
     在 filepath 下创建/加载一个 Chroma 向量库并插入 texts 或 documents。

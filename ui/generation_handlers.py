@@ -10,6 +10,7 @@ import traceback
 import glob
 from core.prompting.prompt_definitions import resolve_global_system_prompt
 from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
+from core.adapters.embedding_adapters import create_embedding_adapter
 from novel_generator import (
     Novel_architecture_generate,
     Chapter_blueprint_generate,
@@ -18,7 +19,8 @@ from novel_generator import (
     import_knowledge_file,
     clear_vector_store,
     enrich_chapter_text,
-    build_chapter_prompt
+    build_chapter_prompt,
+    check_chapter_in_vectorstore
 )
 from core.consistency.consistency_checker import check_consistency
 from ui.validation_utils import validate_chapter_continuity
@@ -494,32 +496,49 @@ def finalize_chapter_ui(self):
             # 导致定稿一个新的章节号，且该章节号已有定稿内容，则应警告
             # 这里用更温和的提示，因为定稿前通常草稿已经存在
             if os.path.exists(chapter_file):
-                # 检查向量库目录，确认是否已定稿过
-                vectorstore_dir = os.path.join(filepath, "vectorstore")
-                has_vectorstore = os.path.exists(vectorstore_dir) and os.listdir(vectorstore_dir)
+                # 【修复Bug】精确检查当前章节是否已在向量库中（而不是简单检查向量库是否非空）
+                try:
+                    # 创建embedding_adapter用于查询向量库
+                    embedding_adapter = create_embedding_adapter(
+                        embedding_interface_format,
+                        embedding_api_key,
+                        embedding_url,
+                        embedding_model_name
+                    )
 
-                if has_vectorstore:
-                    confirm_result = {"confirmed": False}
-                    confirm_event = threading.Event()
+                    # 检查当前章节是否已在向量库中
+                    chapter_exists = check_chapter_in_vectorstore(
+                        embedding_adapter,
+                        filepath,
+                        chap_num
+                    )
 
-                    def ask_refinalize():
-                        result = messagebox.askyesno(
-                            "重复定稿确认",
-                            f"⚠️ 第{chap_num}章疑似已定稿过！\n\n"
-                            f"重复定稿将导致：\n"
-                            f"1. 向量库重复存储相同内容（污染检索）\n"
-                            f"2. 摘要和角色状态可能重复更新\n\n"
-                            f"是否继续？建议检查章节号是否正确"
-                        )
-                        confirm_result["confirmed"] = result
-                        confirm_event.set()
+                    if chapter_exists:
+                        confirm_result = {"confirmed": False}
+                        confirm_event = threading.Event()
 
-                    self.master.after(0, ask_refinalize)
-                    confirm_event.wait()
+                        def ask_refinalize():
+                            result = messagebox.askyesno(
+                                "重复定稿确认",
+                                f"⚠️ 第{chap_num}章已在向量库中，疑似已定稿过！\n\n"
+                                f"重复定稿将导致：\n"
+                                f"1. 向量库重复存储相同内容（污染检索）\n"
+                                f"2. 摘要和角色状态可能重复更新\n\n"
+                                f"是否继续？建议检查章节号是否正确"
+                            )
+                            confirm_result["confirmed"] = result
+                            confirm_event.set()
 
-                    if not confirm_result["confirmed"]:
-                        self.safe_log(f"❌ 用户取消了第{chap_num}章定稿，避免重复写入向量库。")
-                        return
+                        self.master.after(0, ask_refinalize)
+                        confirm_event.wait()
+
+                        if not confirm_result["confirmed"]:
+                            self.safe_log(f"❌ 用户取消了第{chap_num}章定稿，避免重复写入向量库。")
+                            return
+                except Exception as e:
+                    # 检查失败时记录日志但不阻止定稿（避免因向量库问题导致无法定稿）
+                    logging.warning(f"Failed to check chapter in vectorstore: {e}")
+                    self.safe_log(f"⚠️ 无法检查章节是否已定稿（向量库查询失败），继续定稿...")
 
             word_number = self.safe_get_int(self.word_number_var, 3000)
 

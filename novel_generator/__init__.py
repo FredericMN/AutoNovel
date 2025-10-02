@@ -10,4 +10,4 @@ from .chapter import (
 )
 from .finalization import finalize_chapter, enrich_chapter_text
 from .knowledge import import_knowledge_file
-from .vectorstore_utils import clear_vector_store
+from .vectorstore_utils import clear_vector_store, check_chapter_in_vectorstore
