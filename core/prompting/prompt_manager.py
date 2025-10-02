@@ -133,6 +133,7 @@ class PromptManager:
                 chapter_blueprint_prompt,
                 chunked_chapter_blueprint_prompt,
                 volume_breakdown_prompt,
+                volume_chapter_blueprint_prompt,  # 🆕 新增：分卷章节蓝图
                 first_chapter_draft_prompt,
                 next_chapter_draft_prompt,
                 summarize_recent_chapters_prompt,
@@ -155,6 +156,7 @@ class PromptManager:
                 "chapter_blueprint_prompt": chapter_blueprint_prompt,
                 "chunked_chapter_blueprint_prompt": chunked_chapter_blueprint_prompt,
                 "volume_breakdown_prompt": volume_breakdown_prompt,
+                "volume_chapter_blueprint_prompt": volume_chapter_blueprint_prompt,  # 🆕 新增
                 "first_chapter_draft_prompt": first_chapter_draft_prompt,
                 "next_chapter_draft_prompt": next_chapter_draft_prompt,
                 "summarize_recent_chapters_prompt": summarize_recent_chapters_prompt,
@@ -302,6 +304,7 @@ class PromptManager:
             ("architecture", "volume_breakdown"): "volume_breakdown_prompt",
             ("blueprint", "chapter_blueprint"): "chapter_blueprint_prompt",
             ("blueprint", "chunked_blueprint"): "chunked_chapter_blueprint_prompt",
+            ("blueprint", "volume_chapter_blueprint"): "volume_chapter_blueprint_prompt",  # 新增：分卷章节蓝图
             ("chapter", "first_chapter"): "first_chapter_draft_prompt",
             ("chapter", "next_chapter"): "next_chapter_draft_prompt",
             ("chapter", "chapter_summary"): "summarize_recent_chapters_prompt",

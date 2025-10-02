@@ -58,7 +58,9 @@
           "core_seed",
           "character_dynamics",
           "world_building",
-          "user_guidance"
+          "user_guidance",
+          "number_of_chapters",
+          "num_volumes"
         ]
       },
       "volume_breakdown": {
@@ -100,6 +102,27 @@
           "novel_architecture",
           "start_chapter",
           "end_chapter",
+          "user_guidance"
+        ],
+        "dependencies": []
+      },
+      "volume_chapter_blueprint": {
+        "enabled": true,
+        "required": false,
+        "display_name": "分卷章节蓝图",
+        "description": "分卷模式下生成每一卷的章节蓝图",
+        "file": "custom_prompts/volume_chapter_blueprint_prompt.txt",
+        "variables": [
+          "novel_architecture",
+          "volume_architecture",
+          "volume_number",
+          "volume_start",
+          "volume_end",
+          "volume_total_chapters",
+          "volume_chapter_count",
+          "volume_original_start",
+          "previous_volumes_summary",
+          "resume_mode_notice",
           "user_guidance"
         ],
         "dependencies": []

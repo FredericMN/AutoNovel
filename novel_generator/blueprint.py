@@ -179,9 +179,12 @@ def Chapter_blueprint_generate(
 
             # 部分完成的卷：调整起始章节
             actual_start = max(vol_start, max_existing_chap + 1)
-            vol_chapter_count = vol_end - actual_start + 1
+            vol_total_chapters = vol_end - vol_start + 1  # 本卷总章数（整卷规划）
+            vol_chapter_count = vol_end - actual_start + 1  # 本次待生成章节数
 
             gui_log(f"▶ [卷{vol_idx}/{num_volumes}] 生成第{actual_start}-{vol_end}章 (共{vol_chapter_count}章)")
+            if actual_start > vol_start:
+                gui_log(f"   ├─ ⚠️ 续写模式：本卷共{vol_total_chapters}章，前{actual_start - vol_start}章已完成")
             gui_log(f"   ├─ 构建分卷提示词...")
 
             # 读取前序卷摘要（用于保持设定一致性，避免细节漂移）
@@ -203,14 +206,37 @@ def Chapter_blueprint_generate(
                             previous_volumes_summary = f"前序剧情摘要（全局）：\n{global_summary_content}"
                             gui_log(f"   ├─ ⚠ 前序卷摘要不存在，使用全局摘要降级")
 
-            volume_prompt = volume_chapter_blueprint_prompt.format(
+            # 🆕 条件化生成续写模式提示（仅续写时传入，避免影响上下文）
+            is_resume_mode = (actual_start > vol_start)
+            if is_resume_mode:
+                volume_previous_end = actual_start - 1
+                resume_mode_notice = f"""⚠️ 续写模式说明（volume_start > volume_original_start）：
+- 本卷前面的章节已完成（第{vol_start}到第{volume_previous_end}章），请从第{actual_start}章继续生成
+- **节奏分配仍按整卷{vol_total_chapters}章计算，而非剩余{vol_chapter_count}章**
+- 例如：本卷共30章，前20章已完成，现在从第21章继续
+  - 第21章应处于"高潮阶段"（30×0.7=21，已进入高潮30%阶段）
+  - 而不是"开局阶段"（剩余10章×0.2=2，误判为开局）
+- 请根据章节在整卷中的位置（第X章/共{vol_total_chapters}章）判断应处于哪个阶段"""
+            else:
+                resume_mode_notice = ""
+
+            # 从 PromptManager 动态加载提示词（带兜底处理）
+            volume_prompt_template = pm.get_prompt("blueprint", "volume_chapter_blueprint")
+            if not volume_prompt_template:
+                logging.warning("Volume chapter blueprint prompt not found, using default")
+                volume_prompt_template = volume_chapter_blueprint_prompt
+
+            volume_prompt = volume_prompt_template.format(
                 novel_architecture=architecture_text,
                 volume_architecture=volume_architecture_text,
                 volume_number=vol_idx,
-                volume_start=actual_start,
-                volume_end=vol_end,
-                volume_chapter_count=vol_chapter_count,
-                previous_volumes_summary=previous_volumes_summary,  # 新增
+                volume_start=actual_start,  # 实际起始章号（续写时会跳过已完成章节）
+                volume_end=vol_end,  # 卷结束章号
+                volume_total_chapters=vol_total_chapters,  # 本卷总章数（整卷规划）
+                volume_chapter_count=vol_chapter_count,  # 本次待生成章节数
+                volume_original_start=vol_start,  # 本卷原始起始章号（用于判断是否续写）
+                previous_volumes_summary=previous_volumes_summary,
+                resume_mode_notice=resume_mode_notice,  # 🆕 条件化续写提示
                 user_guidance=user_guidance
             )
 

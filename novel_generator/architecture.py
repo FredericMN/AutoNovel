@@ -429,7 +429,9 @@ def Novel_architecture_generate(
                 core_seed=partial_data["core_seed_result"].strip(),
                 character_dynamics=sanitize_prompt_variable(partial_data["character_dynamics_result"].strip()),
                 world_building=sanitize_prompt_variable(partial_data["world_building_result"].strip()),
-                user_guidance=user_guidance
+                user_guidance=user_guidance,
+                number_of_chapters=number_of_chapters,  # 新增：总章节数
+                num_volumes=num_volumes if num_volumes > 1 else 1  # 新增：分卷数（至少为1）
             )
             gui_log("   ├─ 向LLM发起请求...")
             plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot, system_prompt=system_prompt)
