@@ -187,6 +187,44 @@
           "volume_end"
         ],
         "dependencies": []
+      },
+      "plot_arcs_update": {
+        "enabled": true,
+        "required": false,
+        "display_name": "剧情要点更新（详细版）",
+        "description": "定稿时更新剧情要点和未解决伏笔（保存到plot_arcs.txt）",
+        "file": "custom_prompts/plot_arcs_update_prompt.txt",
+        "variables": [
+          "chapter_text",
+          "old_plot_arcs"
+        ],
+        "dependencies": []
+      },
+      "plot_arcs_distill": {
+        "enabled": true,
+        "required": false,
+        "display_name": "伏笔提炼（精简版）",
+        "description": "从详细版提炼核心伏笔融入前文摘要（≤200字）",
+        "file": "custom_prompts/plot_arcs_distill_prompt.txt",
+        "variables": [
+          "plot_arcs_text"
+        ],
+        "dependencies": [
+          "plot_arcs_update"
+        ]
+      },
+      "plot_arcs_compress": {
+        "enabled": true,
+        "required": false,
+        "display_name": "伏笔二次压缩",
+        "description": "当精简版超过200字时触发二次压缩",
+        "file": "custom_prompts/plot_arcs_compress_prompt.txt",
+        "variables": [
+          "distilled_arcs"
+        ],
+        "dependencies": [
+          "plot_arcs_distill"
+        ]
       }
     },
     "helper": {

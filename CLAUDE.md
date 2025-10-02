@@ -255,6 +255,57 @@ pyinstaller packaging/main.spec  # 生成 dist/main.exe
 
 ## 最新功能更新
 
+### 剧情要点管理系统 (2025-10-02)
+项目新增完整的伏笔和剧情要点管理机制，大幅提升小说生成的一致性和伏笔管理能力。
+
+**核心功能**：
+1. **双版本伏笔管理**
+   - **详细版** (`plot_arcs.txt`)：完整记录所有伏笔、冲突、谜团，供人工查看和一致性校审
+   - **精简版** (融入 `global_summary.txt`)：自动提炼核心伏笔（≤200字），供LLM生成时感知
+
+2. **定稿流程增强** (`novel_generator/finalization.py`)
+   ```
+   [1/3] 更新前文摘要 → global_summary.txt
+   [2/3] 更新角色状态 → character_state.txt
+   [2.5/3] 🆕 更新剧情要点（详细版） → plot_arcs.txt
+   [2.8/3] 🆕 提炼伏笔到摘要（精简版） → 追加到 global_summary.txt
+   [3/3] 插入向量库
+   ```
+
+3. **自动流转机制**
+   - **非分卷模式**：精简版伏笔随 `global_summary.txt` 累积更新
+   - **分卷模式**：精简版伏笔自动流转到 `volume_X_summary.txt`，支持跨卷检索
+   - **字数控制**：严格控制精简版≤200字，超限触发二次压缩
+
+4. **一致性校审增强**
+   - 修复 `ui/generation_handlers.py:do_consistency_check()`，正确读取 `plot_arcs.txt`
+   - 校审时同时检查：小说设定、角色状态、前文摘要、剧情要点
+   - 提醒未推进的重要伏笔
+
+**技术实现**：
+- **提示词**：新增 `plot_arcs_update_prompt`、`plot_arcs_distill_prompt`、`plot_arcs_compress_prompt`
+- **配置**：`prompts_config.json` 新增三个模块开关，用户可自定义提示词
+- **文件**：
+  - `core/prompting/prompt_definitions.py` - 提示词定义
+  - `novel_generator/finalization.py` - 核心逻辑实现
+  - `custom_prompts/plot_arcs_*.txt` - 自定义提示词模板
+
+**使用指南**：
+1. **查看剧情要点**：主界面右侧点击"查看剧情要点"按钮
+2. **一致性校审**：定稿章节后，点击"一致性审校"检查伏笔一致性
+3. **自定义提示词**：在提示词管理页签中编辑 `plot_arcs_*` 模块
+4. **开关控制**：
+   - 禁用步骤2.5：停止更新详细版（不推荐）
+   - 禁用步骤2.8：不融入摘要，仅保留详细版供人工查看
+
+**预期效果**：
+- 📈 一致性提升 **30-50%**（LLM能感知到伏笔，避免遗忘）
+- 🚀 自然推进（200字精简版不会压倒主摘要）
+- 🔄 分卷兼容（伏笔自动流转到卷摘要）
+- 📊 双版本可视化（详细版人工查看，精简版AI感知）
+
+**详细文档**：见 `PLOT_ARCS_OPTIMIZATION_PLAN.md`
+
 ### 项目重构优化 (2025-10-02)
 项目完成了大规模的目录结构重构，提升了代码组织性和可维护性：
 

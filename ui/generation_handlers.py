@@ -612,6 +612,18 @@ def do_consistency_check(self):
                 self.safe_log("⚠️ 当前章节文件为空或不存在，无法审校。")
                 return
 
+            # 读取剧情要点（详细版）
+            plot_arcs_file = os.path.join(filepath, "plot_arcs.txt")
+            plot_arcs_text = ""
+            if os.path.exists(plot_arcs_file):
+                plot_arcs_text = read_file(plot_arcs_file)
+                if plot_arcs_text.strip():
+                    self.safe_log("✓ 已加载剧情要点文件")
+                else:
+                    self.safe_log("⚠️ 剧情要点文件为空")
+            else:
+                self.safe_log("⚠️ 剧情要点文件不存在（这是正常的，如果尚未定稿任何章节）")
+
             self.safe_log("开始一致性审校...")
             result = check_consistency(
                 novel_setting="",
@@ -625,7 +637,7 @@ def do_consistency_check(self):
                 interface_format=interface_format,
                 max_tokens=max_tokens,
                 timeout=timeout,
-                plot_arcs="",
+                plot_arcs=plot_arcs_text,  # 修复：传递真实的剧情要点内容
                 system_prompt=resolve_global_system_prompt()  # 从PromptManager读取配置
             )
             self.safe_log("审校结果：")

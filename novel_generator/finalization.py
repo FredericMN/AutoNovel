@@ -4,6 +4,7 @@
 定稿章节和扩写章节（finalize_chapter、enrich_chapter_text）
 """
 import os
+import re  # 新增：用于提取精简版伏笔
 import logging
 from core.adapters.llm_adapters import create_llm_adapter
 from core.adapters.embedding_adapters import create_embedding_adapter
@@ -11,6 +12,9 @@ from core.prompting.prompt_definitions import (
     summary_prompt,
     update_character_state_prompt,
     volume_summary_prompt,  # 新增：分卷总结提示词
+    plot_arcs_update_prompt,  # 新增：剧情要点更新提示词
+    plot_arcs_distill_prompt,  # 新增：剧情要点提炼提示词
+    plot_arcs_compress_prompt,  # 新增：剧情要点压缩提示词
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
@@ -167,6 +171,39 @@ def finalize_volume(
     save_string_to_txt(volume_summary_result, volume_summary_file)
     gui_log(f"▶ 卷摘要已保存至: volume_{volume_number}_summary.txt")
 
+    # 🆕 附加精简版伏笔到卷摘要（确保跨卷伏笔流转）
+    gui_log("▶ 检查是否有精简版伏笔需要附加...")
+    global_summary_file = os.path.join(filepath, "global_summary.txt")
+    if os.path.exists(global_summary_file):
+        global_summary = read_file(global_summary_file)
+
+        # 提取精简版伏笔段（使用正则匹配）
+        foreshadow_match = re.search(
+            r'(━━━ 未解决伏笔 ━━━.*)',
+            global_summary,
+            re.DOTALL
+        )
+
+        if foreshadow_match:
+            foreshadow_section = foreshadow_match.group(1).strip()
+
+            # 读取当前卷摘要
+            current_volume_summary = read_file(volume_summary_file)
+
+            # 追加伏笔到卷摘要末尾
+            updated_volume_summary = f"{current_volume_summary}\n\n{foreshadow_section}"
+
+            # 保存更新后的卷摘要
+            clear_file_content(volume_summary_file)
+            save_string_to_txt(updated_volume_summary, volume_summary_file)
+
+            gui_log(f"   └─ ✅ 精简版伏笔已附加到卷摘要 (共{len(foreshadow_section)}字)\n")
+            logging.info(f"Appended plot arcs to volume {volume_number} summary")
+        else:
+            gui_log("   └─ ⚠️ 未发现精简版伏笔段，跳过附加\n")
+    else:
+        gui_log("   └─ ⚠️ global_summary.txt 不存在，跳过附加\n")
+
     # 将卷摘要也存入向量库（标记为特殊类型，方便跨卷检索）
     try:
         # 使用传入的 embedding 配置参数（复用章节写入的配置）
@@ -185,8 +222,11 @@ def finalize_volume(
         # 将卷摘要切分后存入向量库，标记为卷摘要类型
         from novel_generator.vectorstore_utils import update_vector_store
 
+        # 读取更新后的卷摘要（包含精简版伏笔）
+        final_volume_summary = read_file(volume_summary_file)
+
         # 构建卷摘要标题（便于检索时识别）
-        volume_summary_with_title = f"【第{volume_number}卷总结】\n{volume_summary_result}"
+        volume_summary_with_title = f"【第{volume_number}卷总结】\n{final_volume_summary}"
 
         update_vector_store(
             embedding_adapter=embedding_adapter,
@@ -343,6 +383,114 @@ def finalize_chapter(
         save_string_to_txt(new_char_state, character_state_file)
     else:
         gui_log(f"▷ [2/3] 更新角色状态 (已禁用，跳过)\n")
+
+    # [2.5/3] 更新剧情要点（详细版）
+    if pm.is_module_enabled("finalization", "plot_arcs_update"):
+        gui_log("▶ [2.5/3] 更新剧情要点（详细版）")
+        gui_log("   ├─ 读取旧的剧情要点...")
+        plot_arcs_file = os.path.join(filepath, "plot_arcs.txt")
+        old_plot_arcs = read_file(plot_arcs_file) if os.path.exists(plot_arcs_file) else ""
+
+        prompt_template = pm.get_prompt("finalization", "plot_arcs_update")
+        if not prompt_template:
+            gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+            prompt_template = plot_arcs_update_prompt
+
+        prompt_plot_arcs = prompt_template.format(
+            chapter_text=chapter_text,
+            old_plot_arcs=old_plot_arcs if old_plot_arcs.strip() else "（暂无记录）"
+        )
+        gui_log("   ├─ 向LLM发起请求...")
+        new_plot_arcs = invoke_with_cleaning(llm_adapter, prompt_plot_arcs, system_prompt=system_prompt)
+        if not new_plot_arcs.strip():
+            gui_log("   ├─ ⚠ 生成失败，保留旧内容")
+            new_plot_arcs = old_plot_arcs
+        else:
+            gui_log("   └─ ✅ 剧情要点更新完成\n")
+
+        clear_file_content(plot_arcs_file)
+        save_string_to_txt(new_plot_arcs, plot_arcs_file)
+    else:
+        gui_log(f"▷ [2.5/3] 更新剧情要点 (已禁用，跳过)\n")
+        new_plot_arcs = ""
+
+    # [2.8/3] 提炼伏笔到摘要（精简版）
+    if pm.is_module_enabled("finalization", "plot_arcs_distill"):
+        gui_log("▶ [2.8/3] 提炼伏笔到摘要（精简版）")
+
+        # 只有在步骤 2.5 启用时才有内容可提炼
+        if pm.is_module_enabled("finalization", "plot_arcs_update") and new_plot_arcs.strip():
+            gui_log("   ├─ 从详细版提炼核心伏笔...")
+
+            prompt_template = pm.get_prompt("finalization", "plot_arcs_distill")
+            if not prompt_template:
+                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                prompt_template = plot_arcs_distill_prompt
+
+            prompt_distill = prompt_template.format(plot_arcs_text=new_plot_arcs)
+            gui_log("   ├─ 向LLM发起请求...")
+            distilled_arcs = invoke_with_cleaning(llm_adapter, prompt_distill, system_prompt=system_prompt)
+
+            if distilled_arcs.strip():
+                # 验证字数
+                distilled_length = len(distilled_arcs)
+                gui_log(f"   ├─ 精简版字数: {distilled_length}字")
+
+                if distilled_length > 250:  # 留出50字buffer
+                    gui_log(f"   ├─ ⚠️ 超过200字限制，触发二次压缩...")
+
+                    compress_prompt_template = pm.get_prompt("finalization", "plot_arcs_compress")
+                    if not compress_prompt_template:
+                        compress_prompt_template = plot_arcs_compress_prompt
+
+                    compress_prompt = compress_prompt_template.format(distilled_arcs=distilled_arcs)
+                    distilled_arcs = invoke_with_cleaning(llm_adapter, compress_prompt, system_prompt=system_prompt)
+
+                    if distilled_arcs.strip():
+                        compressed_length = len(distilled_arcs)
+                        gui_log(f"   ├─ 压缩后字数: {compressed_length}字")
+
+                        # 强制截断（极端情况）
+                        if compressed_length > 200:
+                            distilled_arcs = distilled_arcs[:200]
+                            gui_log(f"   ├─ ⚠️ 仍超限，强制截断到200字")
+                    else:
+                        gui_log("   ├─ ⚠️ 二次压缩失败，使用原版本")
+
+                # 追加到 global_summary.txt
+                gui_log("   ├─ 追加到前文摘要...")
+                global_summary_file = os.path.join(filepath, "global_summary.txt")
+                current_summary = read_file(global_summary_file) if os.path.exists(global_summary_file) else ""
+
+                # 移除旧的伏笔部分（如果存在）
+                current_summary = re.sub(
+                    r'\n*━━━ 未解决伏笔 ━━━\n.*?(?=\n\n|$)',
+                    '',
+                    current_summary,
+                    flags=re.DOTALL
+                ).strip()
+
+                # 由程序添加分隔符，确保格式统一
+                formatted_foreshadow = f"━━━ 未解决伏笔 ━━━\n{distilled_arcs.strip()}"
+
+                # 追加新的伏笔（带换行隔离）
+                if current_summary:
+                    updated_summary = f"{current_summary}\n\n{formatted_foreshadow}"
+                else:
+                    updated_summary = formatted_foreshadow
+
+                clear_file_content(global_summary_file)
+                save_string_to_txt(updated_summary, global_summary_file)
+                gui_log("   └─ ✅ 精简版伏笔已融入摘要\n")
+            else:
+                gui_log("   └─ ⚠️ 提炼失败，跳过融入摘要\n")
+        else:
+            if not pm.is_module_enabled("finalization", "plot_arcs_update"):
+                gui_log("   └─ ⚠️ 步骤2.5已禁用，无内容可提炼\n")
+            else:
+                gui_log("   └─ ⚠️ 详细版剧情要点为空，跳过提炼\n")
+    else:
+        gui_log(f"▷ [2.8/3] 提炼伏笔到摘要 (已禁用，跳过)\n")
 
     gui_log("▶ [3/3] 插入向量库")
     gui_log("   ├─ 切分章节文本...")
