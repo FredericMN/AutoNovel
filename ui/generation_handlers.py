@@ -1106,7 +1106,7 @@ def generate_single_chapter_batch(
     total_chapters = self.safe_get_int(self.num_chapters_var, 0)
 
     # ========== 阶段1: 构建提示词（含向量检索） ==========
-    self.update_chapter_progress("准备中...", 0.0)
+    # 进度范围: 0% → 35% (在 build_chapter_prompt 内部更新)
     self.safe_log("▶ [阶段1/3] 构建章节提示词")
 
     prompt_text = build_chapter_prompt(
@@ -1133,7 +1133,8 @@ def generate_single_chapter_batch(
         system_prompt=resolve_global_system_prompt(),  # 从PromptManager读取配置
         num_volumes=num_volumes,  # 新增：传递分卷数量
         total_chapters=total_chapters,  # 新增：传递总章节数
-        gui_log_callback=self.safe_log  # 传入回调，显示向量检索详情
+        gui_log_callback=self.safe_log,  # 传入回调，显示向量检索详情
+        progress_callback=lambda msg, pct: self.update_chapter_progress(msg, pct)  # 🆕 进度回调
     )
 
     # 处理角色库
@@ -1186,11 +1187,10 @@ def generate_single_chapter_batch(
                     break
             final_prompt = '\n'.join(lines)
 
-    self.update_chapter_progress("提示词构建完成", 0.33)
-
     # ========== 阶段2: 生成草稿 ==========
+    # 进度范围: 35% → 65%
     self.safe_log("\n▶ [阶段2/3] 生成章节草稿")
-    self.update_chapter_progress("生成草稿中...", 0.33)
+    self.update_chapter_progress("✍️ 生成草稿中...", 0.35)
 
     draft_text = generate_chapter_draft(
         api_key=draft_api_key,
@@ -1220,15 +1220,19 @@ def generate_single_chapter_batch(
         gui_log_callback=self.safe_log  # 传入回调
     )
 
+    # 草稿生成完成
+    self.update_chapter_progress("✅ 草稿生成完成", 0.50)
+
     # 检查字数并扩写
     chapters_dir = os.path.join(self.filepath_var.get().strip(), "chapters")
     os.makedirs(chapters_dir, exist_ok=True)
     chapter_path = os.path.join(chapters_dir, f"chapter_{chapter_num}.txt")
 
+    self.safe_log(f"   ├─ 检查字数: {len(draft_text)}字 (目标{min_word}字)")
     if len(draft_text) < 0.7 * min_word and auto_enrich:
         self.safe_log(f"\n⚠️  字数不足 ({len(draft_text)}/{min_word})")
         self.safe_log("   ├─ 启动自动扩写...")
-        self.update_chapter_progress("扩写中...", 0.5)
+        self.update_chapter_progress("🔄 扩写中...", 0.55)
 
         enriched = enrich_chapter_text(
             chapter_text=draft_text,
@@ -1249,11 +1253,11 @@ def generate_single_chapter_batch(
     clear_file_content(chapter_path)
     save_string_to_txt(draft_text, chapter_path)
 
-    self.update_chapter_progress("草稿完成", 0.66)
+    self.update_chapter_progress("✅ 草稿完成", 0.65)
 
     # ========== 阶段3: 定稿章节 ==========
+    # 进度范围: 65% → 100% (在 finalize_chapter 内部更新)
     self.safe_log("\n▶ [阶段3/3] 章节定稿")
-    self.update_chapter_progress("定稿中...", 0.66)
 
     success = finalize_chapter(
         novel_number=chapter_num,
@@ -1273,11 +1277,11 @@ def generate_single_chapter_batch(
         use_global_system_prompt=None,  # 使用PromptManager配置
         num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
         total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
-        gui_log_callback=self.safe_log  # 传入回调
+        gui_log_callback=self.safe_log,  # 传入回调
+        progress_callback=lambda msg, pct: self.update_chapter_progress(msg, pct)  # 🆕 进度回调
     )
 
     if success:
-        self.update_chapter_progress("完成", 1.0)
         self.safe_log(f"✅ 第 {chapter_num} 章定稿完成")
     else:
         self.safe_log(f"⚠️ 第 {chapter_num} 章定稿失败（章节内容为空）")

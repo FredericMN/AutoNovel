@@ -290,7 +290,8 @@ def finalize_chapter(
     use_global_system_prompt: bool = False,
     num_volumes: int = 0,  # 新增：分卷数量
     total_chapters: int = 0,  # 新增：总章节数
-    gui_log_callback=None
+    gui_log_callback=None,
+    progress_callback=None  # 🆕 进度回调函数
 ):
     """
     对指定章节做最终处理：更新前文摘要、更新角色状态、插入向量库等。
@@ -304,6 +305,17 @@ def finalize_chapter(
         if gui_log_callback:
             gui_log_callback(msg)
         logging.info(msg)
+
+    # 进度更新辅助函数
+    def update_progress(msg, pct):
+        try:
+            if progress_callback:
+                progress_callback(msg, pct)
+        except Exception as e:
+            logging.warning(f"进度回调失败: {e}")
+
+    # 定稿开始：65%
+    update_progress("📝 定稿中...", 0.65)
 
     # 创建提示词管理器实例（带异常保护）
     try:
@@ -346,6 +358,8 @@ def finalize_chapter(
 
     # [1/3] 更新前文摘要（可选）
     if pm.is_module_enabled("finalization", "summary_update"):
+        # 更新前文摘要：70%
+        update_progress("📄 [1/3] 更新前文摘要", 0.70)
         gui_log(f"▶ [1/3] 更新前文摘要")
         gui_log("   ├─ 读取旧摘要...")
         global_summary_file = os.path.join(filepath, "global_summary.txt")
@@ -375,6 +389,8 @@ def finalize_chapter(
 
     # [2/3] 更新角色状态（可选）
     if pm.is_module_enabled("finalization", "character_state_update"):
+        # 更新角色状态：75%
+        update_progress("👤 [2/3] 更新角色状态", 0.75)
         gui_log("▶ [2/3] 更新角色状态")
         gui_log("   ├─ 读取旧状态...")
         character_state_file = os.path.join(filepath, "character_state.txt")
@@ -404,6 +420,8 @@ def finalize_chapter(
 
     # [2.5/3] 更新剧情要点（详细版）
     if pm.is_module_enabled("finalization", "plot_arcs_update"):
+        # 更新剧情要点：80%
+        update_progress("🎭 [2.5/3] 更新剧情要点", 0.80)
         gui_log("▶ [2.5/3] 更新剧情要点（详细版）")
         gui_log("   ├─ 读取旧的剧情要点...")
         plot_arcs_file = os.path.join(filepath, "plot_arcs.txt")
@@ -436,6 +454,8 @@ def finalize_chapter(
     if pm.is_module_enabled("finalization", "plot_arcs_compress_auto"):
         # 检查是否需要压缩（每10章触发一次）
         if novel_number % 10 == 0:
+            # 智能压缩：82%
+            update_progress("🗜️ [2.6/3] 智能压缩剧情要点", 0.82)
             gui_log("▶ [2.6/3] 智能压缩剧情要点（周期性优化）")
             gui_log(f"   ├─ 检测到第{novel_number}章（10的倍数），触发自动压缩")
 
@@ -508,6 +528,8 @@ def finalize_chapter(
 
     # [2.8/3] 提炼伏笔到摘要（精简版）
     if pm.is_module_enabled("finalization", "plot_arcs_distill"):
+        # 提炼伏笔到摘要：85%
+        update_progress("💡 [2.8/3] 提炼伏笔到摘要", 0.85)
         gui_log("▶ [2.8/3] 提炼伏笔到摘要（精简版）")
 
         # 只有在步骤 2.5 启用时才有内容可提炼
@@ -584,6 +606,8 @@ def finalize_chapter(
     else:
         gui_log(f"▷ [2.8/3] 提炼伏笔到摘要 (已禁用，跳过)\n")
 
+    # [3/3] 插入向量库：90%
+    update_progress("🗄️ [3/3] 插入向量库", 0.90)
     gui_log("▶ [3/3] 插入向量库")
     gui_log("   ├─ 切分章节文本...")
 
@@ -620,6 +644,8 @@ def finalize_chapter(
         volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
 
         if is_volume_last_chapter(novel_number, volume_ranges):
+            # 生成卷总结：95%
+            update_progress("📚 生成卷总结", 0.95)
             from core.utils.volume_utils import get_volume_number
 
             volume_num = get_volume_number(novel_number, volume_ranges)
@@ -656,6 +682,9 @@ def finalize_chapter(
             volume_num = get_volume_number(novel_number, volume_ranges)
             gui_log(f"\n🔔 第{novel_number}章是第{volume_num}卷的最后一章")
             gui_log("   卷总结模块已禁用，跳过生成\n")
+
+    # 定稿完成：100%
+    update_progress("🎉 完成", 1.0)
 
     return True  # 定稿成功
 

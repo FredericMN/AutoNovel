@@ -790,7 +790,8 @@ def build_chapter_prompt(
     system_prompt: str = "",
     num_volumes: int = 0,  # 新增：分卷数量
     total_chapters: int = 0,  # 新增：总章节数
-    gui_log_callback=None
+    gui_log_callback=None,
+    progress_callback=None  # 🆕 进度回调函数
 ) -> str:
     """
     构造当前章节的请求提示词（完整实现版）
@@ -805,7 +806,19 @@ def build_chapter_prompt(
             gui_log_callback(msg)
         logging.info(msg)
 
-    # 读取基础文件
+    # 进度更新辅助函数
+    def update_progress(msg, pct):
+        try:
+            if progress_callback:
+                progress_callback(msg, pct)
+        except Exception as e:
+            logging.warning(f"进度回调失败: {e}")
+
+    # 阶段1开始：0% - 📂 准备中
+    update_progress("📂 准备中...", 0.0)
+
+    # 读取基础文件：5%
+    update_progress("📖 读取基础文件", 0.05)
     arch_file = os.path.join(filepath, "Novel_architecture.txt")
     novel_architecture_text = read_file(arch_file)
     directory_file = os.path.join(filepath, "Novel_directory.txt")
@@ -968,7 +981,9 @@ def build_chapter_prompt(
     else:
         # 非分卷模式：不显示分卷信息
         volume_info_text = ""
-    
+
+    # 生成前文摘要：10%
+    update_progress("📝 生成前文摘要", 0.10)
     try:
         logging.info("Attempting to generate summary")
         short_summary = summarize_recent_chapters(
@@ -1002,7 +1017,8 @@ def build_chapter_prompt(
         gui_log("\n━━━━ 知识库检索 ━━━━")
         gui_log("▶ 开始向量检索流程...")
 
-        # 生成检索关键词
+        # 生成检索关键词：15%
+        update_progress("🔍 生成检索关键词", 0.15)
         gui_log("   ├─ 生成检索关键词...")
         llm_adapter = create_llm_adapter(
             interface_format=interface_format,
@@ -1054,7 +1070,8 @@ def build_chapter_prompt(
         else:
             gui_log("   ├─ ⚠ 未能生成关键词，跳过检索")
 
-        # 执行向量检索(使用去重优化的批量检索)
+        # 执行向量检索(使用去重优化的批量检索)：20%
+        update_progress("🗂️ 执行向量检索", 0.20)
         from core.adapters.embedding_adapters import create_embedding_adapter
         from novel_generator.vectorstore_utils import get_relevant_contexts_deduplicated
 
@@ -1115,7 +1132,8 @@ def build_chapter_prompt(
             doc_type = doc_info["type"]
             all_contexts.append(f"[{doc_type}] {content}")
 
-        # 应用统一的内容规则
+        # 应用统一的内容规则：25%
+        update_progress("🔧 应用内容过滤规则", 0.25)
         gui_log("   ├─ 应用内容过滤规则...")
         processed_contexts = apply_unified_content_rules(all_contexts, novel_number)
 
@@ -1129,7 +1147,8 @@ def build_chapter_prompt(
         gui_log(f"       · 外部知识: {external_count}条")
         gui_log(f"       · 历史参考: {history_count}条")
 
-        # 执行知识过滤
+        # 执行知识过滤：30%
+        update_progress("🧠 LLM二次过滤与整合", 0.30)
         gui_log("   ├─ LLM二次过滤与整合...")
         chapter_info_for_filter = {
             "chapter_number": novel_number,
@@ -1186,6 +1205,9 @@ def build_chapter_prompt(
     if not next_prompt_template:
         logging.warning("Next chapter prompt not found, using default")
         next_prompt_template = next_chapter_draft_prompt
+
+    # 提示词构建完成：35%
+    update_progress("✅ 提示词构建完成", 0.35)
 
     # 返回最终提示词
     return next_prompt_template.format(
