@@ -822,6 +822,7 @@ first_chapter_draft_prompt = """\
 悬念密度：{suspense_level}
 伏笔操作：{foreshadowing}
 认知颠覆：{plot_twist_level}
+卷内位置：{volume_position}
 本章简述：{chapter_summary}
 
 可用元素：
@@ -897,6 +898,7 @@ next_chapter_draft_prompt = """\
 ├── 悬念密度：{suspense_level}
 ├── 伏笔设计：{foreshadowing}
 ├── 转折程度：{plot_twist_level}
+├── 卷内位置：{volume_position}
 ├── 章节简述：{chapter_summary}
 ├── 字数要求：{word_number}字
 ├── 核心人物：{characters_involved}

@@ -837,6 +837,7 @@ def build_chapter_prompt(
     foreshadowing = chapter_info["foreshadowing"]
     plot_twist_level = chapter_info["plot_twist_level"]
     chapter_summary = chapter_info["chapter_summary"]
+    volume_position = chapter_info.get("volume_position", "")  # 🆕 新增：提取卷内位置
 
     # 提取卷信息（新增）
     current_vol_num = chapter_info.get("volume_number")
@@ -931,6 +932,7 @@ def build_chapter_prompt(
             suspense_level=suspense_level,
             foreshadowing=foreshadowing,
             plot_twist_level=plot_twist_level,
+            volume_position=volume_position,  # 🆕 新增：传递卷内位置
             chapter_summary=chapter_summary,
             characters_involved=characters_involved,
             key_items=key_items,
@@ -1225,6 +1227,7 @@ def build_chapter_prompt(
         suspense_level=suspense_level,
         foreshadowing=foreshadowing,
         plot_twist_level=plot_twist_level,
+        volume_position=volume_position,  # 🆕 新增：传递卷内位置
         chapter_summary=chapter_summary,
         word_number=word_number,
         characters_involved=characters_involved,

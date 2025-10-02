@@ -14,7 +14,8 @@ LABEL_SYNONYMS = {
     'suspense_level': [r'悬念密度', r'悬念强度', r'悬疑密度', r'悬疑强度', r'悬念节奏'],
     'foreshadowing': [r'伏笔操作', r'伏笔设计', r'伏笔安排', r'伏笔'],
     'plot_twist_level': [r'认知颠覆', r'转折程度', r'反转强度', r'反转程度', r'颠覆程度'],
-    'chapter_summary': [r'本章简述', r'章节简述', r'一句话概括', r'章节概述', r'本章概述']
+    'chapter_summary': [r'本章简述', r'章节简述', r'一句话概括', r'章节概述', r'本章概述'],
+    'volume_position': [r'卷内位置', r'章节位置', r'三幕位置', r'卷位置']  # 🆕 新增：支持卷内位置字段
 }
 
 # Precompile label regexes accepting both Chinese and English colons
@@ -218,7 +219,8 @@ def parse_chapter_blueprint(blueprint_text: str):
                 'plot_twist_level': '',
                 'chapter_summary': '',
                 'volume_number': None,
-                'volume_title': ''
+                'volume_title': '',
+                'volume_position': ''  # 🆕 新增：卷内位置字段
             }
             last_num = num
             continue
@@ -270,7 +272,8 @@ def get_chapter_info_from_blueprint(blueprint_text: str, target_chapter_number: 
         "plot_twist_level": "",
         "chapter_summary": "",
         "volume_number": None,
-        "volume_title": ""
+        "volume_title": "",
+        "volume_position": ""  # 🆕 新增：卷内位置字段
     }
 
 

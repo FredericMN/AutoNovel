@@ -140,7 +140,8 @@
           "chapter_title",
           "chapter_role",
           "chapter_purpose",
-          "word_number"
+          "word_number",
+          "volume_position"
         ],
         "dependencies": []
       },
@@ -155,7 +156,8 @@
           "chapter_title",
           "chapter_role",
           "chapter_purpose",
-          "word_number"
+          "word_number",
+          "volume_position"
         ],
         "dependencies": []
       },

@@ -43,6 +43,7 @@ class PromptManagerTab(ctk.CTkFrame):
         "resume_mode_notice": "续写模式提示（仅续写时传入，避免影响上下文）",
         "volume_chapters_text": "卷内所有章节文本",
         "volume_architecture": "分卷架构内容",
+        "volume_position": "章节在本卷中的位置（开局/发展/高潮/收束）",
         "chapter_number": "当前章节号",
         "chapter_title": "章节标题",
         "chapter_outline": "章节大纲",
