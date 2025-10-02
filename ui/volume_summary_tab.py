@@ -4,7 +4,7 @@ import os
 import glob
 import customtkinter as ctk
 from tkinter import messagebox
-from utils import read_file, save_string_to_txt, clear_file_content
+from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
 from ui.context_menu import TextWidgetContextMenu
 from ui.ios_theme import IOSColors, IOSLayout, IOSStyles
 
@@ -171,3 +171,4 @@ def save_volume_summary(self):
     clear_file_content(filename)
     save_string_to_txt(content, filename)
     self.log(f"已保存对 volume_{self.current_volume_number}_summary.txt 的修改。")
+

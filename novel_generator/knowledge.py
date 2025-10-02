@@ -9,7 +9,7 @@ import re
 import traceback
 import nltk
 import warnings
-from utils import read_file
+from core.utils.file_utils import read_file, get_log_file_path
 from novel_generator.vectorstore_utils import load_vector_store, init_vector_store
 from langchain.docstore.document import Document
 
@@ -17,7 +17,7 @@ from langchain.docstore.document import Document
 warnings.filterwarnings('ignore', message='.*Torch was not compiled with flash attention.*')
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -68,7 +68,7 @@ def import_knowledge_file(
         logging.warning("知识库文件内容为空。")
         return
     paragraphs = advanced_split_content(content)
-    from embedding_adapters import create_embedding_adapter
+    from core.adapters.embedding_adapters import create_embedding_adapter
     embedding_adapter = create_embedding_adapter(
         embedding_interface_format,
         embedding_api_key,
@@ -91,3 +91,7 @@ def import_knowledge_file(
         except Exception as e:
             logging.warning(f"知识库导入失败: {e}")
             traceback.print_exc()
+
+
+
+

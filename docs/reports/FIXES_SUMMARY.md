@@ -155,7 +155,7 @@ result = invoke_with_cleaning(llm_adapter, prompt, system_prompt)
    - 更新分卷架构模块的分类路径（2处）
 
 ### 无需修改
-- `prompt_manager.py` - 核心管理器逻辑正确
+- `core/prompting/prompt_manager.py` - 核心管理器逻辑正确
 - `custom_prompts/*.txt` - 提示词文件无需改动
 - 其他生成模块 - 参数传递机制已正确实现
 
@@ -173,3 +173,4 @@ result = invoke_with_cleaning(llm_adapter, prompt, system_prompt)
 ---
 **修复日期**: 2025-10-01
 **修复人**: Claude Code
+

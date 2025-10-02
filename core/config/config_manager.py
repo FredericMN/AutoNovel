@@ -3,8 +3,8 @@
 import json
 import os
 import threading
-from llm_adapters import create_llm_adapter
-from embedding_adapters import create_embedding_adapter
+from ..adapters.llm_adapters import create_llm_adapter
+from ..adapters.embedding_adapters import create_embedding_adapter
 
 
 def load_config(config_file: str) -> dict:
@@ -163,3 +163,4 @@ def test_embedding_config(api_key, base_url, interface_format, model_name, log_f
             handle_exception_func("测试Embedding配置时出错")
 
     threading.Thread(target=task, daemon=True).start()
+

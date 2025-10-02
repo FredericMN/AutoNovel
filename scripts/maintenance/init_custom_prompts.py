@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 """
 初始化自定义提示词文件
-从 prompt_definitions.py 导出所有默认提示词到 custom_prompts/ 目录
+从 core.prompting.prompt_definitions 导出所有默认提示词到 custom_prompts/ 目录
 """
 import os
 import logging
 
 # 导入所有提示词
-from prompt_definitions import (
+from core.prompting.prompt_definitions import (
     core_seed_prompt,
     character_dynamics_prompt,
     world_building_prompt,
@@ -102,3 +102,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("✅ 初始化完成")
     print("=" * 60)
+
+
+

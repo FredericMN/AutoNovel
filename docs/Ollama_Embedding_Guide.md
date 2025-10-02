@@ -96,8 +96,9 @@ curl http://localhost:11434/api/embeddings -d '{"model":"nomic-embed-text","prom
 - 定稿时向量库写入：novel_generator/finalization.py:85
 - 检索与拼接上下文：novel_generator/chapter.py:439, novel_generator/chapter.py:564
 - 向量检索实现：novel_generator/vectorstore_utils.py:211
-- Ollama 嵌入适配器：embedding_adapters.py 中 `OllamaEmbeddingAdapter`
+- Ollama 嵌入适配器：core/adapters/embedding_adapters.py 中 `OllamaEmbeddingAdapter`
 
 ## 10. 结论
 - 使用本地 Ollama 作为嵌入服务可以避免云端 Key 与网络不稳定问题，并实现“可控、可复现”的本地知识检索。
 - 向量检索与 `global_summary/character_state` 的双保险有助于保证人物设定、关键线索与剧情连贯性，但最终质量仍受模型生成与提示词设计影响；建议结合“一致性审校”功能一起使用。
+

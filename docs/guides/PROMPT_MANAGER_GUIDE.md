@@ -1,6 +1,6 @@
 # PromptManager 安全使用指南
 
-本文档说明如何使用 `prompt_manager_helper.py` 提供的辅助函数，确保提示词加载的健壮性。
+本文档说明如何使用 `core/prompting/prompt_manager_helper.py` 提供的辅助函数，确保提示词加载的健壮性。
 
 ## 核心原则
 
@@ -15,8 +15,8 @@
 最简洁的方式，自动处理所有异常和 fallback：
 
 ```python
-from prompt_manager_helper import get_blueprint_prompt
-from prompt_definitions import chapter_blueprint_prompt
+from core.prompting.prompt_manager_helper import get_blueprint_prompt
+from core.prompting.prompt_definitions import chapter_blueprint_prompt
 
 # 自动初始化 PromptManager 并获取提示词（失败时使用 fallback）
 prompt_template = get_blueprint_prompt(
@@ -43,8 +43,8 @@ prompt = prompt_template.format(
 适用于同一函数内多次获取提示词的场景：
 
 ```python
-from prompt_manager_helper import get_prompt_manager, get_blueprint_prompt
-from prompt_definitions import chapter_blueprint_prompt, chunked_chapter_blueprint_prompt
+from core.prompting.prompt_manager_helper import get_prompt_manager, get_blueprint_prompt
+from core.prompting.prompt_definitions import chapter_blueprint_prompt, chunked_chapter_blueprint_prompt
 
 # 函数入口处初始化一次
 pm = get_prompt_manager()  # 永不抛异常，失败返回 Fallback 对象
@@ -65,8 +65,8 @@ prompt2 = get_blueprint_prompt("chunked_blueprint", chunked_chapter_blueprint_pr
 适用于需要自定义行为的场景：
 
 ```python
-from prompt_manager_helper import get_prompt_manager, get_prompt_with_fallback
-from prompt_definitions import first_chapter_draft_prompt
+from core.prompting.prompt_manager_helper import get_prompt_manager, get_prompt_with_fallback
+from core.prompting.prompt_definitions import first_chapter_draft_prompt
 
 pm = get_prompt_manager()
 
@@ -100,8 +100,8 @@ chunk_prompt = chunked_prompt.format(...)  # ❌ AttributeError!
 
 **修改后（✅ 安全）**:
 ```python
-from prompt_manager_helper import get_prompt_manager, get_blueprint_prompt
-from prompt_definitions import chunked_chapter_blueprint_prompt
+from core.prompting.prompt_manager_helper import get_prompt_manager, get_blueprint_prompt
+from core.prompting.prompt_definitions import chunked_chapter_blueprint_prompt
 
 pm = get_prompt_manager()  # 永不抛异常
 
@@ -126,8 +126,8 @@ prompt = summary_prompt.format(...)  # ❌ 可能崩溃
 
 **修改后（✅ 安全）**:
 ```python
-from prompt_manager_helper import get_chapter_prompt
-from prompt_definitions import summarize_recent_chapters_prompt
+from core.prompting.prompt_manager_helper import get_chapter_prompt
+from core.prompting.prompt_definitions import summarize_recent_chapters_prompt
 
 # 一行搞定，自动处理所有异常
 summary_prompt = get_chapter_prompt(
@@ -163,8 +163,8 @@ if prompt:  # ⚠️ 空字符串也会通过
 
 ```python
 # 推荐方式：使用辅助函数
-from prompt_manager_helper import get_chapter_prompt
-from prompt_definitions import next_chapter_draft_prompt
+from core.prompting.prompt_manager_helper import get_chapter_prompt
+from core.prompting.prompt_definitions import next_chapter_draft_prompt
 
 prompt = get_chapter_prompt("next_chapter", next_chapter_draft_prompt)
 result = prompt.format(...)  # ✅ 绝对安全
@@ -198,3 +198,6 @@ A: 可以，但 GUI 代码通常直接调用 `novel_generator` 模块，无需�
 | 原始方式 | 不推荐 | 最多 | ❌ 低 |
 
 **建议**: 新代码一律使用便捷函数，旧代码逐步迁移。
+
+
+

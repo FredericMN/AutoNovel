@@ -14,8 +14,9 @@ import requests
 import warnings
 import hashlib
 from langchain_chroma import Chroma
+from core.utils.file_utils import get_log_file_path
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -232,7 +233,7 @@ def split_text_for_vectorstore(chapter_text: str, max_length: int = 500, similar
         return []
 
     # Ensure NLTK resources are available (punkt / punkt_tab)
-    from nltk_setup import ensure_nltk_punkt_resources
+    from scripts.setup.nltk_setup import ensure_nltk_punkt_resources
     ensure_nltk_punkt_resources()
 
     import nltk
@@ -273,7 +274,7 @@ def update_vector_store(embedding_adapter, new_chapter: str, filepath: str, chap
         volume_num: 卷号（用于分卷检索，可选）
         doc_type: 文档类型（"chapter" 或 "volume_summary"，默认 "chapter"）
     """
-    from utils import read_file, clear_file_content, save_string_to_txt
+    from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt
     splitted_texts = split_text_for_vectorstore(new_chapter)
     if not splitted_texts:
         logging.warning("No valid text to insert into vector store. Skipping.")
@@ -367,7 +368,7 @@ def get_relevant_contexts_deduplicated(
 
         current_vol = None
         if use_volume_filter:
-            from volume_utils import get_volume_number, calculate_volume_ranges
+            from core.utils.volume_utils import get_volume_number, calculate_volume_ranges
             volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
             current_vol = get_volume_number(current_chapter, volume_ranges)
             logging.info(f"启用分卷检索：当前章节{current_chapter}位于第{current_vol}卷")
@@ -549,6 +550,10 @@ def _get_sentence_transformer(model_name: str = 'paraphrase-MiniLM-L6-v2'):
         logging.error(f"Failed to load sentence transformer model: {e}")
         traceback.print_exc()
         return None
+
+
+
+
 
 
 

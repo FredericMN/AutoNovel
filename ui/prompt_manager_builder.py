@@ -21,3 +21,4 @@ def build_prompt_manager_tab(app):
 
     # 保存引用
     app.prompt_manager_tab = prompt_manager
+

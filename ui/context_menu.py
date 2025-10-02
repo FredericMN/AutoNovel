@@ -52,3 +52,4 @@ class TextWidgetContextMenu:
 
     def select_all(self):
         self.widget.tag_add("sel", "1.0", "end")
+

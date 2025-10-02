@@ -14,6 +14,73 @@ AutoNovel 是一个基于大语言模型的自动小说生成工具,支持多种
 
 ## 核心架构
 
+### 项目目录结构
+```
+AutoNovel/
+├── main.py                      # GUI 入口
+├── core/                        # 核心基础组件
+│   ├── adapters/                # LLM / Embedding 适配器
+│   │   ├── __init__.py
+│   │   ├── llm_adapters.py
+│   │   └── embedding_adapters.py
+│   ├── config/                  # 配置加载与测试工具
+│   │   ├── __init__.py
+│   │   └── config_manager.py
+│   ├── consistency/             # 剧情一致性校验
+│   │   ├── __init__.py
+│   │   └── consistency_checker.py
+│   ├── prompting/               # 提示词管理与默认模板
+│   │   ├── __init__.py
+│   │   ├── prompt_definitions.py
+│   │   ├── prompt_manager.py
+│   │   └── prompt_manager_helper.py
+│   └── utils/                   # 通用工具
+│       ├── __init__.py
+│       ├── file_utils.py        # 文件操作 & 日志辅助
+│       ├── volume_utils.py      # 分卷计算工具
+│       └── chapter_directory_parser.py
+├── novel_generator/             # 小说生成核心流程
+│   ├── architecture.py
+│   ├── blueprint.py
+│   ├── chapter.py
+│   ├── finalization.py
+│   ├── knowledge.py
+│   ├── vectorstore_utils.py
+│   └── common.py
+├── ui/                          # CustomTkinter 图形界面
+│   ├── common/                  # UI 通用组件
+│   │   ├── __init__.py
+│   │   └── tooltips.py
+│   ├── main_window.py
+│   ├── generation_handlers.py
+│   ├── config_tab.py
+│   ├── main_tab.py
+│   ├── ios_theme.py
+│   ├── ios_theme_helper.py
+│   └── ...
+├── scripts/                     # 辅助脚本
+│   ├── maintenance/             # 维护脚本
+│   │   ├── __init__.py
+│   │   ├── add_dependencies.py
+│   │   └── init_custom_prompts.py
+│   └── setup/                   # 环境初始化
+│       ├── __init__.py
+│       └── nltk_setup.py
+├── packaging/                   # 打包配置
+│   └── main.spec                # PyInstaller 配置
+├── tests/                       # 测试脚本
+│   └── manual/                  # 手动测试
+│       ├── test_config_lock.py
+│       └── test_prompt_manager.py
+├── assets/                      # 资源文件
+│   └── icons/
+│       └── app.ico
+├── legacy/                      # 旧版文件备份
+│   └── prompts/
+├── docs/                        # 设计文档与指南
+└── logs/                        # 运行期日志输出
+```
+
 ### novel_generator/ - 核心生成逻辑
 - **architecture.py**: 小说总体架构生成(世界观、角色、剧情雷点)
 - **blueprint.py**: 章节蓝图/目录生成,支持分块处理大量章节
@@ -38,14 +105,30 @@ AutoNovel 是一个基于大语言模型的自动小说生成工具,支持多种
 - **role_library.py**: 角色设定模板
 - **ios_theme.py**: iOS风格主题配置（颜色、字体、布局参数）
 - **ios_theme_helper.py**: iOS风格应用辅助工具（快速应用样式的工具函数）
+- **common/tooltips.py**: UI 提示信息配置
 
-### 根目录核心文件
-- **llm_adapters.py**: 统一 LLM 接口适配器(OpenAI、Gemini、Azure 等),使用 LangChain
-- **embedding_adapters.py**: Embedding 模型适配器(支持本地 Ollama 和云端服务)
-- **prompt_definitions.py**: 所有提示词定义,包含雪花写作法、角色弧光理论等
-- **config_manager.py**: 配置加载/保存/测试逻辑
-- **consistency_checker.py**: 剧情一致性检查
-- **chapter_directory_parser.py**: 解析 Novel_directory.txt 获取章节信息
+### core/ - 基础组件（2025-10-02 重构）
+- **config/config_manager.py**: 配置加载/保存/测试逻辑
+- **adapters/llm_adapters.py**: 统一 LLM 接口适配器(OpenAI、Gemini、Azure 等)
+- **adapters/embedding_adapters.py**: Embedding 模型适配器(支持本地 Ollama 和云端服务)
+- **prompting/prompt_definitions.py**: 所有提示词定义,包含雪花写作法、角色弧光理论等
+- **prompting/prompt_manager.py / prompt_manager_helper.py**: 提示词管理入口与辅助工具
+- **consistency/consistency_checker.py**: 剧情一致性检查
+- **utils/file_utils.py**: 常用文件操作与日志路径工具
+- **utils/chapter_directory_parser.py**: 解析 Novel_directory.txt 获取章节信息
+- **utils/volume_utils.py**: 分卷相关工具函数
+
+### scripts/ - 辅助脚本（2025-10-02 新增）
+- **setup/nltk_setup.py**: NLTK 资源自动下载和配置
+- **maintenance/add_dependencies.py**: 批量添加配置依赖项
+- **maintenance/init_custom_prompts.py**: 初始化自定义提示词文件
+
+### packaging/ - 打包配置（2025-10-02 优化）
+- **main.spec**: PyInstaller 打包配置，已优化为动态路径解析，避免硬编码
+
+### tests/ - 测试脚本（2025-10-02 重组）
+- **manual/test_prompt_manager.py**: 提示词管理器功能测试
+- **manual/test_config_lock.py**: 配置锁定机制测试
 
 ## 常用命令
 
@@ -68,12 +151,12 @@ D:\project\AutoNovel\run_gui.bat
 - 如需验证GUI功能，请调用 `run_gui.bat` 启动测试
 
 ### 日志查看
-生成过程中所有日志写入 `app.log`,可实时查看后台进度和错误。
+生成过程中所有日志写入 `logs/app.log`,可实时查看后台进度和错误。
 
 ### 打包为可执行文件
 ```bash
 pip install pyinstaller
-pyinstaller main.spec  # 生成 dist/main.exe
+pyinstaller packaging/main.spec  # 生成 dist/main.exe
 ```
 
 ## 配置文件说明
@@ -126,7 +209,7 @@ pyinstaller main.spec  # 生成 dist/main.exe
 3. 关键词触发历史卷检索(检测到"起源"、"身世"等词时,回溯最多3卷)
 
 ### LLM 适配器注册
-- `llm_adapters.py` 的 `create_llm_adapter()` 根据 interface_format 创建对应适配器
+- `core/adapters/llm_adapters.py` 的 `create_llm_adapter()` 根据 interface_format 创建对应适配器
 - 所有适配器继承 `BaseLLMAdapter`,实现 `invoke(prompt, system_prompt)` 方法
 - base_url 处理规则:以 `#` 结尾则不添加 `/v1`,否则自动补充
 
@@ -134,7 +217,7 @@ pyinstaller main.spec  # 生成 dist/main.exe
 `blueprint.py` 的 `compute_chunk_size()` 基于 `max_tokens` 动态计算每次生成的章节数,避免超出上下文窗口。
 
 ### 提示词系统
-`prompt_definitions.py` 包含所有提示词:
+`core/prompting/prompt_definitions.py` 包含所有提示词:
 - 架构生成: `core_seed_prompt`、`world_building_prompt`、`plot_architecture_prompt`
 - 蓝图生成: `chapter_blueprint_prompt`、`chunked_chapter_blueprint_prompt`
 - 章节生成: `first_chapter_draft_prompt`、`next_chapter_draft_prompt`
@@ -146,7 +229,7 @@ pyinstaller main.spec  # 生成 dist/main.exe
 ## 编码规范
 - 遵循 PEP 8: 四空格缩进、snake_case 函数变量命名、CapWords 类命名
 - 所有文件 UTF-8 编码
-- 日志使用 `logging` 模块写入 `app.log`
+- 日志使用 `logging` 模块写入 `logs/app.log`
 - GUI 操作必须通过 `threading` 避免阻塞主线程
 - 敏感信息通过 `config.json` 配置,不硬编码
 
@@ -154,7 +237,7 @@ pyinstaller main.spec  # 生成 dist/main.exe
 - **"Expecting value: line 1 column 1"**: API 响应非 JSON,检查 api_key 和 base_url 是否正确
 - **504 Gateway Timeout**: 接口不稳定或 timeout 设置过短
 - **向量检索失败**: 确认 Embedding 配置正确,本地 Ollama 需先启动服务(`ollama serve`)
-- **章节生成中断**: 查看 `app.log` 日志定位错误,可能是 token 不足或 API 限流
+- **章节生成中断**: 查看 `logs/app.log` 日志定位错误,可能是 token 不足或 API 限流
 - **页签切换失效**: 如果页签无法切换,检查TabView的`command`参数是否被错误覆盖。应使用原生切换机制,不要自定义command回调
 
 ## 生成流程输出文件
@@ -171,6 +254,61 @@ pyinstaller main.spec  # 生成 dist/main.exe
 - `vectorstore/`: Chroma 向量数据库存储
 
 ## 最新功能更新
+
+### 项目重构优化 (2025-10-02)
+项目完成了大规模的目录结构重构，提升了代码组织性和可维护性：
+
+**重构内容**：
+1. **核心模块重组** (`core/` 目录)
+   - 将原根目录的基础组件迁移到 `core/` 目录
+   - 按功能分类：adapters（适配器）、config（配置）、prompting（提示词）、utils（工具）、consistency（一致性）
+   - 所有子目录添加 `__init__.py` 形成规范的 Python 包结构
+
+2. **辅助脚本整理** (`scripts/` 目录)
+   - 环境初始化脚本 → `scripts/setup/`
+   - 维护和工具脚本 → `scripts/maintenance/`
+
+3. **UI 组件模块化** (`ui/common/` 目录)
+   - 通用 UI 组件独立到 `ui/common/`
+   - 提升代码复用性
+
+4. **打包配置优化** (`packaging/` 目录)
+   - PyInstaller 配置文件移至 `packaging/`
+   - 修复硬编码路径，改用动态检测
+
+5. **测试文件重组** (`tests/manual/` 目录)
+   - 测试脚本统一管理
+   - 便于后续添加自动化测试
+
+**重构映射表**：
+| 旧路径 | 新路径 |
+|--------|--------|
+| `config_manager.py` | `core/config/config_manager.py` |
+| `llm_adapters.py` | `core/adapters/llm_adapters.py` |
+| `embedding_adapters.py` | `core/adapters/embedding_adapters.py` |
+| `prompt_definitions.py` | `core/prompting/prompt_definitions.py` |
+| `prompt_manager.py` | `core/prompting/prompt_manager.py` |
+| `consistency_checker.py` | `core/consistency/consistency_checker.py` |
+| `utils.py` | `core/utils/file_utils.py` |
+| `chapter_directory_parser.py` | `core/utils/chapter_directory_parser.py` |
+| `volume_utils.py` | `core/utils/volume_utils.py` |
+| `tooltips.py` | `ui/common/tooltips.py` |
+| `nltk_setup.py` | `scripts/setup/nltk_setup.py` |
+| `main.spec` | `packaging/main.spec` |
+| `test_prompt_manager.py` | `tests/manual/test_prompt_manager.py` |
+
+**优势**：
+- ✅ 清晰的模块边界和职责划分
+- ✅ 更好的代码可发现性和可维护性
+- ✅ 便于后续功能扩展和测试
+- ✅ 符合 Python 项目最佳实践
+- ✅ 所有导入路径已同步更新
+- ✅ 所有文档已同步更新
+
+**向后兼容**：
+- 所有功能保持不变
+- 用户无需修改配置文件
+- 现有项目文件（小说输出）不受影响
 
 ### iOS风格UI优化 (2025-09-30)
 项目UI已全面升级为iOS风格的现代简约设计：
@@ -303,3 +441,4 @@ btn = ctk.CTkButton(parent, text="按钮", **IOSStyles.primary_button())
 7. 分卷概要 (Volume Summary) - 新增
 8. 章节管理 (Chapters Manage)
 9. 设置 (Settings)
+

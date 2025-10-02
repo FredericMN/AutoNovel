@@ -6,8 +6,8 @@ import datetime
 
 import customtkinter as ctk
 
-from config_manager import load_config, save_config
-from tooltips import tooltips
+from core.config.config_manager import load_config, save_config
+from ui.common import tooltips
 
 import os
 
@@ -740,3 +740,5 @@ def save_config_btn(self):
         "• Embedding settings - 保存配置按钮\n"
         "• Config choose - 保存配置按钮"
     )
+
+

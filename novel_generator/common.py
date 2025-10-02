@@ -8,9 +8,10 @@ import re
 import time
 import traceback
 from typing import Optional
+from core.utils.file_utils import get_log_file_path
 
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -173,5 +174,8 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 3, system_
     # 理论上不会到达这里（空回复已在循环内返回）
     logging.error("Unexpected: invoke_with_cleaning loop ended without return")
     return result
+
+
+
 
 

@@ -4,7 +4,7 @@ import os
 import customtkinter as ctk
 from tkinter import messagebox
 from ui.context_menu import TextWidgetContextMenu
-from utils import read_file, save_string_to_txt, clear_file_content
+from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
 
 def build_chapters_tab(self):
     self.chapters_view_tab = self.tabview.add("章节管理")
@@ -138,3 +138,5 @@ def next_chapter(self):
         load_chapter_content(self, self.chapters_list[new_idx])
     else:
         messagebox.showinfo("提示", "已经是最后一章了。")
+
+

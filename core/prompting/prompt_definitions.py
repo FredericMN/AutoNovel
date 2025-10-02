@@ -1,4 +1,4 @@
-﻿# prompt_definitions.py
+# prompt_definitions.py
 # -*- coding: utf-8 -*-
 """
 集中存放所有提示词 (Prompt)，整合雪花写作法、角色弧光理论、悬念三要素模型等
@@ -19,7 +19,7 @@ def resolve_global_system_prompt(enabled: bool = None) -> str:
     Returns:
         全局system prompt内容，如果未启用或内容为空则返回空字符串
     """
-    from prompt_manager import PromptManager
+    from .prompt_manager import PromptManager
     pm = PromptManager()
 
     # 优先使用PromptManager的配置（新版本）
@@ -829,3 +829,5 @@ Character_Import_Prompt = """\
 {content}
 <<待分析小说文本结束>>
 """
+
+

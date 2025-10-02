@@ -2,6 +2,16 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+from pathlib import Path
+
+LOG_FILE_PATH = Path(__file__).resolve().parents[2] / "logs" / "app.log"
+
+
+def get_log_file_path() -> str:
+    """返回日志文件路径，若目录不存在则创建。"""
+    LOG_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return str(LOG_FILE_PATH)
+
 
 def read_file(filename: str) -> str:
     """读取文件的全部内容，若文件不存在或异常则返回空字符串。"""
@@ -51,3 +61,5 @@ def save_data_to_json(data: dict, file_path: str) -> bool:
     except Exception as e:
         print(f"[save_data_to_json] 保存数据到JSON文件时出错: {e}")
         return False
+
+

@@ -311,3 +311,4 @@ def create_embedding_adapter(
         return SiliconFlowEmbeddingAdapter(api_key, base_url, model_name)
     else:
         raise ValueError(f"Unknown embedding interface_format: {interface_format}")
+

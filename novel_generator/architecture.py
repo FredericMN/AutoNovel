@@ -8,8 +8,8 @@ import json
 import logging
 import traceback
 from novel_generator.common import invoke_with_cleaning
-from llm_adapters import create_llm_adapter
-from prompt_definitions import (
+from core.adapters.llm_adapters import create_llm_adapter
+from core.prompting.prompt_definitions import (
     core_seed_prompt,
     character_dynamics_prompt,
     world_building_prompt,
@@ -18,16 +18,16 @@ from prompt_definitions import (
     create_character_state_prompt,
     resolve_global_system_prompt
 )
-from prompt_manager import PromptManager  # 新增：提示词管理器
+from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.utils.file_utils import clear_file_content, save_string_to_txt, get_log_file_path
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-from utils import clear_file_content, save_string_to_txt
-from volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
+from core.utils.volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
 
 
 def sanitize_prompt_variable(value: str) -> str:
@@ -538,3 +538,10 @@ def Novel_architecture_generate(
     if os.path.exists(partial_arch_file):
         os.remove(partial_arch_file)
         logging.info("partial_architecture.json removed (all steps completed).")
+
+
+
+
+
+
+

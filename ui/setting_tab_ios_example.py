@@ -7,7 +7,7 @@
 import os
 import customtkinter as ctk
 from tkinter import messagebox
-from utils import read_file, save_string_to_txt, clear_file_content
+from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
 from ui.context_menu import TextWidgetContextMenu
 from ui.ios_theme_helper import build_standard_edit_tab
 
@@ -55,3 +55,4 @@ def save_novel_architecture(self):
     clear_file_content(filename)
     save_string_to_txt(content, filename)
     self.log("已保存对 Novel_architecture.txt 的修改。")
+

@@ -3,9 +3,16 @@
 """
 测试PromptManager和可选模块功能
 """
-import sys
 import io
-from prompt_manager import PromptManager
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from core.prompting.prompt_manager import PromptManager
 
 # Windows控制台编码修复
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -154,3 +161,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("✅ 测试完成")
     print("=" * 60)
+
+
+
+

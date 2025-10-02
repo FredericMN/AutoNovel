@@ -17,7 +17,7 @@ from xml.etree import ElementTree as ET
 import shutil
 import time
 
-from config_manager import load_config, save_config
+from core.config.config_manager import load_config, save_config
 from ui.config_tab import (
     create_label_with_help,
     build_ai_config_tab,
@@ -393,3 +393,4 @@ class WebDAVClient:
             shutil.copy2(local_path, os.path.join(backup_dir, backup_file_name))
         except:
             pass
+

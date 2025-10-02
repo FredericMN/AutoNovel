@@ -251,7 +251,7 @@ D:\project\AutoNovel\
 ```
 
 **说明**：
-- 如果 `custom_prompts/xxx.txt` 文件不存在，使用 `prompt_definitions.py` 中的默认值
+- 如果 `custom_prompts/xxx.txt` 文件不存在，使用 `core/prompting/prompt_definitions.py` 中的默认值
 - 如果文件存在但为空，也使用默认值
 - 用户在GUI中编辑后，保存到对应的txt文件
 
@@ -264,7 +264,7 @@ D:\project\AutoNovel\
 **文件路径**：`D:\project\AutoNovel\prompt_manager.py`
 
 ```python
-# prompt_manager.py
+# core/prompting/prompt_manager.py
 # -*- coding: utf-8 -*-
 """
 提示词管理器
@@ -305,7 +305,7 @@ class PromptManager:
 
     def _load_default_prompts(self) -> dict:
         """从 prompt_definitions.py 加载默认提示词"""
-        from prompt_definitions import (
+        from core.prompting.prompt_definitions import (
             core_seed_prompt, character_dynamics_prompt,
             world_building_prompt, plot_architecture_prompt,
             # ... 其他提示词
@@ -415,7 +415,7 @@ class PromptManager:
 
 ```python
 # architecture.py (部分代码)
-from prompt_manager import PromptManager
+from core.prompting.prompt_manager import PromptManager
 
 def Novel_architecture_generate(...):
     pm = PromptManager()
@@ -463,13 +463,13 @@ def Novel_architecture_generate(...):
         partial_data["plot_arch_result"] = "（已跳过三幕式情节架构）"
 ```
 
-#### **4.2.2 修改 `prompt_definitions.py`**
+#### **4.2.2 修改 `core/prompting/prompt_definitions.py`**
 
 合并全局System Prompt管理：
 
 ```python
 # prompt_definitions.py
-from prompt_manager import PromptManager
+from core.prompting.prompt_manager import PromptManager
 
 def resolve_global_system_prompt(enabled: bool) -> str:
     """根据开关决定是否加载全局 system prompt"""
@@ -581,7 +581,7 @@ for category, modules in pm.config["modules"].items():
 1. ✅ 创建 `prompts_config.json` 配置文件
 2. ✅ 创建 `custom_prompts/` 目录
 3. ✅ 实现 `PromptManager` 类
-4. ✅ 初始化默认提示词文件（从 `prompt_definitions.py` 导出）
+4. ✅ 初始化默认提示词文件（从 `core/prompting/prompt_definitions.py` 导出）
 5. ✅ 单元测试 `PromptManager`
 
 **预计时间**：2-3小时
@@ -594,7 +594,7 @@ for category, modules in pm.config["modules"].items():
 2. ✅ 修改 `blueprint.py` 支持可选模块
 3. ✅ 修改 `chapter.py` 支持可选模块
 4. ✅ 修改 `finalization.py` 支持可选模块
-5. ✅ 修改 `prompt_definitions.py` 集成 System Prompt
+5. ✅ 修改 `core/prompting/prompt_definitions.py` 集成 System Prompt
 6. ✅ 测试跳过模块的行为
 
 **预计时间**：3-4小时
@@ -642,7 +642,7 @@ for category, modules in pm.config["modules"].items():
 
 - 默认所有模块启用，行为与当前完全一致
 - 不使用提示词管理功能，系统按原方式运行
-- `prompt_definitions.py` 保留，作为默认值来源
+- `core/prompting/prompt_definitions.py` 保留，作为默认值来源
 
 ### 8.2 全局 System Prompt 已集成
 
@@ -750,7 +750,7 @@ A：是的，保存后下次生成会使用新的提示词。
 
 **新增文件**：
 - `prompts_config.json` - 配置文件
-- `prompt_manager.py` - 管理器类
+- `core/prompting/prompt_manager.py` - 管理器类
 - `ui/prompt_manager_tab.py` - GUI界面
 - `custom_prompts/*.txt` - 自定义提示词文件（17个）
 
@@ -759,7 +759,7 @@ A：是的，保存后下次生成会使用新的提示词。
 - `novel_generator/blueprint.py` - 支持可选模块
 - `novel_generator/chapter.py` - 支持可选模块
 - `novel_generator/finalization.py` - 支持可选模块
-- `prompt_definitions.py` - 集成System Prompt到PromptManager
+- `core/prompting/prompt_definitions.py` - 集成System Prompt到PromptManager
 - `ui/main_window.py` - 添加提示词管理页签
 
 **已完成的集成**：
@@ -784,3 +784,6 @@ A：是的，保存后下次生成会使用新的提示词。
 **设计完成日期**：2025-10-01
 **实施开始日期**：待定
 **预计完成日期**：待定
+
+
+

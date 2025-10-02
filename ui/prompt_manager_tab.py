@@ -8,7 +8,7 @@ import os
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import logging
-from prompt_manager import PromptManager
+from core.prompting.prompt_manager import PromptManager
 from ui.ios_theme import IOSColors, IOSLayout, IOSStyles
 
 class PromptManagerTab(ctk.CTkFrame):
@@ -564,3 +564,5 @@ class PromptManagerTab(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("错误", f"导入失败: {str(e)}")
             logging.error(f"Failed to import prompt: {e}")
+
+

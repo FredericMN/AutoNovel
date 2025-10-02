@@ -13,7 +13,7 @@
 ### 1. 核心功能实现
 
 #### 1.1 提示词管理核心类
-**文件**: `prompt_manager.py` (317行)
+**文件**: `core/prompting/core/prompting/prompt_manager.py` (317行)
 
 **功能**:
 - ✅ 17个提示词模块的加载与管理
@@ -172,7 +172,7 @@ else:
 ### 3. 改进增强
 
 #### 3.1 模块依赖管理
-**实现**: `prompt_manager.py:235-256`
+**实现**: `core/prompting/core/prompting/prompt_manager.py:235-256`
 
 **功能**:
 - 自动检测依赖关系
@@ -194,7 +194,7 @@ else:
 ---
 
 #### 3.2 配置验证与备份
-**实现**: `prompt_manager.py:49-85`
+**实现**: `core/prompting/core/prompting/prompt_manager.py:49-85`
 
 **保护机制**:
 1. **格式验证** - 检查必需字段（`enabled`, `required`）
@@ -386,7 +386,7 @@ def toggle_module(self, category: str, name: str, checkbox):
 ### 代码量
 | 文件 | 行数 | 说明 |
 |------|------|------|
-| `prompt_manager.py` | 317 | 核心管理类 |
+| `core/prompting/core/prompting/prompt_manager.py` | 317 | 核心管理类 |
 | `ui/prompt_manager_tab.py` | 568 | 图形界面 |
 | `ui/prompt_manager_builder.py` | 12 | 集成辅助 |
 | `prompts_config.json` | 386 | 配置文件 |
@@ -406,7 +406,7 @@ def toggle_module(self, category: str, name: str, checkbox):
 
 ### 修改文件清单
 **新增文件** (4):
-- `prompt_manager.py`
+- `core/prompting/core/prompting/prompt_manager.py`
 - `ui/prompt_manager_tab.py`
 - `ui/prompt_manager_builder.py`
 - `docs/PROMPT_MANAGER_USER_GUIDE.md`
@@ -524,3 +524,4 @@ project_root/
 **项目状态**: ✅ **可投入生产使用**
 
 🎉 **感谢使用 AutoNovel 提示词管理系统！**
+

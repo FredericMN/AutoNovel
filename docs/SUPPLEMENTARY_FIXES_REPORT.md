@@ -15,10 +15,10 @@
 - `novel_generator/architecture.py:206`
 - `novel_generator/finalization.py:70, 251`
 
-**风险**: 如果 `PromptManager()` 初始化失败（如 `prompt_definitions.py` 导入失败、权限问题导致无法创建目录），会直接抛出异常，导致整个生成流程崩溃。
+**风险**: 如果 `PromptManager()` 初始化失败（如 `core/prompting/prompt_definitions.py` 导入失败、权限问题导致无法创建目录），会直接抛出异常，导致整个生成流程崩溃。
 
 **触发场景**:
-1. `prompt_definitions.py` 损坏或缺失
+1. `core/prompting/prompt_definitions.py` 损坏或缺失
 2. `custom_prompts/` 目录无写入权限
 3. `prompts_config.json` 损坏且备份失败
 
@@ -50,7 +50,7 @@ except Exception as e:
 
 **Fallback对象行为**:
 - `is_module_enabled()` → 返回 `True`（全部模块启用）
-- `get_prompt()` → 返回 `None`（触发调用方使用 `prompt_definitions.py` 中的默认常量）
+- `get_prompt()` → 返回 `None`（触发调用方使用 `core/prompting/prompt_definitions.py` 中的默认常量）
 
 ---
 
@@ -68,7 +68,7 @@ except Exception as e:
 
 ### 测试验证
 
-**测试场景1**: 删除 `prompt_definitions.py` 中的某个提示词常量
+**测试场景1**: 删除 `core/prompting/prompt_definitions.py` 中的某个提示词常量
 ```bash
 # 修改 prompt_definitions.py，删除 core_seed_prompt 定义
 python main.py
@@ -185,7 +185,7 @@ if pm.is_module_enabled("architecture", "character_dynamics"):
 ## 问题3: 默认配置中 volume_breakdown 分类错误 🟡
 
 ### 问题描述
-**位置**: `prompt_manager.py:86-100`
+**位置**: `core/prompting/core/prompting/prompt_manager.py:86-100`
 
 **问题**: `_create_default_config()` 将 `volume_breakdown` 误归到 `blueprint` 分类，而正式配置文件 `prompts_config.json` 将其归到 `architecture`。
 
@@ -239,7 +239,7 @@ if pm.is_module_enabled("architecture", "character_dynamics"):
 
 ### 修复位置
 
-**文件**: `prompt_manager.py`
+**文件**: `core/prompting/core/prompting/prompt_manager.py`
 **行号**: 91-101
 
 ---
@@ -273,7 +273,7 @@ if pm.is_module_enabled("architecture", "character_dynamics"):
 **修改文件**: 3个
 - `novel_generator/architecture.py` - 67行修改（异常保护 + 占位文本检测）
 - `novel_generator/finalization.py` - 30行修改（异常保护）
-- `prompt_manager.py` - 3行修改（默认配置调整）
+- `core/prompting/core/prompting/prompt_manager.py` - 3行修改（默认配置调整）
 
 **新增代码**: 约100行（主要是异常保护和占位文本检测）
 **修复Bug**: 3个（2个致命 + 1个严重）
@@ -310,3 +310,4 @@ if pm.is_module_enabled("architecture", "character_dynamics"):
 **修复完成时间**: 2025-10-01
 **测试状态**: ✅ 已验证通过
 **可投入生产**: ✅ 是
+

@@ -13,7 +13,7 @@ config.json
 config_test.json
 .idea/
 /novel
-app.log
+logs/
 test.py
 /backup
 uv.lock
@@ -21,5 +21,6 @@ uv.lock
 pyproject.toml
 /venv
 
-global_prompt.json
+legacy/prompts/global_prompt.json
 nul
+legacy/prompts/global_prompt.example.json

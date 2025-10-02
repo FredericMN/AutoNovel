@@ -74,19 +74,45 @@
 
 ## 🗂 项目架构
 ```
-novel-generator/
-├── main.py                      # 入口文件, 运行 GUI
-├── consistency_checker.py       # 一致性检查, 防止剧情冲突
-|—— chapter_directory_parser.py  # 目录解析
-|—— embedding_adapters.py        # Embedding 接口封装
-|—— llm_adapters.py              # LLM 接口封装
-├── prompt_definitions.py        # 定义 AI 提示词
-├── utils.py                     # 常用工具函数, 文件操作
-├── config_manager.py            # 管理配置 (API Key, Base URL)
-├── config.json                  # 用户配置文件 (可选)
-├── novel_generator/             # 章节生成核心逻辑
-├── ui/                          # 图形界面
-└── vectorstore/                 # (可选) 本地向量数据库存储
+AutoNovel/
+├── main.py                      # GUI 入口
+├── core/
+│   ├── adapters/                # LLM / Embedding 适配器
+│   │   ├── embedding_adapters.py
+│   │   └── llm_adapters.py
+│   ├── config/                  # 配置加载与测试工具
+│   │   └── config_manager.py
+│   ├── consistency/             # 剧情一致性校验
+│   │   └── consistency_checker.py
+│   ├── prompting/               # 提示词管理与默认模板
+│   │   ├── prompt_definitions.py
+│   │   ├── prompt_manager.py
+│   │   └── prompt_manager_helper.py
+│   └── utils/                   # 通用工具
+│       ├── file_utils.py        # 文件操作 & 日志辅助
+│       ├── volume_utils.py      # 分卷计算工具
+│       └── chapter_directory_parser.py
+├── novel_generator/             # 小说生成核心流程
+├── ui/                          # CustomTkinter 图形界面
+├── scripts/
+│   ├── maintenance/             # 批处理/维护脚本
+│   │   ├── add_dependencies.py
+│   │   └── init_custom_prompts.py
+│   └── setup/                   # 环境初始化脚本
+│       └── nltk_setup.py
+├── assets/
+│   └── icons/app.ico            # 应用图标
+├── packaging/
+│   └── main.spec                # PyInstaller 配置
+├── tests/
+│   └── manual/                  # 手动测试脚本
+│       ├── test_config_lock.py
+│       └── test_prompt_manager.py
+├── docs/                        # 设计文档与指南
+├── legacy/
+│   └── prompts/                 # 旧版全局提示词备份
+├── logs/                        # 运行期日志输出
+└── config.json / prompts_config.json / requirements.txt / run_gui.bat
 ```
 
 ---
@@ -149,7 +175,7 @@ python main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller main.spec
+pyinstaller packaging/main.spec
 ```
 打包完成后，会在 `dist/` 目录下生成可执行文件（如 Windows 下的 `main.exe`）。
 
@@ -226,3 +252,4 @@ pyinstaller main.spec
 ---
 
 如有更多问题或需求，欢迎在**项目 Issues** 中提出。
+

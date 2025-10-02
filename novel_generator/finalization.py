@@ -5,21 +5,21 @@
 """
 import os
 import logging
-from llm_adapters import create_llm_adapter
-from embedding_adapters import create_embedding_adapter
-from prompt_definitions import (
+from core.adapters.llm_adapters import create_llm_adapter
+from core.adapters.embedding_adapters import create_embedding_adapter
+from core.prompting.prompt_definitions import (
     summary_prompt,
     update_character_state_prompt,
     volume_summary_prompt,  # 新增：分卷总结提示词
     resolve_global_system_prompt
 )
-from prompt_manager import PromptManager  # 新增：提示词管理器
+from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
 from novel_generator.common import invoke_with_cleaning
-from utils import read_file, clear_file_content, save_string_to_txt
+from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, get_log_file_path
 from novel_generator.vectorstore_utils import update_vector_store
-from volume_utils import calculate_volume_ranges, is_volume_last_chapter  # 新增：分卷工具函数
+from core.utils.volume_utils import calculate_volume_ranges, is_volume_last_chapter  # 新增：分卷工具函数
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -350,7 +350,7 @@ def finalize_chapter(
     # 计算卷号（用于向量检索优化）
     volume_num = None
     if num_volumes > 1 and total_chapters > 0:
-        from volume_utils import get_volume_number, calculate_volume_ranges
+        from core.utils.volume_utils import get_volume_number, calculate_volume_ranges
         volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
         volume_num = get_volume_number(novel_number, volume_ranges)
         gui_log(f"   ├─ 章节元数据: chapter={novel_number}, volume={volume_num}")
@@ -380,7 +380,7 @@ def finalize_chapter(
         volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
 
         if is_volume_last_chapter(novel_number, volume_ranges):
-            from volume_utils import get_volume_number
+            from core.utils.volume_utils import get_volume_number
 
             volume_num = get_volume_number(novel_number, volume_ranges)
             if volume_num > 0:
@@ -412,7 +412,7 @@ def finalize_chapter(
         # 卷总结已禁用，检查是否是卷末章节并提示
         volume_ranges = calculate_volume_ranges(total_chapters, num_volumes)
         if is_volume_last_chapter(novel_number, volume_ranges):
-            from volume_utils import get_volume_number
+            from core.utils.volume_utils import get_volume_number
             volume_num = get_volume_number(novel_number, volume_ranges)
             gui_log(f"\n🔔 第{novel_number}章是第{volume_num}卷的最后一章")
             gui_log("   卷总结模块已禁用，跳过生成\n")
@@ -450,3 +450,11 @@ def enrich_chapter_text(
 """
     enriched_text = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
     return enriched_text if enriched_text else chapter_text
+
+
+
+
+
+
+
+

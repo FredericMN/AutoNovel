@@ -3,7 +3,7 @@
 ## ✅ 已完成内容
 
 ### Phase 1: 配置文件和管理器 ✅ 完成
-**文件**: `prompt_manager.py`
+**文件**: `core/prompting/core/prompting/prompt_manager.py`
 **功能**:
 - 加载和管理 prompts_config.json
 - 优先读取 custom_prompts/*.txt,否则使用默认值
@@ -119,7 +119,7 @@ def build_prompt_manager_tab(app):
 
 ### 后端架构
 ```
-prompt_manager.py (核心管理器)
+core/prompting/prompt_manager.py (核心管理器)
     ├── 加载 prompts_config.json (17个模块配置)
     ├── 读取 custom_prompts/*.txt (自定义提示词)
     ├── 回退 prompt_definitions.py (默认提示词)
@@ -165,7 +165,7 @@ ui/main_window.py (主窗口)
 
 ### 代码方式
 ```python
-from prompt_manager import PromptManager
+from core.prompting.prompt_manager import PromptManager
 
 pm = PromptManager()
 
@@ -218,7 +218,7 @@ pm.reset_to_default("architecture", "world_building")
 
 ## 🧪 测试验证
 
-**文件**: `test_prompt_manager.py`
+**文件**: `test_core/prompting/prompt_manager.py`
 **测试结果**: ✅ 全部通过
 - ✅ 配置加载: 17个模块正确加载
 - ✅ 模块启用状态: 正确识别
@@ -230,13 +230,13 @@ pm.reset_to_default("architecture", "world_building")
 ## 📁 新增/修改文件清单
 
 ### 新增文件
-1. `prompt_manager.py` - 核心管理器类
+1. `core/prompting/core/prompting/prompt_manager.py` - 核心管理器类
 2. `prompts_config.json` - 17个模块配置
 3. `custom_prompts/*.txt` - 17个自定义提示词文件
 4. `ui/prompt_manager_tab.py` - GUI主界面
 5. `ui/prompt_manager_builder.py` - 集成辅助
-6. `test_prompt_manager.py` - 单元测试
-7. `init_custom_prompts.py` - 初始化脚本
+6. `test_core/prompting/prompt_manager.py` - 单元测试
+7. `scripts/maintenance/init_custom_prompts.py` - 初始化脚本
 8. `PROMPT_MANAGER_DESIGN.md` - 设计文档
 
 ### 修改文件
@@ -261,3 +261,5 @@ pm.reset_to_default("architecture", "world_building")
 
 **贡献者**: Claude Code
 **审核状态**: 待用户review检查
+
+

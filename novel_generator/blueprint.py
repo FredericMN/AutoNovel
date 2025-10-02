@@ -7,18 +7,18 @@ import os
 import re
 import logging
 from novel_generator.common import invoke_with_cleaning
-from llm_adapters import create_llm_adapter
-from prompt_definitions import (
+from core.adapters.llm_adapters import create_llm_adapter
+from core.prompting.prompt_definitions import (
     chapter_blueprint_prompt,  # 用于 fallback
     chunked_chapter_blueprint_prompt,  # 用于 fallback
     volume_chapter_blueprint_prompt,  # 新增：分卷蓝图提示词
     resolve_global_system_prompt
 )
-from prompt_manager import PromptManager  # 新增：提示词管理器
-from utils import read_file, clear_file_content, save_string_to_txt
-from volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
+from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, get_log_file_path
+from core.utils.volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -384,3 +384,10 @@ def Chapter_blueprint_generate(
     gui_log(f"   已保存至: Novel_directory.txt")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info("Novel_directory.txt (chapter blueprint) has been generated successfully (chunked).")
+
+
+
+
+
+
+

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from llm_adapters import create_llm_adapter
+from ..adapters.llm_adapters import create_llm_adapter
 
 # ============== 增加对“剧情要点/未解决冲突”进行检查的可选引导 ==============
 CONSISTENCY_PROMPT = """\
@@ -77,3 +77,4 @@ def check_consistency(
     print("[ConsistencyChecker] Response <<<", response)
 
     return response
+

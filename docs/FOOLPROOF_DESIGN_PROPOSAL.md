@@ -624,7 +624,7 @@ def generate_chapter_draft_ui(self):
 | `ui/generation_handlers.py` | 添加章节连续性校验 | ⭐⭐ |
 | `ui/novel_params_tab.py` | 添加配置锁定UI、保存状态指示器 | ⭐⭐⭐ |
 | `ui/main_window.py` | 集成校验逻辑、修改保存流程 | ⭐⭐ |
-| `utils.py`（新建或扩展） | 通用校验函数库 | ⭐ |
+| `core/utils/file_utils.py`（新建或扩展） | 通用校验函数库 | ⭐ |
 
 ---
 

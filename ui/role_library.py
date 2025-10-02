@@ -7,9 +7,9 @@ import re
 import customtkinter as ctk
 from tkinter import messagebox, BooleanVar
 from customtkinter import CTkScrollableFrame, CTkTextbox, END
-from utils import read_file, save_string_to_txt  # 导入 utils 中的函数
+from core.utils.file_utils import read_file, save_string_to_txt  # 导入 utils 中的函数
 from novel_generator.common import invoke_with_cleaning  # 新增导入
-from prompt_definitions import Character_Import_Prompt
+from core.prompting.prompt_definitions import Character_Import_Prompt
 
 DEFAULT_FONT = ("Microsoft YaHei", 12)
 
@@ -1547,5 +1547,8 @@ class RoleLibrary:
     def on_close(self):
         """关闭窗口"""
         self.window.destroy()
+
+
+
 
 

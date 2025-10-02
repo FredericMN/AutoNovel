@@ -121,7 +121,7 @@ class PromptManager:
     def _load_default_prompts(self) -> dict:
         """从 prompt_definitions.py 加载默认提示词"""
         try:
-            from prompt_definitions import (
+            from .prompt_definitions import (
                 core_seed_prompt,
                 character_dynamics_prompt,
                 world_building_prompt,
@@ -314,3 +314,5 @@ class PromptManager:
         except KeyError:
             logging.warning(f"Module {category}.{name} not found")
             return None
+
+

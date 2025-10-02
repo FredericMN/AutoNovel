@@ -8,8 +8,8 @@ from tkinter import messagebox
 import customtkinter as ctk
 import traceback
 import glob
-from prompt_definitions import resolve_global_system_prompt
-from utils import read_file, save_string_to_txt, clear_file_content
+from core.prompting.prompt_definitions import resolve_global_system_prompt
+from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
 from novel_generator import (
     Novel_architecture_generate,
     Chapter_blueprint_generate,
@@ -20,7 +20,7 @@ from novel_generator import (
     enrich_chapter_text,
     build_chapter_prompt
 )
-from consistency_checker import check_consistency
+from core.consistency.consistency_checker import check_consistency
 from ui.validation_utils import validate_chapter_continuity
 
 def generate_novel_architecture_ui(self):
@@ -1449,3 +1449,7 @@ def show_plot_arcs_ui(self):
     text_area.pack(fill="both", expand=True, padx=10, pady=10)
     text_area.insert("0.0", arcs_text)
     text_area.configure(state="disabled")
+
+
+
+

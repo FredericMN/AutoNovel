@@ -8,10 +8,10 @@
   - 生成域：`novel_generator/`（架构/蓝图/章节/定稿/知识库/向量库）
   - 界面域：`ui/`（Tab UI、按钮事件、弹窗、线程、配置选择）
 - 关键支撑：
-  - LLM 调用：`llm_adapters.py`（OpenAI/DeepSeek/Ollama/Azure/Gemini/硅基流动/Grok…）
+  - LLM 调用：`core/adapters/llm_adapters.py`（OpenAI/DeepSeek/Ollama/Azure/Gemini/硅基流动/Grok…）
   - 向量库：`novel_generator/vectorstore_utils.py`（Chroma + 可插拔 embedding）
-  - 提示词库：`prompt_definitions.py`（集中管理全部 Prompt 模板）
-  - 配置：`config_manager.py`（多套 LLM/Embedding 配置 + 测试）
+  - 提示词库：`core/prompting/prompt_definitions.py`（集中管理全部 Prompt 模板）
+  - 配置：`core/config/config_manager.py`（多套 LLM/Embedding 配置 + 测试）
 
 目录简图：
 ```
@@ -73,7 +73,7 @@ flowchart LR
 ```
 
 - 用户回环：重复 Step3→Step4 直到完结；任何阶段可在对应 Tab 手动修改产物。
-- 日志：所有后台进度与完整 Prompt/Response 会写入 `app.log`，且 `invoke_with_cleaning` 会在终端同步打印（便于调试）。
+- 日志：所有后台进度与完整 Prompt/Response 会写入 `logs/app.log`，且 `invoke_with_cleaning` 会在终端同步打印（便于调试）。
 
 ---
 
@@ -86,19 +86,19 @@ flowchart LR
 - 输出：`Novel_architecture.txt`，并基于角色动力学生成初始 `character_state.txt`
 - 主要调用链：
   1) `core_seed_prompt` 构建故事核心（雪花法 Step1）
-     - 定义：`prompt_definitions.py:161`
+     - 定义：`core/prompting/prompt_definitions.py:161`
      - 关键入参：`topic, genre, number_of_chapters, word_number, user_guidance`
   2) `character_dynamics_prompt` 角色弧光/关系网
-     - 定义：`prompt_definitions.py:180`
+     - 定义：`core/prompting/prompt_definitions.py:180`
      - 入参：`core_seed, user_guidance`
-  3) `create_character_state_prompt` 由“角色动力学”生成初始角色状态文档
-     - 定义：`prompt_definitions.py:379`
+  3) `create_character_state_prompt` 由"角色动力学"生成初始角色状态文档
+     - 定义：`core/prompting/prompt_definitions.py:379`
      - 调用：`novel_generator/architecture.py:130`
   4) `world_building_prompt` 三维世界观矩阵
-     - 定义：`prompt_definitions.py:209`
+     - 定义：`core/prompting/prompt_definitions.py:209`
      - 入参：`core_seed, user_guidance`
   5) `plot_architecture_prompt` 三幕式架构（含关键转折/伏笔回收）
-     - 定义：`prompt_definitions.py:237`
+     - 定义：`core/prompting/prompt_definitions.py:237`
      - 入参：`core_seed, character_dynamics, world_building, user_guidance`
 
 - 最终拼装写入：`novel_generator/architecture.py:187` → `Novel_architecture.txt`
@@ -110,8 +110,8 @@ flowchart LR
 - 输出：`Novel_directory.txt`
 - 规则：自动计算分块大小；若已有部分目录则从下一章续写，仅向模型提供最近 100 章提示避免超长。
 - 两种 Prompt：
-  - 全量：`chapter_blueprint_prompt`（`prompt_definitions.py:267`）
-  - 分块：`chunked_chapter_blueprint_prompt`（`prompt_definitions.py:311`）
+  - 全量：`chapter_blueprint_prompt`（`core/prompting/prompt_definitions.py:267`）
+  - 分块：`chunked_chapter_blueprint_prompt`（`core/prompting/prompt_definitions.py:311`）
 - 关键入参：`novel_architecture`（即 Step1 结果）+ `number_of_chapters` + `user_guidance`
 - 分块续写逻辑：`novel_generator/blueprint.py:95–132, 150–179`
 
@@ -123,17 +123,17 @@ flowchart LR
      - 蓝图：`Novel_directory.txt`（并解析当前章及下一章元数据）
      - 全局摘要：`global_summary.txt`（如有）
      - 角色状态：`character_state.txt`（如有）
-  2) 生成“前三章合成摘要”：`summarize_recent_chapters_prompt`（`prompt_definitions.py:10`）
+  2) 生成"前三章合成摘要"：`summarize_recent_chapters_prompt`（`core/prompting/prompt_definitions.py:10`）
      - 调用：`novel_generator/chapter.py:48–107`
   3) 关键词生成 → 向量检索 → 规则标注 → 过滤：
-     - 关键词 Prompt：`knowledge_search_prompt`（`prompt_definitions.py:61`）
+     - 关键词 Prompt：`knowledge_search_prompt`（`core/prompting/prompt_definitions.py:61`）
      - 检索：`vectorstore_utils.get_relevant_context_from_vector_store`
      - 使用规则标注：`apply_content_rules`（同文件）
-     - 过滤 Prompt：`knowledge_filter_prompt`（`prompt_definitions.py:112`）
+     - 过滤 Prompt：`knowledge_filter_prompt`（`core/prompting/prompt_definitions.py:112`）
      - 封装函数：`get_filtered_knowledge_context`（`novel_generator/chapter.py:220`）
   4) 章节写作 Prompt：
-     - 第1章：`first_chapter_draft_prompt`（`prompt_definitions.py:493`）
-     - 其它章：`next_chapter_draft_prompt`（`prompt_definitions.py:541`）
+     - 第1章：`first_chapter_draft_prompt`（`core/prompting/prompt_definitions.py:493`）
+     - 其它章：`next_chapter_draft_prompt`（`core/prompting/prompt_definitions.py:541`）
      - 构造位置：`build_chapter_prompt`（`novel_generator/chapter.py:280+`）
   5) 弹窗可编辑提示词：`ui/generation_handlers.py:167–221`
   6) 真正调用生成：`generate_chapter_draft`（`novel_generator/chapter.py:520`）→ 写入 `chapters/chapter_{n}.txt`
@@ -167,70 +167,70 @@ sequenceDiagram
 ### 3.4 Step4 定稿与向量库更新（可选扩写）
 - 入口：`ui/generation_handlers.py:313` → `novel_generator/finalization.py:21`
 - 动作：
-  1) 更新全局摘要：`summary_prompt`（`prompt_definitions.py:361`）
-  2) 更新角色状态：`update_character_state_prompt`（`prompt_definitions.py:430`）
+  1) 更新全局摘要：`summary_prompt`（`core/prompting/prompt_definitions.py:361`）
+  2) 更新角色状态：`update_character_state_prompt`（`core/prompting/prompt_definitions.py:430`）
   3) 更新向量库：`vectorstore_utils.update_vector_store`（对本章文本句子分段后入库）
-  4) 字数不足可触发“扩写”：`enrich_chapter_text`（内联 Prompt；`novel_generator/finalization.py:120`）
+  4) 字数不足可触发"扩写"：`enrich_chapter_text`（内联 Prompt；`novel_generator/finalization.py:120`）
 
 - 一致性审校（可选）：
-  - 入口：`ui/generation_handlers.py:399` → `consistency_checker.py`
+  - 入口：`ui/generation_handlers.py:399` → `core/consistency/consistency_checker.py`
   - Prompt：`CONSISTENCY_PROMPT`（整合设定/状态/摘要/剧情要点/最新章）
 
 ---
 
 ## 4. Prompt 参考手册（清单 + 入参）
 
-> 完整模板请直接查看 `prompt_definitions.py` 指定行号。这里列出用途与占位变量，便于替换和魔改。
+> 完整模板请直接查看 `core/prompting/prompt_definitions.py` 指定行号。这里列出用途与占位变量，便于替换和魔改。
 
-- `summarize_recent_chapters_prompt`（`prompt_definitions.py:10`）
+- `summarize_recent_chapters_prompt`（`core/prompting/prompt_definitions.py:10`）
   - 用途：基于前三章与目录元数据，产出“当前章摘要”。
   - 变量：`combined_text, novel_number, chapter_title, chapter_role, chapter_purpose, suspense_level, foreshadowing, plot_twist_level, chapter_summary, next_*`
 
-- `knowledge_search_prompt`（`61`）
+- `knowledge_search_prompt`（`core/prompting/prompt_definitions.py:61`）
   - 用途：把章节需求拆成 3–5 组检索关键词（以“·”分隔）。
   - 变量：`chapter_number, chapter_title, characters_involved, key_items, scene_location, chapter_role, chapter_purpose, foreshadowing, short_summary, user_guidance, time_constraint`
 
-- `knowledge_filter_prompt`（`112`）
+- `knowledge_filter_prompt`（`core/prompting/prompt_definitions.py:112`）
   - 用途：对检索片段做冲突检测、去重、分级、重写建议，输出“可直接引用”的上下文。
   - 变量：`retrieved_texts, chapter_info(组装好的要点文本)`
 
-- `core_seed_prompt`（`161`）
+- `core_seed_prompt`（`core/prompting/prompt_definitions.py:161`）
   - 用途：雪花法第一步，单句概括故事核心。
   - 变量：`topic, genre, number_of_chapters, word_number, user_guidance`
 
-- `character_dynamics_prompt`（`180`）
+- `character_dynamics_prompt`（`core/prompting/prompt_definitions.py:180`）
   - 用途：设计 3–6 个“可发生弧光变化”的核心角色及冲突网络。
   - 变量：`core_seed, user_guidance`
 
-- `world_building_prompt`（`209`）
+- `world_building_prompt`（`core/prompting/prompt_definitions.py:209`）
   - 用途：物理/社会/隐喻三维世界观矩阵。
   - 变量：`core_seed, user_guidance`
 
-- `plot_architecture_prompt`（`237`）
+- `plot_architecture_prompt`（`core/prompting/prompt_definitions.py:237`）
   - 用途：三幕式推进，每幕 3 个关键转折 + 伏笔回收方案。
   - 变量：`core_seed, character_dynamics, world_building, user_guidance`
 
-- `chapter_blueprint_prompt`（`267`） / `chunked_chapter_blueprint_prompt`（`311`）
+- `chapter_blueprint_prompt`（`core/prompting/prompt_definitions.py:267`） / `chunked_chapter_blueprint_prompt`（`core/prompting/prompt_definitions.py:311`）
   - 用途：输出 n 章目录（节奏/悬念/伏笔/颠覆/一句话概述）。
   - 变量：`novel_architecture, number_of_chapters, chapter_list(分块续写时), user_guidance`
 
-- `summary_prompt`（`361`）
+- `summary_prompt`（`core/prompting/prompt_definitions.py:361`）
   - 用途：用新章节更新“全局摘要”。
   - 变量：`chapter_text, global_summary`
 
-- `create_character_state_prompt`（`379`） / `update_character_state_prompt`（`430`）
+- `create_character_state_prompt`（`core/prompting/prompt_definitions.py:379`） / `update_character_state_prompt`（`core/prompting/prompt_definitions.py:430`）
   - 用途：创建/更新 `character_state.txt`，结构统一（物品/能力/状态/关系网/事件）。
   - 变量：`character_dynamics` 或 `chapter_text + old_state`
 
-- `first_chapter_draft_prompt`（`493`）
+- `first_chapter_draft_prompt`（`core/prompting/prompt_definitions.py:493`）
   - 用途：第 1 章的正文写作模板。
   - 变量：`novel_number, chapter_* 元数据, word_number, characters_involved, key_items, scene_location, time_constraint, novel_setting, user_guidance`
 
-- `next_chapter_draft_prompt`（`541`）
+- `next_chapter_draft_prompt`（`core/prompting/prompt_definitions.py:541`）
   - 用途：第 2+ 章写作模板（包含前文摘要、上一章结尾、角色状态、知识库过滤结果）。
   - 变量：`global_summary, previous_chapter_excerpt, character_state, short_summary, current chapter_* 元数据, next chapter_* 元数据, filtered_context, word_number, user_guidance`
 
-- 角色抽取：`Character_Import_Prompt`（`626`）
+- 角色抽取：`Character_Import_Prompt`（`core/prompting/prompt_definitions.py:626`）
   - 用途：从任意文本抽取“角色状态”结构（用于角色库/临时角色库）。
 
 ---
@@ -266,15 +266,15 @@ flowchart TB
 
 ## 6. LLM 与 Embedding 适配层
 
-- LLM 入口：`create_llm_adapter(interface_format, base_url, model_name, api_key, ...)`（`llm_adapters.py`）
+- LLM 入口：`create_llm_adapter(interface_format, base_url, model_name, api_key, ...)`（`core/adapters/llm_adapters.py`）
   - 支持：`DeepSeek/OpenAI/Azure OpenAI/Azure AI/Ollama/ML Studio/Gemini/阿里云百炼/火山引擎/硅基流动/Grok`
   - 重点：`check_base_url` 自动补 `/v1`；Azure 需要特殊 `base_url` 模式（见类注释）。
-- Embedding 入口：`create_embedding_adapter(interface_format, api_key, base_url, model_name)`（`embedding_adapters.py`）
+- Embedding 入口：`create_embedding_adapter(interface_format, api_key, base_url, model_name)`（`core/adapters/embedding_adapters.py`）
   - 支持：`OpenAI/Azure OpenAI/Ollama/LM Studio/Gemini/SiliconFlow`
   - 向量库：`Chroma`，集合名 `novel_collection`，Top-K 可在“Embedding settings”里配置。
 
 魔改建议：
-- 新增模型：在 `llm_adapters.py`/`embedding_adapters.py` 增加对应 Adapter 并在工厂函数注册；在 `config.json`/GUI 中增配一条即可无侵入切换。
+- 新增模型：在 `core/adapters/llm_adapters.py`/`core/adapters/embedding_adapters.py` 增加对应 Adapter 并在工厂函数注册；在 `config.json`/GUI 中增配一条即可无侵入切换。
 - 请求级别 Hook：`novel_generator/common.py` 的 `invoke_with_cleaning` 是统一出口，可在此注入观测、裁剪、对齐或重试策略。
 
 ---
@@ -302,7 +302,7 @@ flowchart TB
 ## 8. 深度定制（魔改）建议
 
 1) Prompt 体系
-- 在 `prompt_definitions.py` 直接微调模板；或在 `build_chapter_prompt`（`novel_generator/chapter.py`）增加你的展开/收缩策略；
+- 在 `core/prompting/prompt_definitions.py` 直接微调模板；或在 `build_chapter_prompt`（`novel_generator/chapter.py`）增加你的展开/收缩策略；
 - 若想做“分镜/场景卡”写作，可在 Step3 前插入一个“场景蓝图 Prompt”，落盘为 `scene_blueprint.txt`，再在 Step3 读取。
 
 2) 检索与知识融合
@@ -311,7 +311,7 @@ flowchart TB
 - 检索结果管道可加一层“实体对齐/术语正交化”。
 
 3) 质量保障
-- 在 `consistency_checker.py` 扩充检查维度（时间线/数值单位/关系矩阵的变化预算等）；
+- 在 `core/consistency/consistency_checker.py` 扩充检查维度（时间线/数值单位/关系矩阵的变化预算等）；
 - Step4 后将“剧情要点/未解决冲突”写入 `plot_arcs.txt`（目前有展示入口，生成侧可按需写入）。
 
 4) 多模型编排
@@ -320,7 +320,7 @@ flowchart TB
 
 5) 自动化与测试
 - 当前无内建测试；建议用桩对象 mock LLM/Embedding，给出固定响应，验证解析/拼装/续写逻辑；
-- 关键路径：章节目录解析（`chapter_directory_parser.py`）、分块续写、摘要/过滤管道、文件读写容错。
+- 关键路径：章节目录解析（`core/utils/chapter_directory_parser.py`）、分块续写、摘要/过滤管道、文件读写容错。
 
 ---
 
@@ -333,9 +333,9 @@ flowchart TB
   - 写作提示：`novel_generator/chapter.py:280`（组装写作 Prompt）
   - 调用生成：`novel_generator/chapter.py:520`
 - Step4：`novel_generator/finalization.py:21`（摘要/角色/向量库）
-- 一致性：`consistency_checker.py`
-- LLM 工厂：`llm_adapters.py`
-- Embedding 工厂：`embedding_adapters.py`
+- 一致性：`core/consistency/consistency_checker.py`
+- LLM 工厂：`core/adapters/llm_adapters.py`
+- Embedding 工厂：`core/adapters/embedding_adapters.py`
 
 ---
 
@@ -343,7 +343,7 @@ flowchart TB
 - 运行：`python main.py`，在 GUI 中设置保存路径、配置 LLM/Embedding、逐步点击 Step1~4。
 - 观察：
   - 终端会打印每次发送的 Prompt 与返回文本（`invoke_with_cleaning`）。
-  - `app.log` 保存完整日志，定位失败点最直接。
+  - `logs/app.log` 保存完整日志，定位失败点最直接。
 - 常见问题：
   - API 无响应/HTML：提示 “Expecting value: line 1 column 1 (char 0)” → 检查 Base URL/代理/权限。
   - Embedding 模型变更：清空 `{保存路径}/vectorstore/`，避免混用不同向量空间。
@@ -376,3 +376,5 @@ flowchart TD
 ```
 
 —— 祝创作顺利，愉快魔改！
+
+

@@ -6,9 +6,10 @@
 """
 import re
 import logging
+from .file_utils import get_log_file_path
 
 logging.basicConfig(
-    filename='app.log',
+    filename=get_log_file_path(),
     filemode='a',
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -316,3 +317,4 @@ if __name__ == "__main__":
     # 测试 get_volume_info_text
     print("测试5: 生成UI展示文本")
     print(get_volume_info_text(70, 3))
+

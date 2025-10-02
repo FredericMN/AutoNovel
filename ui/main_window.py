@@ -4,19 +4,22 @@ import os
 import threading
 import logging
 import traceback
+from pathlib import Path
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from .role_library import RoleLibrary
 from .ios_theme import apply_ios_theme, IOSColors, IOSLayout, IOSFonts, IOSStyles
-from llm_adapters import create_llm_adapter
+from core.adapters.llm_adapters import create_llm_adapter
 
-from prompt_definitions import resolve_global_system_prompt
+from core.prompting.prompt_definitions import resolve_global_system_prompt
 
-from config_manager import load_config, save_config, test_llm_config, test_embedding_config
-from utils import read_file, save_string_to_txt, clear_file_content
-from tooltips import tooltips
-from volume_utils import validate_volume_config as validate_vol_config, get_volume_info_text
+from core.config.config_manager import load_config, save_config, test_llm_config, test_embedding_config
+from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
+from ui.common import tooltips
+from core.utils.volume_utils import validate_volume_config as validate_vol_config, get_volume_info_text
+
+ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "icons" / "app.ico"
 
 # 【优化：统一检查 CTkToolTip 导入】
 try:
@@ -67,8 +70,8 @@ class NovelGeneratorGUI:
         self.master.configure(fg_color=IOSColors.BG_APP)
 
         try:
-            if os.path.exists("icon.ico"):
-                self.master.iconbitmap("icon.ico")
+            if ICON_PATH.exists():
+                self.master.iconbitmap(str(ICON_PATH))
         except Exception:
             pass
         self.master.geometry("1680x920")
@@ -868,6 +871,13 @@ class NovelGeneratorGUI:
     test_llm_config = test_llm_config
     test_embedding_config = test_embedding_config
     browse_folder = browse_folder
+
+
+
+
+
+
+
 
 
 

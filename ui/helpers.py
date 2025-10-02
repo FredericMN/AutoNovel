@@ -5,3 +5,4 @@ import traceback
 
 def log_error(message: str):
     logging.error(f"{message}\n{traceback.format_exc()}")
+

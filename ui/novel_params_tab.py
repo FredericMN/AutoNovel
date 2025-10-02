@@ -4,7 +4,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from ui.context_menu import TextWidgetContextMenu
 from ui.validation_utils import check_critical_files_exist, SaveStatusIndicator
-from tooltips import tooltips
+from ui.common import tooltips
 
 def build_novel_params_area(self, start_row=1):
     # 使用 ScrollableFrame 确保内容可滚动，设置合理的滚动条出现时机
@@ -301,3 +301,5 @@ def setup_novel_params_change_listeners(self):
     self.topic_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
     self.user_guide_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
     self.char_inv_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
+
+

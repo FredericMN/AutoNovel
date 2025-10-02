@@ -43,3 +43,4 @@ tooltips = {
     "time_constraint": "本章剧情中涉及的时间压力或时限设置。",
     "interface_config": "选择你要使用的AI接口配置。"
 }
+

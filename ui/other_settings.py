@@ -2,7 +2,7 @@
 import customtkinter as ctk
 from ui.config_tab import create_label_with_help
 from tkinter import messagebox
-from config_manager import load_config, save_config
+from core.config.config_manager import load_config, save_config
 import requests
 from requests.auth import HTTPBasicAuth
 import os
@@ -275,3 +275,5 @@ class WebDAVClient:
             os.makedirs(os.path.join(os.path.dirname(local_path), "backup"))
         backup_file_name = f"{base_name}_{timestamp}_bak.{extension}"
         shutil.copy2(os.path.basename(local_path), os.path.join(os.path.dirname(local_path), "backup", backup_file_name))
+
+

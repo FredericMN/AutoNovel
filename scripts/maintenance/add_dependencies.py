@@ -60,3 +60,4 @@ with open('prompts_config.json', 'w', encoding='utf-8') as f:
     json.dump(config, f, ensure_ascii=False, indent=2)
 
 print("\n✅ Dependencies added successfully!")
+

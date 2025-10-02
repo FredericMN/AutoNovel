@@ -7,8 +7,8 @@ import os
 import json
 import logging
 import re  # 添加re模块导入
-from llm_adapters import create_llm_adapter
-from prompt_definitions import (
+from core.adapters.llm_adapters import create_llm_adapter
+from core.prompting.prompt_definitions import (
     first_chapter_draft_prompt,  # 用于 fallback
     next_chapter_draft_prompt,  # 用于 fallback
     summarize_recent_chapters_prompt,  # 用于 fallback
@@ -16,12 +16,12 @@ from prompt_definitions import (
     knowledge_search_prompt,  # 用于 fallback
     resolve_global_system_prompt
 )
-from prompt_manager import PromptManager  # 新增：提示词管理器
-from chapter_directory_parser import get_chapter_info_from_blueprint
+from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.utils.chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
-from utils import read_file, clear_file_content, save_string_to_txt
+from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, get_log_file_path
 from novel_generator.vectorstore_utils import load_vector_store
-from volume_utils import (
+from core.utils.volume_utils import (
     get_volume_number,
     is_volume_last_chapter,
     calculate_volume_ranges  # 优化：统一导入，避免动态导入
@@ -64,7 +64,7 @@ def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -
     logging.info(f"找到{len(matches)}个卷标题标记")
 
     # 转换中文数字
-    from chapter_directory_parser import _to_int_from_chinese
+    from core.utils.chapter_directory_parser import _to_int_from_chinese
 
     for i, match in enumerate(matches):
         vol_num_str = match.group(1)
@@ -105,7 +105,7 @@ def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -
 
 
 logging.basicConfig(
-    filename='app.log',      # 日志文件名
+    filename=get_log_file_path(),      # 日志文件名
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -1055,7 +1055,7 @@ def build_chapter_prompt(
             gui_log("   ├─ ⚠ 未能生成关键词，跳过检索")
 
         # 执行向量检索(使用去重优化的批量检索)
-        from embedding_adapters import create_embedding_adapter
+        from core.adapters.embedding_adapters import create_embedding_adapter
         from novel_generator.vectorstore_utils import get_relevant_contexts_deduplicated
 
         embedding_adapter = create_embedding_adapter(
@@ -1322,3 +1322,12 @@ def generate_chapter_draft(
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info(f"[Draft] Chapter {novel_number} generated as a draft.")
     return chapter_content
+
+
+
+
+
+
+
+
+

@@ -4,10 +4,12 @@
 测试配置锁定机制
 """
 import sys
-import os
+from pathlib import Path
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from ui.validation_utils import check_critical_files_exist
 
@@ -35,3 +37,4 @@ def test_config_lock():
 
 if __name__ == "__main__":
     test_config_lock()
+

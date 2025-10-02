@@ -16,7 +16,7 @@ def get_prompt_manager():
         PromptManager 实例或 FallbackPromptManager 实例
     """
     try:
-        from prompt_manager import PromptManager
+        from .prompt_manager import PromptManager
         return PromptManager()
     except Exception as e:
         logging.error(f"Failed to initialize PromptManager: {e}")
@@ -52,7 +52,7 @@ def get_prompt_with_fallback(
         提示词字符串
 
     Example:
-        from prompt_definitions import chapter_blueprint_prompt
+        from core.prompting.prompt_definitions import chapter_blueprint_prompt
         pm = get_prompt_manager()
         prompt = get_prompt_with_fallback(
             "blueprint", "chapter_blueprint",
@@ -101,3 +101,6 @@ def get_finalization_prompt(name: str, fallback_prompt: str, pm=None) -> str:
 def get_helper_prompt(name: str, fallback_prompt: str, pm=None) -> str:
     """获取辅助功能提示词"""
     return get_prompt_with_fallback("helper", name, fallback_prompt, pm)
+
+
+

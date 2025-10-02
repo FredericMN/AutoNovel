@@ -35,3 +35,4 @@ def ensure_nltk_punkt_resources():
     except Exception as e:
         # 统一向外抛出，让调用方给出更直观的提示
         raise RuntimeError(f'Failed to ensure NLTK punkt resources: {e}')
+

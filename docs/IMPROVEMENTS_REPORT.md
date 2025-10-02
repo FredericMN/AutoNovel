@@ -192,7 +192,7 @@ except json.JSONDecodeError:
 - ✅ 添加 `dependencies` 字段到所有17个模块
 - ✅ 更新说明文档（`_note` 字段）
 
-#### 2. `prompt_manager.py`
+#### 2. `core/prompting/core/prompting/prompt_manager.py`
 **新增方法**:
 - `_validate_config(config)` - 配置验证
 - `_backup_config()` - 自动备份
@@ -207,7 +207,7 @@ except json.JSONDecodeError:
 - ✅ 修正 `volume_breakdown` 模块路径从 `blueprint` 到 `architecture`
 
 #### 4. 辅助脚本
-- `add_dependencies.py` - 批量添加 dependencies 字段
+- `scripts/maintenance/add_dependencies.py` - 批量添加 dependencies 字段
 
 ### 依赖关系完整列表
 
@@ -355,3 +355,4 @@ PromptManager.toggle_module()
 **完成时间**: 2025-10-01
 **状态**: ✅ 全部完成，可投入生产
 **负责人**: Claude Code
+

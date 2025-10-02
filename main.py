@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import customtkinter as ctk
 from ui import NovelGeneratorGUI
-from nltk_setup import ensure_nltk_punkt_resources
+from scripts.setup.nltk_setup import ensure_nltk_punkt_resources
 
 def main():
     app = ctk.CTk()
@@ -20,3 +20,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
