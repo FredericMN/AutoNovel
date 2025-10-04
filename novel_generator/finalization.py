@@ -125,6 +125,40 @@ def finalize_volume(
     if os.path.exists(volume_arch_file):
         volume_architecture_text = read_file(volume_arch_file).strip()
 
+    # 读取完整版伏笔（plot_arcs.txt，仅提取未解决部分）
+    gui_log("▶ 读取本卷伏笔记录...")
+    plot_arcs_file = os.path.join(filepath, "plot_arcs.txt")
+    plot_arcs_text = ""
+
+    if os.path.exists(plot_arcs_file):
+        full_plot_arcs = read_file(plot_arcs_file).strip()
+
+        if full_plot_arcs:
+            # 提取未解决伏笔（排除已解决部分）
+            unresolved_pattern = r'^\s*[-•·\*]?\s*\[([ABC]级[-\s]*[^\]]+)\].*'
+            resolved_pattern = r'^\s*[-•·\*]?\s*[✓✅☑]\s*已解决[:：]?'
+
+            unresolved_lines = []
+            for line in full_plot_arcs.split('\n'):
+                line_stripped = line.strip()
+                # 匹配未解决伏笔，排除已解决伏笔
+                if re.match(unresolved_pattern, line_stripped) and not re.match(resolved_pattern, line_stripped):
+                    unresolved_lines.append(line_stripped)
+
+            if unresolved_lines:
+                plot_arcs_text = '\n'.join(unresolved_lines)
+                gui_log(f"   └─ ✅ 已读取未解决伏笔（共{len(unresolved_lines)}条）\n")
+            else:
+                gui_log("   └─ ⚠️ 未发现未解决伏笔\n")
+        else:
+            gui_log("   └─ ⚠️ 剧情要点文件为空\n")
+    else:
+        gui_log("   └─ ⚠️ 剧情要点文件不存在\n")
+
+    # 如果没有伏笔，使用占位符
+    if not plot_arcs_text:
+        plot_arcs_text = "（本卷暂无记录的伏笔）"
+
     # 构建 LLM 适配器
     llm_adapter = create_llm_adapter(
         interface_format=interface_format,
@@ -145,13 +179,29 @@ def finalize_volume(
         gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
         prompt_template = volume_summary_prompt
 
-    volume_summary_prompt_text = prompt_template.format(
-        volume_number=volume_number,
-        volume_start=volume_start,
-        volume_end=volume_end,
-        volume_chapters_text=combined_volume_text,
-        volume_architecture=volume_architecture_text
-    )
+    # 尝试使用新格式（6个参数），如果旧模板缺少占位符则回退
+    try:
+        volume_summary_prompt_text = prompt_template.format(
+            volume_number=volume_number,
+            volume_start=volume_start,
+            volume_end=volume_end,
+            volume_chapters_text=combined_volume_text,
+            volume_architecture=volume_architecture_text,
+            plot_arcs=plot_arcs_text  # 🆕 传入完整版伏笔
+        )
+    except KeyError as e:
+        # 兼容旧版自定义模板（缺少 plot_arcs 占位符）
+        gui_log(f"   │  └─ ⚠️ 自定义模板缺少占位符 {e}，使用默认模板")
+        logging.warning(f"Custom prompt missing placeholder {e}, falling back to default")
+        prompt_template = volume_summary_prompt  # 回退到默认
+        volume_summary_prompt_text = prompt_template.format(
+            volume_number=volume_number,
+            volume_start=volume_start,
+            volume_end=volume_end,
+            volume_chapters_text=combined_volume_text,
+            volume_architecture=volume_architecture_text,
+            plot_arcs=plot_arcs_text
+        )
 
     volume_summary_result = invoke_with_cleaning(
         llm_adapter,
