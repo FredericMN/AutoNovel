@@ -392,19 +392,55 @@ def finalize_chapter(
         # 更新角色状态：75%
         update_progress("👤 [2/3] 更新角色状态", 0.75)
         gui_log("▶ [2/3] 更新角色状态")
+
+        # 读取旧状态
         gui_log("   ├─ 读取旧状态...")
         character_state_file = os.path.join(filepath, "character_state.txt")
         old_character_state = read_file(character_state_file)
 
+        # 🆕 读取角色动力学（独立文件）
+        gui_log("   ├─ 读取角色框架...")
+        from core.utils.file_utils import read_character_dynamics
+        character_dynamics = read_character_dynamics(filepath)
+        if not character_dynamics:
+            gui_log("   │  └─ ⚠️ 角色框架缺失，仅基于当前状态更新")
+
+        # 🆕 读取上下文摘要（分卷兼容）
+        gui_log("   ├─ 读取上下文摘要...")
+        from core.utils.file_utils import get_context_summary_for_character
+        context_summary = get_context_summary_for_character(
+            filepath=filepath,
+            chapter_num=novel_number,
+            num_volumes=num_volumes,
+            total_chapters=total_chapters
+        )
+
+        # 格式化提示词
         prompt_template = pm.get_prompt("finalization", "character_state_update")
         if not prompt_template:
             gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
             prompt_template = update_character_state_prompt
 
-        prompt_char_state = prompt_template.format(
-            chapter_text=chapter_text,
-            old_state=old_character_state
-        )
+        # 🆕 尝试使用新格式（4个参数），如果旧模板缺少占位符则回退
+        try:
+            prompt_char_state = prompt_template.format(
+                chapter_text=chapter_text,
+                old_state=old_character_state,
+                character_dynamics=character_dynamics,      # 🆕 传入角色框架
+                context_summary=context_summary             # 🆕 传入上下文摘要
+            )
+        except KeyError as e:
+            # 兼容旧版自定义模板（缺少新占位符）
+            gui_log(f"   │  └─ ⚠️ 自定义模板缺少占位符 {e}，使用默认模板")
+            logging.warning(f"Custom prompt missing placeholder {e}, falling back to default")
+            prompt_template = update_character_state_prompt  # 回退到默认
+            prompt_char_state = prompt_template.format(
+                chapter_text=chapter_text,
+                old_state=old_character_state,
+                character_dynamics=character_dynamics,
+                context_summary=context_summary
+            )
+
         gui_log("   ├─ 向LLM发起请求...")
         new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state, system_prompt=system_prompt)
         if not new_char_state.strip():

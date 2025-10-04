@@ -312,9 +312,17 @@ def Novel_architecture_generate(
                 logging.warning("character_dynamics_prompt generation failed.")
                 save_partial_architecture_data(filepath, partial_data)
                 return
-            gui_log("   └─ ✅ 角色动力学生成完成\n")
+            gui_log("   └─ ✅ 角色动力学生成完成")
             partial_data["character_dynamics_result"] = character_dynamics_result
             save_partial_architecture_data(filepath, partial_data)
+
+            # 🆕 新增：单独保存角色动力学
+            gui_log("   ├─ 保存角色框架文件...")
+            character_dynamics_file = os.path.join(filepath, "character_dynamics.txt")
+            clear_file_content(character_dynamics_file)
+            save_string_to_txt(character_dynamics_result, character_dynamics_file)
+            gui_log("   └─ ✅ 已保存至: character_dynamics.txt\n")
+            logging.info("character_dynamics.txt saved successfully")
         else:
             gui_log(f"▷ [2/{total_steps}] 角色动力学 (已完成，跳过)\n")
             logging.info("Step2 already done. Skipping...")
