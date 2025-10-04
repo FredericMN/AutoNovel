@@ -12,10 +12,10 @@ LABEL_SYNONYMS = {
     'chapter_role': [r'本章定位', r'章节定位', r'本章角色定位', r'定位'],
     'chapter_purpose': [r'核心作用', r'核心目的', r'章节目的', r'内容作用', r'核心目标', r'本章目标'],
     'suspense_level': [r'悬念密度', r'悬念强度', r'悬疑密度', r'悬疑强度', r'悬念节奏'],
-    'foreshadowing': [r'伏笔操作', r'伏笔设计', r'伏笔安排', r'伏笔'],
+    'foreshadowing': [r'伏笔操作', r'伏bi操作', r'伏笔设计', r'伏笔安排', r'伏笔'],  # ✅ 新增：容错"伏bi操作"拼写错误
     'plot_twist_level': [r'认知颠覆', r'转折程度', r'反转强度', r'反转程度', r'颠覆程度'],
     'chapter_summary': [r'本章简述', r'章节简述', r'一句话概括', r'章节概述', r'本章概述'],
-    'volume_position': [r'卷内位置', r'章节位置', r'三幕位置', r'卷位置']  # 🆕 新增：支持卷内位置字段
+    'volume_position': [r'卷内位置', r'章节位置', r'三幕位置', r'卷位置']
 }
 
 # Precompile label regexes accepting both Chinese and English colons
@@ -58,6 +58,9 @@ VOLUME_CHINESE_RE = re.compile(
 
 # 章节标题识别（增强支持 #### **第11章 - 标题** 和多种前缀组合）
 HEADER_LINE_MARKERS = re.compile(r'^(?:\s*[#]{1,6}\s*|\s*[*>]{1,3}\s*)+')
+
+# ⚠️ 过滤占位符章节（如"第80章-第87章"）
+CHAPTER_RANGE_RE = re.compile(r'^\s*[#*\-]*\s*第\s*\d+\s*章\s*[-–—]\s*第\s*\d+\s*章', re.IGNORECASE)
 
 DIGIT_HEADER_RE = re.compile(r'^\s*[#*\-]*\s*第\s*(?P<num>\d+)\s*章.*$', re.IGNORECASE)
 CHINESE_HEADER_RE = re.compile(r'^\s*[#*\-]*\s*第(?P<cnum>[零〇一二两三四五六七八九十百千万]+)章.*$')
@@ -193,6 +196,10 @@ def parse_chapter_blueprint(blueprint_text: str):
 
     for ln in lines:
         if not ln.strip():
+            continue
+
+        # ⚠️ 过滤占位符章节（如"第80章-第87章"）
+        if CHAPTER_RANGE_RE.match(ln):
             continue
 
         # 尝试识别卷标题
