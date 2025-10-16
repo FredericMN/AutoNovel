@@ -93,7 +93,7 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/你的用户名/AutoNovel
+   git clone https://github.com/FredericMN/AutoNovel
    cd AutoNovel
    ```
 
@@ -424,7 +424,7 @@ AutoNovel 独有的**分卷管理系统**，专为长篇网文创作设计：
 
 ```bash
 # 克隆项目
-git clone https://github.com/你的用户名/AutoNovel
+git clone https://github.com/FredericMN/AutoNovel
 cd AutoNovel
 
 # 创建虚拟环境
