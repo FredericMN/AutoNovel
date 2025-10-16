@@ -1,255 +1,647 @@
-# 📖 自动小说生成工具
+# 📖 AutoNovel - 智能小说生成工具
 
 <div align="center">
-  
-✨ **核心功能** ✨
 
-| 功能模块          | 关键能力                          |
-|-------------------|----------------------------------|
-| 🎨 小说设定工坊    | 世界观架构 / 角色设定 / 剧情蓝图   |
-| 📖 智能章节生成    | 多阶段生成保障剧情连贯性           |
-| 🧠 状态追踪系统    | 角色发展轨迹 / 伏笔管理系统         |
-| 🔍 语义检索引擎    | 基于向量的长程上下文一致性维护      |
-| 📚 知识库集成      | 支持本地文档参考         |
-| ✅ 自动审校机制    | 检测剧情矛盾与逻辑冲突          |
-| 🖥 可视化工作台    | 全流程GUI操作，配置/生成/审校一体化 |
+![AutoNovel Logo](assets/icons/app.ico)
+
+**基于大语言模型的全流程小说创作平台**
+
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CustomTkinter](https://img.shields.io/badge/GUI-CustomTkinter-orange.svg)](https://github.com/TomSchimansky/CustomTkinter)
+
+*一款专为长篇小说创作设计的智能工具，支持多卷架构、剧情一致性管理和全流程自动化生成*
 
 </div>
 
-> 一款基于大语言模型的多功能小说生成器，助您高效创作逻辑严谨、设定统一的长篇故事
+---
+
+## 🎯 项目亮点
+
+<div align="center">
+
+| 🚀 **核心特性** | 📝 **详细说明** |
+|----------------|-----------------|
+| **🏗️ 分卷管理模式** | 支持多卷长篇小说，独立架构规划，卷间摘要传递，完美适配网文创作需求 |
+| **🧠 剧情要点管理** | ABC三级伏笔分类，智能压缩机制，确保长篇小说剧情连贯不遗忘 |
+| **⚙️ 提示词管理系统** | 模块化提示词配置，支持自定义编辑，满足不同创作风格需求 |
+| **🔍 增强向量检索** | 跨卷语义检索，关键词触发历史内容，保障百万字小说前后一致 |
+| **🎨 现代化GUI界面** | iOS风格设计，简约美观，全流程可视化操作 |
+| **🤖 多LLM模型支持** | OpenAI/Claude/Gemini/DeepSeek等主流大模型，按需分配不同任务 |
+| **📊 实时进度跟踪** | 详细日志显示，生成进度可视化，支持断点续写 |
+| **✅ 一致性智能校验** | 自动检测角色设定冲突、剧情逻辑矛盾，提升作品质量 |
+
+</div>
+
+---
+
+## 📸 界面预览
+
+<div align="center">
+
+![AutoNovel 主界面](assets/screenshots/mainscreenshot.png)
+
+*AutoNovel 主界面 - 简约美观的全流程创作工作台*
+
+</div>
+
+---
+
+## 🙏 致谢与说明
+
+本项目基于 [YILING0013/AI_NovelGenerator](https://github.com/YILING0013/AI_NovelGenerator) 进行大幅改进和重构。
+
+**感谢原作者的开源贡献！** 原项目为自动小说生成提供了优秀的基础架构。
+
+由于个人有较多功能改进想法，且原作者目前较为繁忙暂时无法维护，因此创建了这个改进版本，在原有基础上新增了：
+- 🏗️ **分卷管理系统** - 支持多卷长篇创作
+- 🧠 **剧情要点管理** - ABC分级伏笔管理
+- ⚙️ **提示词管理** - 模块化可自定义
+- 🎨 **iOS风格界面** - 现代化UI体验
+- 🔍 **增强向量检索** - 跨卷语义检索
+- 📊 **进度可视化** - 实时状态追踪
 
 ---
 
 ## 📑 目录导航
-1. [环境准备](#-环境准备)  
-2. [项目架构](#-项目架构)  
-3. [配置指南](#⚙️-配置指南)  
-4. [运行说明](#🚀-运行说明)  
-5. [使用教程](#📘-使用教程)  
-6. [疑难解答](#❓-疑难解答)  
+
+- [🎯 项目亮点](#-项目亮点)
+- [🙏 致谢与说明](#-致谢与说明)
+- [⚡ 快速开始](#-快速开始)
+- [🏗️ 项目架构](#️-项目架构)
+- [🌟 核心功能](#-核心功能)
+  - [分卷管理模式](#分卷管理模式)
+  - [剧情要点管理](#剧情要点管理)
+  - [提示词管理系统](#提示词管理系统)
+  - [增强向量检索](#增强向量检索)
+  - [iOS风格界面](#ios风格界面)
+- [⚙️ 配置指南](#️-配置指南)
+- [📘 使用教程](#-使用教程)
+- [🛠️ 开发指南](#️-开发指南)
+- [❓ 常见问题](#-常见问题)
+- [📄 许可证](#-许可证)
 
 ---
 
-## 🛠 环境准备
-确保满足以下运行条件：
-- **Python 3.9+** 运行环境（推荐3.10-3.12之间）
-- **pip** 包管理工具
-- 有效API密钥：
-  - 云端服务：OpenAI / DeepSeek 等
-  - 本地服务：Ollama 等兼容 OpenAI 的接口
+## ⚡ 快速开始
+
+### 环境要求
+- **Python 3.9+** (推荐 3.10-3.12)
+- **pip** 包管理器
+- **API密钥**: OpenAI、Claude、Gemini、DeepSeek 等任一服务
+
+### 安装步骤
+
+1. **克隆项目**
+   ```bash
+   git clone https://github.com/你的用户名/AutoNovel
+   cd AutoNovel
+   ```
+
+2. **安装依赖**
+   ```bash
+   # 推荐使用虚拟环境
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # 或 venv\Scripts\activate  # Windows
+
+   pip install -r requirements.txt
+   ```
+
+3. **配置API密钥**
+   ```bash
+   # 复制配置模板
+   cp config.example.json config.json
+
+   # 编辑 config.json，填入你的 API 密钥
+   ```
+
+4. **启动应用**
+   ```bash
+   python main.py
+   ```
+
+### 第一次运行
+1. 在设置页签中配置你的 LLM 和 Embedding 服务
+2. 设置小说基本信息（主题、类型、章节数等）
+3. 选择保存目录
+4. 开始创作你的第一部智能小说！
 
 ---
 
+## 🏗️ 项目架构
 
-## 📥 安装说明
-1. **下载项目**  
-   - 通过 [GitHub](https://github.com) 下载项目 ZIP 文件，或使用以下命令克隆本项目：
-     ```bash
-     git clone https://github.com/YILING0013/AI_NovelGenerator
-     ```
-
-2. **安装编译工具（可选）**  
-   - 如果对某些包无法正常安装，访问 [Visual Studio Build Tools](https://visualstudio.microsoft.com/zh-hans/visual-cpp-build-tools/) 下载并安装C++编译工具，用于构建部分模块包；
-   - 安装时，默认只包含 MSBuild 工具，需手动勾选左上角列表栏中的 **C++ 桌面开发** 选项。
-
-3. **安装依赖并运行**  
-   - 打开终端，进入项目源文件目录：
-     ```bash
-     cd AI_NovelGenerator
-     ```
-   - 安装项目依赖：
-     ```bash
-     pip install -r requirements.txt
-     ```
-   - 安装完成后，运行主程序：
-     ```bash
-     python main.py
-     ```
-
->如果缺失部分依赖，后续**手动执行**
->```bash
->pip install XXX
->```
->进行安装即可
-
-## 🗂 项目架构
 ```
 AutoNovel/
-├── main.py                      # GUI 入口
-├── core/
-│   ├── adapters/                # LLM / Embedding 适配器
-│   │   ├── embedding_adapters.py
-│   │   └── llm_adapters.py
-│   ├── config/                  # 配置加载与测试工具
-│   │   └── config_manager.py
-│   ├── consistency/             # 剧情一致性校验
-│   │   └── consistency_checker.py
-│   ├── prompting/               # 提示词管理与默认模板
-│   │   ├── prompt_definitions.py
-│   │   ├── prompt_manager.py
-│   │   └── prompt_manager_helper.py
-│   └── utils/                   # 通用工具
-│       ├── file_utils.py        # 文件操作 & 日志辅助
-│       ├── volume_utils.py      # 分卷计算工具
-│       └── chapter_directory_parser.py
-├── novel_generator/             # 小说生成核心流程
-├── ui/                          # CustomTkinter 图形界面
-├── scripts/
-│   ├── maintenance/             # 批处理/维护脚本
-│   │   ├── add_dependencies.py
-│   │   └── init_custom_prompts.py
-│   └── setup/                   # 环境初始化脚本
-│       └── nltk_setup.py
-├── assets/
-│   └── icons/app.ico            # 应用图标
-├── packaging/
-│   └── main.spec                # PyInstaller 配置
-├── tests/
-│   └── manual/                  # 手动测试脚本
-│       ├── test_config_lock.py
-│       └── test_prompt_manager.py
-├── docs/                        # 设计文档与指南
-├── legacy/
-│   └── prompts/                 # 旧版全局提示词备份
-├── logs/                        # 运行期日志输出
-└── config.json / prompts_config.json / requirements.txt / run_gui.bat
+├── 📁 core/                      # 🧩 核心基础组件
+│   ├── adapters/                 # 🔌 LLM/Embedding 适配器
+│   │   ├── llm_adapters.py      # 多模型统一接口
+│   │   └── embedding_adapters.py # 向量模型适配
+│   ├── config/                   # ⚙️ 配置管理
+│   │   └── config_manager.py    # 配置加载/保存/验证
+│   ├── prompting/                # 📝 提示词管理
+│   │   ├── prompt_definitions.py # 提示词定义
+│   │   ├── prompt_manager.py     # 提示词管理器
+│   │   └── prompt_manager_helper.py # 管理辅助工具
+│   ├── consistency/              # ✅ 一致性校验
+│   │   └── consistency_checker.py # 剧情逻辑检查
+│   └── utils/                    # 🛠️ 通用工具
+│       ├── file_utils.py         # 文件操作
+│       ├── volume_utils.py       # 分卷处理
+│       └── chapter_directory_parser.py # 目录解析
+├── 📁 novel_generator/           # 📚 小说生成核心
+│   ├── architecture.py          # 🏛️ 世界观架构生成
+│   ├── blueprint.py             # 📋 章节蓝图规划
+│   ├── chapter.py               # ✍️ 章节内容生成
+│   ├── finalization.py          # ✅ 章节定稿处理
+│   ├── knowledge.py             # 📖 知识库集成
+│   └── vectorstore_utils.py     # 🔍 向量检索引擎
+├── 📁 ui/                        # 🎨 用户界面
+│   ├── main_window.py           # 🖥️ 主窗口 (iOS风格)
+│   ├── generation_handlers.py   # 🔄 生成逻辑处理
+│   ├── config_tab.py            # ⚙️ 配置页签
+│   ├── main_tab.py              # 🏠 主操作界面
+│   ├── setting_tab.py           # 📝 小说设定编辑
+│   ├── volume_architecture_tab.py # 📖 分卷架构管理
+│   ├── directory_tab.py         # 📑 目录蓝图管理
+│   ├── character_tab.py         # 👥 角色状态追踪
+│   ├── summary_tab.py           # 📄 全局摘要管理
+│   ├── volume_summary_tab.py    # 📚 分卷摘要管理
+│   ├── chapters_tab.py          # 📖 章节内容管理
+│   ├── settings_tab.py          # ⚙️ 应用设置
+│   ├── ios_theme.py             # 🎨 iOS主题配置
+│   └── ios_theme_helper.py      # 🎨 主题应用工具
+├── 📁 custom_prompts/            # 📝 自定义提示词库
+├── 📁 scripts/                   # 🔧 维护脚本
+├── 📁 assets/                    # 🖼️ 静态资源
+└── 📁 packaging/                 # 📦 打包配置
 ```
+
+---
+
+## 🌟 核心功能
+
+### 分卷管理模式
+
+AutoNovel 独有的**分卷管理系统**，专为长篇网文创作设计：
+
+#### 🏗️ 多卷架构支持
+- **独立卷架构**: 每卷拥有独立的剧情走向和角色发展
+- **卷间传承**: 自动管理前一卷摘要传递到新卷
+- **灵活规划**: 支持2-10卷的大型作品规划（主要看AI模型的上下文能力）
+
+#### 📊 卷摘要管理
+- **卷总结生成**: 每卷完结时自动生成卷摘要
+- **前文传递策略**: 固定传递"上一卷完整摘要 + 本卷累积摘要"
+- **卷摘要向量化**: 将卷摘要存入向量库，支持跨卷语义检索
+
+#### 🔄 分卷生成流程
+1. **分卷架构设计** → `Volume_architecture.txt`
+2. **分卷蓝图生成** → 每卷独立的章节规划
+3. **章节内容生成** → 自动感知当前卷位置
+4. **卷摘要生成** → `volume_X_summary.txt`
+
+### 剧情要点管理
+
+创新的**ABC三级伏笔管理系统**，确保长篇小说前后呼应：
+
+#### 🎯 ABC分级体系
+- **[A级-主线]**: 影响故事核心走向（世界观谜团、主角秘密、最终boss）
+- **[B级-支线]**: 影响重要配角或次要情节线（配角背景、势力冲突）
+- **[C级-细节]**: 仅影响局部细节（物品来源、小道具、一次性角色）
+
+#### 🧠 智能压缩机制
+- **定期触发**: 每10章自动压缩过多的伏笔内容
+- **分级限制**: A级≤30条，B级≤10条，C级≤3条
+- **双版本管理**: 详细版(`plot_arcs.txt`) + 精简版(融入摘要)
+
+#### 📋 定稿流程增强
+```
+[1/3] 更新前文摘要 → global_summary.txt
+[2/3] 更新角色状态 → character_state.txt
+[2.5/3] 🆕 更新剧情要点（详细版，按ABC级记录） → plot_arcs.txt
+[2.6/3] 🆕 智能压缩（每10章触发） → plot_arcs.txt（压缩后）
+[2.8/3] 🆕 提炼伏笔到摘要（精简版，筛选ABC级） → global_summary.txt
+[3/3] 插入向量库
+```
+
+### 提示词管理系统
+
+**模块化提示词架构**，满足个性化创作需求：
+
+#### 📂 模块分类
+- **architecture**: 架构生成（核心种子、角色动力学、世界观、剧情架构、分卷架构）
+- **blueprint**: 蓝图生成（章节蓝图、分块蓝图、分卷章节蓝图）
+- **chapter**: 章节生成（首章草稿、后续章节、章节摘要）
+- **finalization**: 定稿处理（摘要更新、角色状态、卷总结、剧情要点）
+- **helper**: 辅助功能（知识搜索、角色状态创建、全局系统提示词）
+
+#### ⚙️ 灵活配置
+- **启用控制**: 通过 `prompts_config.json` 控制模块启用/禁用
+- **自定义编辑**: 所有提示词支持在GUI中直接编辑
+- **依赖管理**: 自动处理模块间依赖关系
+- **变量替换**: 智能变量替换系统
+
+### 增强向量检索
+
+**跨卷语义检索引擎**，保障百万字作品一致性：
+
+#### 🔍 多层检索策略
+- **当前卷优先**: 检索本卷已生成内容（占大部分结果）
+- **前卷补充**: 检索前一卷相关内容（1条）
+- **历史卷回溯**: 关键词触发时回溯最多3卷历史内容
+
+#### 🎯 关键词触发机制
+- **自动检测**: 识别"起源"、"身世"、"预言"等关键词
+- **智能扩展**: 自动扩展检索范围到历史卷
+- **语义相似**: 基于向量相似度的智能匹配
+
+#### 📊 元数据管理
+- **章节标记**: 每个文本块标记章节号和卷号
+- **卷摘要索引**: 卷摘要也纳入向量库检索
+- **去重机制**: 自动去除重复检索结果
 
 ---
 
 ## ⚙️ 配置指南
-### 📌 基础配置（config.json）
+
+### 基础配置 (config.json)
+
 ```json
 {
-    "api_key": "sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "base_url": "https://api.openai.com/v1",
-    "interface_format": "OpenAI",
-    "model_name": "gpt-4o-mini",
-    "temperature": 0.7,
-    "max_tokens": 4096,
-    "embedding_api_key": "sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "embedding_interface_format": "OpenAI",
-    "embedding_url": "https://api.openai.com/v1",
-    "embedding_model_name": "text-embedding-ada-002",
-    "embedding_retrieval_k": 4,
-    "topic": "星穹铁道主角星穿越到原神提瓦特大陆，拯救提瓦特大陆，并与其中的角色展开爱恨情仇的小说",
-    "genre": "玄幻",
-    "num_chapters": 120,
-    "word_number": 4000,
-    "filepath": "D:/AI_NovelGenerator/filepath"
+  "llm_configs": {
+    "DeepSeek V3": {
+      "api_key": "你的API密钥",
+      "base_url": "https://api.deepseek.com/v1",
+      "model_name": "deepseek-chat",
+      "temperature": 0.7,
+      "max_tokens": 8192,
+      "timeout": 600,
+      "interface_format": "OpenAI"
+    },
+    "GPT-4": {
+      "api_key": "你的API密钥",
+      "base_url": "https://api.openai.com/v1",
+      "model_name": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 32768,
+      "timeout": 600,
+      "interface_format": "OpenAI"
+    }
+  },
+  "embedding_configs": {
+    "OpenAI": {
+      "api_key": "你的API密钥",
+      "base_url": "https://api.openai.com/v1",
+      "model_name": "text-embedding-ada-002",
+      "retrieval_k": 4,
+      "interface_format": "OpenAI"
+    }
+  },
+  "choose_configs": {
+    "architecture_llm": "GPT-4",
+    "chapter_outline_llm": "DeepSeek V3",
+    "prompt_draft_llm": "DeepSeek V3",
+    "final_chapter_llm": "GPT-4",
+    "consistency_review_llm": "DeepSeek V3"
+  }
 }
 ```
 
-### 🔧 配置说明
-1. **生成模型配置**
-   - `api_key`: 大模型服务的API密钥
-   - `base_url`: API终端地址（本地服务填Ollama等地址）
-   - `interface_format`: 接口模式
-   - `model_name`: 主生成模型名称（如gpt-4, claude-3等）
-   - `temperature`: 创意度参数（0-1，越高越有创造性）
-   - `max_tokens`: 模型最大回复长度
+### 支持的模型
 
-2. **Embedding模型配置**
-   - `embedding_model_name`: 模型名称（如Ollama的nomic-embed-text）
-   - `embedding_url`: 服务地址
-   - `embedding_retrieval_k`: 
+#### LLM 模型
+- **OpenAI**: GPT-4, GPT-4o, GPT-3.5-turbo 等
+- **Anthropic**: Claude-3.5-sonnet, Claude-3-opus 等
+- **Google**: Gemini-2.5-pro, Gemini-1.5-pro 等
+- **DeepSeek**: deepseek-chat, deepseek-coder 等
+- **本地模型**: 支持 Ollama 等 OpenAI 兼容接口
 
-3. **小说参数配置**
-   - `topic`: 核心故事主题
-   - `genre`: 作品类型
-   - `num_chapters`: 总章节数
-   - `word_number`: 单章目标字数
-   - `filepath`: 生成文件存储路径
+#### Embedding 模型
+- **OpenAI**: text-embedding-ada-002, text-embedding-3-large
+- **本地模型**: nomic-embed-text (Ollama), bge-large-zh 等
 
----
+### 提示词配置 (prompts_config.json)
 
-## 🚀 运行说明
-### **方式 1：使用 Python 解释器**
-```bash
-python main.py
+```json
+{
+  "modules": {
+    "architecture": {
+      "core_seed": {
+        "enabled": true,
+        "required": true,
+        "display_name": "核心种子生成",
+        "file": "custom_prompts/core_seed_prompt.txt"
+      }
+    }
+  }
+}
 ```
-执行后，GUI 将会启动，你可以在图形界面中进行各项操作。
-
-### **方式 2：打包为可执行文件**
-如果你想在无 Python 环境的机器上使用本工具，可以使用 **PyInstaller** 进行打包：
-
-```bash
-pip install pyinstaller
-pyinstaller packaging/main.spec
-```
-打包完成后，会在 `dist/` 目录下生成可执行文件（如 Windows 下的 `main.exe`）。
 
 ---
 
 ## 📘 使用教程
-1. **启动后，先完成基本参数设置：**  
-   - **API Key & Base URL**（如 `https://api.openai.com/v1`）  
-   - **模型名称**（如 `gpt-3.5-turbo`、`gpt-4o` 等）  
-   - **Temperature** (0~1，决定文字创意程度)  
-   - **主题(Topic)**（如 “废土世界的 AI 叛乱”）  
-   - **类型(Genre)**（如 “科幻”/“魔幻”/“都市幻想”）  
-   - **章节数**、**每章字数**（如 10 章，每章约 3000 字）  
-   - **保存路径**（建议创建一个新的输出文件夹）
 
-2. **点击「Step1. 生成设定」**  
-   - 系统将基于主题、类型、章节数等信息，生成：  
-     - `Novel_setting.txt`：包含世界观、角色信息、雷点暗线等。  
-   - 可以在生成后的 `Novel_setting.txt` 中查看或修改设定内容。
+### 基础流程
 
-3. **点击「Step2. 生成目录」**  
-   - 系统会根据已完成的 `Novel_setting.txt` 内容，为全部章节生成：  
-     - `Novel_directory.txt`：包括每章标题和简要提示。  
-   - 可以在生成后的文件中查看、修改或补充章节标题和描述。
+#### 1. 环境配置
+1. **API 配置**: 在"设置"页签中配置你的 LLM 和 Embedding 服务
+2. **小说设定**: 填写主题、类型、章节数、字数等基本信息
+3. **保存路径**: 选择小说文件的保存目录
 
-4. **点击「Step3. 生成章节草稿」**  
-   - 在生成章节之前，你可以：  
-     - **设置章节号**（如写第 1 章，就填 `1`）  
-     - **在“本章指导”输入框**中提供对本章剧情的任何期望或提示  
-   - 点击按钮后，系统将：  
-     - 自动读取前文设定、`Novel_directory.txt`、以及已定稿章节  
-     - 调用向量检索回顾剧情，保证上下文连贯  
-     - 生成本章大纲 (`outline_X.txt`) 及正文 (`chapter_X.txt`)  
-   - 生成完成后，你可在左侧的文本框查看、编辑本章草稿内容。
+#### 2. 小说架构设计
+1. **点击"Step1. 生成设定"**
+   - 生成世界观、角色设定、剧情架构
+   - 输出: `Novel_architecture.txt`
+   - 支持分卷模式，额外生成: `Volume_architecture.txt`
 
-5. **点击「Step4. 定稿当前章节」**  
-   - 系统将：  
-     - **更新全局摘要**（写入 `global_summary.txt`）  
-     - **更新角色状态**（写入 `character_state.txt`）  
-     - **更新向量检索库**（保证后续章节可以调用最新信息）  
-     - **更新剧情要点**（如 `plot_arcs.txt`）  
-   - 定稿完成后，你可以在 `chapter_X.txt` 中看到定稿后的文本。
+2. **架构审查与调整**
+   - 在"小说架构"页签中查看生成结果
+   - 可直接编辑修改架构内容
+   - 分卷模式可在"分卷架构"页签中调整各卷设定
 
-6. **一致性检查（可选）**  
-   - 点击「[可选] 一致性审校」按钮，对最新章节进行冲突检测，如角色逻辑、剧情前后矛盾等。  
-   - 若有冲突，会在日志区输出详细提示。
+#### 3. 章节蓝图规划
+1. **点击"Step2. 生成目录"**
+   - 根据架构生成所有章节标题和大纲
+   - 输出: `Novel_directory.txt`
+   - 分卷模式支持分卷章节蓝图生成
 
-7. **重复第 4-6 步** 直到所有章节生成并定稿！
+2. **目录审查与调整**
+   - 在"目录蓝图"页签中查看章节规划
+   - 可修改章节标题和大纲内容
 
-> **向量检索配置提示**  
-> 1. embedding模型需要显示指定接口和模型名称；
-> 2. 使用**本地Ollama**的**Embedding**时需提前启动Ollama服务：  
->    ```bash
->    ollama serve  # 启动服务
->    ollama pull nomic-embed-text  # 下载/启用模型
->    ```
-> 3. 切换不同Embedding模型后建议清空vectorstore目录
-> 4. 云端Embedding需确保对应API权限已开通
+#### 4. 章节内容生成
+1. **设置生成章节**: 在主界面输入要生成的章节号
+2. **本章指导**: 可选填写对本章的特殊要求或剧情指导
+3. **点击"Step3. 生成章节草稿"**
+   - 自动检索相关历史内容
+   - 生成章节大纲和正文
+   - 输出: `chapter_X.txt`, `outline_X.txt`
+
+4. **章节编辑**: 在左侧文本框中查看和编辑生成内容
+
+#### 5. 章节定稿
+1. **点击"Step4. 定稿当前章节"**
+   - 更新全局摘要: `global_summary.txt`
+   - 更新角色状态: `character_state.txt`
+   - 更新剧情要点: `plot_arcs.txt`
+   - 存入向量库供后续检索
+
+2. **一致性检查**: 点击"一致性审校"检测潜在的剧情冲突
+
+#### 6. 分卷管理 (可选)
+- **卷摘要生成**: 每卷最后一章定稿后自动生成卷摘要
+- **卷摘要查看**: 在"分卷概要"页签中查看各卷摘要
+- **跨卷检索**: 系统自动处理卷间信息传递
+
+### 高级功能
+
+#### 批量生成
+1. **连续生成**: 在主界面设置起始和结束章节号
+2. **点击"批量生成并定稿"**: 自动完成多章节的生成和定稿
+3. **进度监控**: 实时查看生成进度和日志信息
+
+#### 提示词自定义
+1. **进入"提示词管理"页签**
+2. **选择要自定义的模块**: 如"核心种子生成"、"章节草稿"等
+3. **编辑提示词内容**: 支持变量替换，如 `{topic}`, `{genre}` 等
+4. **保存配置**: 系统自动应用新的提示词
+
+#### 知识库集成
+1. **准备知识文档**: 支持 .txt, .docx, .pdf 格式
+2. **导入知识库**: 系统自动向量化知识内容
+3. **智能检索**: 生成章节时自动检索相关知识
+
+#### 向量检索优化
+1. **Embedding 模型选择**: 根据语言特性选择合适的 Embedding 模型
+2. **检索参数调整**: 调整 `retrieval_k` 控制检索数量
+3. **向量库管理**: 切换 Embedding 模型后需清空 `vectorstore/` 目录
 
 ---
 
-## ❓ 疑难解答
-### Q1: Expecting value: line 1 column 1 (char 0)
+## 🛠️ 开发指南
 
-该问题大概率由于API未正确响应造成，也许响应了一个html？其它内容，导致出现该报错；
+### 开发环境搭建
 
+```bash
+# 克隆项目
+git clone https://github.com/你的用户名/AutoNovel
+cd AutoNovel
 
-### Q2: HTTP/1.1 504 Gateway Timeout？
-确认接口是否稳定；
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或 venv\Scripts\activate  # Windows
 
-### Q3: 如何切换不同的Embedding提供商？
-在GUI界面中对应输入即可。
+# 安装开发依赖
+pip install -r requirements.txt
+
+# 安装开发工具
+pip install pytest black flake8
+```
+
+### 代码规范
+
+- **编码标准**: 遵循 PEP 8 规范
+- **命名约定**:
+  - 函数/变量: `snake_case`
+  - 类名: `CapWords`
+  - 常量: `UPPER_CASE`
+- **文档字符串**: 使用中文描述
+- **类型注解**: 重要函数添加类型注解
+
+### 项目结构说明
+
+#### core/ 模块
+- **adapters/**: LLM 和 Embedding 模型适配器
+- **config/**: 配置文件管理和验证
+- **prompting/**: 提示词管理系统
+- **consistency/**: 剧情一致性检查
+- **utils/**: 通用工具函数
+
+#### novel_generator/ 模块
+- **architecture.py**: 小说架构生成逻辑
+- **blueprint.py**: 章节蓝图生成，支持分块处理
+- **chapter.py**: 章节内容生成，集成向量检索
+- **finalization.py**: 章节定稿，更新摘要和状态
+- **vectorstore_utils.py**: 向量库操作和检索
+
+#### ui/ 模块
+- **主窗口**: `main_window.py` - 应用主入口
+- **页签管理**: 各功能页签的独立模块
+- **主题系统**: `ios_theme.py` - iOS 风格主题配置
+- **事件处理**: `generation_handlers.py` - 生成逻辑的 UI 处理
+
+### 添加新功能
+
+#### 添加新的提示词模块
+1. 在 `custom_prompts/` 中创建提示词文件
+2. 在 `prompts_config.json` 中注册模块
+3. 在 `prompt_definitions.py` 中添加默认提示词
+4. 在对应的生成模块中调用
+
+#### 添加新的 LLM 适配器
+1. 在 `core/adapters/llm_adapters.py` 中继承 `BaseLLMAdapter`
+2. 实现 `invoke()` 方法
+3. 在 `create_llm_adapter()` 中注册新适配器
+4. 更新配置文件模板
+
+#### 添加新的 UI 页签
+1. 在 `ui/` 中创建新的页签模块
+2. 继承适当的基类并应用 iOS 主题
+3. 在 `main_window.py` 中注册页签
+4. 在 `generation_handlers.py` 中添加事件处理
+
+### 测试指南
+
+```bash
+# 运行手动测试
+python tests/manual/test_config_lock.py
+python tests/manual/test_prompt_manager.py
+
+# 测试配置加载
+python -c "from core.config.config_manager import ConfigManager; print('配置加载测试通过')"
+
+# 测试 UI 启动
+python main.py
+```
+
+### 打包发布
+
+```bash
+# 安装打包工具
+pip install pyinstaller
+
+# 使用配置文件打包
+pyinstaller packaging/main.spec
+
+# 生成的可执行文件在 dist/ 目录
+```
 
 ---
 
-如有更多问题或需求，欢迎在**项目 Issues** 中提出。
+## ❓ 常见问题
 
+### 配置相关
+
+**Q: 如何配置多个 LLM 服务？**
+
+A: 在 `config.json` 的 `llm_configs` 中添加多个配置，然后在 `choose_configs` 中为不同任务分配不同模型：
+
+```json
+{
+  "llm_configs": {
+    "架构生成": { "model_name": "gpt-4o", ... },
+    "内容生成": { "model_name": "deepseek-chat", ... }
+  },
+  "choose_configs": {
+    "architecture_llm": "架构生成",
+    "prompt_draft_llm": "内容生成"
+  }
+}
+```
+
+**Q: 如何配置本地 Ollama 服务？**
+
+A: 确保 Ollama 服务运行后，配置如下：
+
+```json
+{
+  "api_key": "ollama",
+  "base_url": "http://localhost:11434/v1",
+  "model_name": "llama3:8b",
+  "interface_format": "OpenAI"
+}
+```
+
+### 功能相关
+
+**Q: 分卷模式和普通模式有什么区别？**
+
+A:
+- **普通模式**: 单一长篇小说，全局统一摘要
+- **分卷模式**: 支持多卷结构，每卷独立架构和摘要，适合网文创作
+- **选择建议**: 超过50章建议使用分卷模式
+
+**Q: 剧情要点管理的 ABC 分级如何使用？**
+
+A:
+- **A级**: 影响主线剧情的重要伏笔（如主角身世、世界观谜团）
+- **B级**: 影响支线剧情的中等伏笔（如配角背景、势力关系）
+- **C级**: 局部细节的小伏笔（如道具来源、一次性角色）
+
+**Q: 向量检索总是检索不到相关内容？**
+
+A: 检查以下几点：
+1. Embedding 配置是否正确
+2. 是否已经定稿前面的章节（向量库需要定稿才更新）
+3. 检索关键词是否匹配（可以在日志中查看检索结果）
+4. 尝试增加 `retrieval_k` 参数
+
+### 错误处理
+
+**Q: "Expecting value: line 1 column 1 (char 0)" 错误**
+
+A: 这通常是 API 响应异常，检查：
+1. API 密钥是否正确
+2. base_url 是否可访问
+3. 网络连接是否正常
+4. 是否超出 API 调用限额
+
+**Q: "504 Gateway Timeout" 错误**
+
+A: 请求超时，可以：
+1. 增加 `timeout` 配置
+2. 检查网络稳定性
+3. 尝试其他 API 服务
+4. 减少单次生成的内容长度
+
+**Q: GUI 页签无法切换**
+
+A: 这可能是主题应用问题：
+1. 重启应用
+2. 检查 `ios_theme.py` 是否正确加载
+3. 确保没有自定义 TabView 的 command 参数
+
+**Q: 章节生成中断怎么办？**
+
+A:
+1. 查看 `logs/app.log` 了解具体错误
+2. 可以重新运行生成，系统会检测已存在的文件
+3. 批量生成支持断点续写
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT 许可证开源。
+
+### 致谢
+- **原作者**: [YILING0013](https://github.com/YILING0013) - 感谢提供优秀的基础架构
+- **CustomTkinter**: 现代化的 Python GUI 框架
+- **LangChain**: 强大的 LLM 应用开发框架
+- **Chroma**: 高效的向量数据库
+- **所有贡献者**: 感谢每一位为项目做出贡献的开发者
+
+### 贡献指南
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+---
+
+<div align="center">
+
+**⭐ 如果这个项目对你有帮助，请给一个 Star！**
+
+**📧 有问题或建议？欢迎提交 [Issue](https://github.com/FredericMN/AutoNovel/issues)**
+
+---
+
+*用智能工具，创作无限可能* ✨
+
+</div>
