@@ -9,6 +9,7 @@ __pycache__/
 /markdown
 /vectorstore
 /example
+/docs
 config.json
 config_test.json
 .idea/
