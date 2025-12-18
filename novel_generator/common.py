@@ -69,22 +69,30 @@ def analyze_empty_response(original_text: str) -> tuple[str, str]:
     cleaned = original_text
 
     # 检查是否为LLM拒绝回应（在清理前检查，避免误删关键词）
+    # 注意：只检测回复开头的拒绝模式，避免误判小说内容中的对话/叙述
+    # 取前200字符进行检测，因为真正的拒绝通常出现在回复开头
+    text_start = original_for_analysis[:200].strip()
+
     refuse_patterns = [
-        r'我无法.*?生成',
-        r'我不能.*?提供',
-        r'无法.*?完成',
-        r'抱歉.*?无法',
-        r'很抱歉.*?不能',
-        r'i cannot.*?provide',
-        r'i cannot.*?generate',
-        r'i\'m unable.*?to',
-        r'sorry.*?cannot',
-        r'i apologize.*?cannot',
-        r'i\'m not able.*?to'
+        # 中文拒绝模式 - 要求出现在开头附近
+        r'^[「『"\']*我无法',
+        r'^[「『"\']*我不能',
+        r'^[「『"\']*抱歉.*?无法',
+        r'^[「『"\']*很抱歉.*?不能',
+        r'^[「『"\']*对不起.*?无法',
+        r'^[「『"\']*作为.*?(?:AI|人工智能|语言模型)',
+        # 英文拒绝模式 - 要求出现在开头附近
+        r'^["\']?i cannot',
+        r'^["\']?i can\'t',
+        r'^["\']?i\'m unable',
+        r'^["\']?i\'m not able',
+        r'^["\']?sorry.*?(?:cannot|can\'t|unable)',
+        r'^["\']?i apologize.*?(?:cannot|can\'t)',
+        r'^["\']?as an ai',
     ]
 
     for pattern in refuse_patterns:
-        if re.search(pattern, original_for_analysis, re.IGNORECASE | re.DOTALL):
+        if re.search(pattern, text_start, re.IGNORECASE | re.DOTALL):
             return "", "llm_refused"
 
     # 检查是否为API错误信息（在清理前检查，避免误删关键信息）

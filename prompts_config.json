@@ -388,7 +388,7 @@
         ]
       },
       "global_system": {
-        "enabled": true,
+        "enabled": false,
         "required": false,
         "display_name": "全局System Prompt",
         "description": "全局系统提示词（所有LLM调用都会注入）",
