@@ -11,11 +11,12 @@ from core.adapters.embedding_adapters import create_embedding_adapter
 from core.prompting.prompt_definitions import (
     summary_prompt,
     update_character_state_prompt,
-    volume_summary_prompt,  # 新增：分卷总结提示词
-    plot_arcs_update_prompt,  # 新增：剧情要点更新提示词
-    plot_arcs_distill_prompt,  # 新增：剧情要点提炼提示词
-    plot_arcs_compress_prompt,  # 新增：剧情要点压缩提示词
+    plot_arcs_update_prompt,  # 新增：剧情要点更新提示词（fallback）
+    plot_arcs_distill_prompt,  # 新增：剧情要点提炼提示词（fallback）
+    plot_arcs_compress_prompt,  # 新增：剧情要点压缩提示词（fallback）
     plot_arcs_compress_auto_prompt,  # 🆕 剧情要点自动压缩提示词
+    volume_summary_prompt,  # 新增：分卷总结提示词
+    single_chapter_summary_prompt,  # 🆕 单章摘要提示词
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
@@ -766,8 +767,43 @@ def finalize_chapter(
         if is_volume_last_chapter(novel_number, volume_ranges):
             from core.utils.volume_utils import get_volume_number
             volume_num = get_volume_number(novel_number, volume_ranges)
-            gui_log(f"\n🔔 第{novel_number}章是第{volume_num}卷的最后一章")
-            gui_log("   卷总结模块已禁用，跳过生成\n")
+            if volume_num > 0:
+                gui_log(f"\n🔔 第{novel_number}章是第{volume_num}卷的最后一章")
+                gui_log("   卷总结模块已禁用，跳过生成\n")
+
+    # [Plan B] 生成单章摘要缓存（为后续章节生成加速）
+    if pm.is_module_enabled("chapter", "single_chapter_summary"):
+        # 生成单章摘要：98%
+        update_progress("📑 生成章节摘要缓存", 0.98)
+        gui_log("▶ [Plan B] 生成单章摘要缓存...")
+
+        # 读取章节元数据确保准确
+        from core.utils.chapter_directory_parser import get_chapter_info_from_blueprint
+        directory_file = os.path.join(filepath, "Novel_directory.txt")
+        blueprint_text = read_file(directory_file) if os.path.exists(directory_file) else ""
+        chap_info = get_chapter_info_from_blueprint(blueprint_text, novel_number)
+
+        prompt_template = pm.get_prompt("chapter", "single_chapter_summary")
+        if not prompt_template:
+            prompt_template = single_chapter_summary_prompt
+
+        summary_prompt_text = prompt_template.format(
+            novel_number=novel_number,
+            chapter_title=chap_info.get("chapter_title", "未命名"),
+            chapter_text=chapter_text
+        )
+
+        chapter_summary_content = invoke_with_cleaning(llm_adapter, summary_prompt_text, system_prompt=system_prompt)
+
+        if chapter_summary_content.strip():
+            summary_cache_file = os.path.join(chapters_dir, f"chapter_{novel_number}_summary.txt")
+            clear_file_content(summary_cache_file)
+            save_string_to_txt(chapter_summary_content, summary_cache_file)
+            gui_log(f"   └─ ✅ 单章摘要已缓存 ({len(chapter_summary_content)}字)")
+        else:
+            gui_log("   └─ ⚠️ 单章摘要生成失败")
+    else:
+        gui_log("▷ [Plan B] 生成单章摘要缓存 (已禁用，跳过)\n")
 
     # 定稿完成：100%
     update_progress("🎉 完成", 1.0)

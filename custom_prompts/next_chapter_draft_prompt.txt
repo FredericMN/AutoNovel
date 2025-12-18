@@ -8,6 +8,9 @@
 └── 本卷架构（如有）：
     {volume_architecture}
 
+└── 未解决的伏笔/悬念（请在创作中自然铺垫或回收）：
+    {unresolved_plot_arcs}
+
 └── 前章结尾段：
     {previous_chapter_excerpt}
 

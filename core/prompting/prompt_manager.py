@@ -146,7 +146,10 @@ class PromptManager:
                 plot_arcs_update_prompt,  # 新增：剧情要点更新
                 plot_arcs_distill_prompt,  # 新增：剧情要点提炼
                 plot_arcs_compress_prompt,  # 新增：剧情要点压缩
-                plot_arcs_compress_auto_prompt  # 🆕 剧情要点自动压缩
+                plot_arcs_compress_auto_prompt,  # 🆕 剧情要点自动压缩
+                single_chapter_summary_prompt,  # 🆕 单章摘要
+                chapter_critique_prompt,  # 🆕 批评家
+                chapter_refine_prompt  # 🆕 作家重写
             )
             return {
                 "core_seed_prompt": core_seed_prompt,
@@ -170,6 +173,9 @@ class PromptManager:
                 "plot_arcs_distill_prompt": plot_arcs_distill_prompt,  # 新增
                 "plot_arcs_compress_prompt": plot_arcs_compress_prompt,  # 新增
                 "plot_arcs_compress_auto_prompt": plot_arcs_compress_auto_prompt,  # 🆕 新增
+                "single_chapter_summary_prompt": single_chapter_summary_prompt,  # 🆕 新增
+                "chapter_critique_prompt": chapter_critique_prompt,  # 🆕 新增
+                "chapter_refine_prompt": chapter_refine_prompt,  # 🆕 新增
                 "system_prompt": ""  # 空字符串作为默认值
             }
         except ImportError as e:
@@ -308,6 +314,9 @@ class PromptManager:
             ("chapter", "first_chapter"): "first_chapter_draft_prompt",
             ("chapter", "next_chapter"): "next_chapter_draft_prompt",
             ("chapter", "chapter_summary"): "summarize_recent_chapters_prompt",
+            ("chapter", "single_chapter_summary"): "single_chapter_summary_prompt",  # 🆕 Plan B
+            ("chapter", "critique"): "chapter_critique_prompt",  # 🆕 Plan C
+            ("chapter", "refine"): "chapter_refine_prompt",  # 🆕 Plan C
             ("finalization", "summary_update"): "summary_prompt",
             ("finalization", "character_state_update"): "update_character_state_prompt",
             ("finalization", "volume_summary"): "volume_summary_prompt",

@@ -136,12 +136,25 @@
         "description": "生成第一章的草稿内容",
         "file": "custom_prompts/first_chapter_draft_prompt.txt",
         "variables": [
+          "volume_display",
+          "volume_architecture",
+          "unresolved_plot_arcs",
           "novel_number",
           "chapter_title",
           "chapter_role",
           "chapter_purpose",
+          "suspense_level",
+          "foreshadowing",
+          "plot_twist_level",
           "word_number",
-          "volume_position"
+          "volume_position",
+          "chapter_summary",
+          "characters_involved",
+          "key_items",
+          "scene_location",
+          "time_constraint",
+          "user_guidance",
+          "novel_setting"
         ],
         "dependencies": []
       },
@@ -152,20 +165,88 @@
         "description": "生成第二章及以后的草稿内容",
         "file": "custom_prompts/next_chapter_draft_prompt.txt",
         "variables": [
+          "global_summary",
+          "volume_info",
+          "volume_architecture",
+          "unresolved_plot_arcs",
+          "previous_chapter_excerpt",
+          "character_state",
+          "short_summary",
+          "current_volume_display",
           "novel_number",
           "chapter_title",
           "chapter_role",
           "chapter_purpose",
+          "suspense_level",
+          "foreshadowing",
+          "plot_twist_level",
           "word_number",
-          "volume_position"
+          "volume_position",
+          "chapter_summary",
+          "characters_involved",
+          "key_items",
+          "scene_location",
+          "time_constraint",
+          "user_guidance",
+          "next_volume_display",
+          "next_chapter_number",
+          "next_chapter_title",
+          "next_chapter_role",
+          "next_chapter_purpose",
+          "next_chapter_suspense_level",
+          "next_chapter_foreshadowing",
+          "next_chapter_plot_twist_level",
+          "next_chapter_summary",
+          "filtered_context"
+        ],
+        "dependencies": []
+      },
+      "critique": {
+        "enabled": false,
+        "required": false,
+        "display_name": "批评家审阅【Plan C】",
+        "description": "【Plan C - 默认关闭】对初稿进行批评性分析，指出逻辑和文笔问题。⚠️ 启用后每章增加2次API调用，成本较高",
+        "file": "custom_prompts/critique_prompt.txt",
+        "variables": [
+          "novel_number",
+          "chapter_title",
+          "chapter_text"
+        ],
+        "dependencies": []
+      },
+      "refine": {
+        "enabled": false,
+        "required": false,
+        "display_name": "作家重写【Plan C】",
+        "description": "【Plan C - 默认关闭】根据批评意见重写章节，需与批评家模块同时启用才能生效",
+        "file": "custom_prompts/refine_prompt.txt",
+        "variables": [
+          "critique",
+          "draft_text",
+          "word_number"
+        ],
+        "dependencies": [
+          "critique"
+        ]
+      },
+      "single_chapter_summary": {
+        "enabled": true,
+        "required": false,
+        "display_name": "单章摘要缓存【Plan B】",
+        "description": "【Plan B】定稿时生成单章摘要缓存，后续章节优先读取摘要而非全文，节省Token",
+        "file": "custom_prompts/single_chapter_summary_prompt.txt",
+        "variables": [
+          "novel_number",
+          "chapter_title",
+          "chapter_text"
         ],
         "dependencies": []
       },
       "chapter_summary": {
         "enabled": true,
         "required": false,
-        "display_name": "章节摘要生成",
-        "description": "生成当前章节的摘要",
+        "display_name": "多章合并摘要",
+        "description": "生成最近几章的合并摘要（旧版逻辑）",
         "file": "custom_prompts/summarize_recent_chapters_prompt.txt",
         "variables": [
           "combined_text",

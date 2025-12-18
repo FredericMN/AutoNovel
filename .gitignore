@@ -10,8 +10,6 @@ __pycache__/
 /vectorstore
 /example
 /docs
-AGENTS.md
-CLAUDE.md
 config.json
 config_test.json
 .idea/

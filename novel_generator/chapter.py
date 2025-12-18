@@ -14,6 +14,8 @@ from core.prompting.prompt_definitions import (
     summarize_recent_chapters_prompt,  # 用于 fallback
     knowledge_filter_prompt,  # 用于 fallback
     knowledge_search_prompt,  # 用于 fallback
+    chapter_critique_prompt,  # 🆕 批评家提示词
+    chapter_refine_prompt,    # 🆕 作家重写提示词
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
@@ -197,19 +199,116 @@ def get_volume_context(
         "current_volume_summary": current_vol_summary
     }
 
+def extract_key_plot_arcs(filepath: str) -> str:
+    """
+    [Plan A] 从 plot_arcs.txt 中提取 A级(主线)和 B级(支线)的未解决伏笔
+
+    格式兼容性：
+    - 支持任意前导符号：-, •, ·, *, 数字编号等
+    - 支持任意缩进
+    - 支持 [A级-xxx] 或 【A级-xxx】 格式
+    - 自动排除已解决的伏笔（通过检查同行的解决标记）
+    """
+    plot_arcs_file = os.path.join(filepath, "plot_arcs.txt")
+    if not os.path.exists(plot_arcs_file):
+        return "（暂无记录）"
+
+    full_content = read_file(plot_arcs_file)
+    if not full_content.strip():
+        return "（暂无记录）"
+
+    # 提取未解决部分
+    unresolved_lines = []
+
+    # 更宽松的正则匹配：任意位置匹配 [A级-xxx] 或 【A级-xxx】
+    # 格式示例: [A级-主线] xxxx、【B级-支线】xxx、1. [A级-主线] xxx
+    pattern = r'[\[【]([AB]级-[^\]】]+)[\]】]'
+
+    # 已解决标记：支持多种符号和格式
+    resolved_markers = ['✓已解决', '✅已解决', '☑已解决', '已解决', '（已解决）', '(已解决)', '[已解决]']
+
+    for line in full_content.split('\n'):
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+
+        # 检查本行是否包含已解决标记
+        is_resolved = any(marker in line_stripped for marker in resolved_markers)
+        if is_resolved:
+            continue
+
+        # 使用 search 而非 match，匹配行内任意位置的 A/B 级标记
+        if re.search(pattern, line_stripped):
+            unresolved_lines.append(line_stripped)
+
+    if not unresolved_lines:
+        return "（暂无重要未解决伏笔）"
+
+    # 限制返回条数，避免过长（A级最多10条，B级最多5条）
+    a_level = [l for l in unresolved_lines if re.search(r'[\[【]A级', l)]
+    b_level = [l for l in unresolved_lines if re.search(r'[\[【]B级', l)]
+
+    result_lines = a_level[:10] + b_level[:5]
+
+    if not result_lines:
+        return "（暂无重要未解决伏笔）"
+
+    logging.debug(f"Extracted {len(a_level)} A-level and {len(b_level)} B-level plot arcs")
+    return "\n".join(result_lines)
+
 def get_last_n_chapters_text(chapters_dir: str, current_chapter_num: int, n: int = 3) -> list:
     """
-    从目录 chapters_dir 中获取最近 n 章的文本内容，返回文本列表。
+    [Plan B] 获取最近n章内容，采用混合模式：
+    - N-1章：优先读取原文 (保持文风连贯)
+    - N-2, N-3...章：优先读取摘要 (chapter_X_summary.txt)，减少token消耗
     """
     texts = []
     start_chap = max(1, current_chapter_num - n)
+
     for c in range(start_chap, current_chapter_num):
+        is_prev_chapter = (c == current_chapter_num - 1)
+
+        # 尝试读取摘要（非上一章时优先）
+        summary_file = os.path.join(chapters_dir, f"chapter_{c}_summary.txt")
         chap_file = os.path.join(chapters_dir, f"chapter_{c}.txt")
-        if os.path.exists(chap_file):
-            text = read_file(chap_file).strip()
-            texts.append(text)
+
+        text_content = ""
+        source_type = ""
+
+        # 策略：
+        # 1. 如果是上一章 (N-1)，强制读原文（除非原文不存在）
+        if is_prev_chapter:
+            if os.path.exists(chap_file):
+                text_content = read_file(chap_file).strip()
+                source_type = "RAW"
+            elif os.path.exists(summary_file):
+                text_content = read_file(summary_file).strip()
+                source_type = "SUMMARY_FALLBACK"
+        # 2. 如果是更早的章节 (N-2, N-3...)，优先读摘要
+        else:
+            if os.path.exists(summary_file):
+                text_content = read_file(summary_file).strip()
+                source_type = "SUMMARY"
+            elif os.path.exists(chap_file):
+                text_content = read_file(chap_file).strip()
+                source_type = "RAW_FALLBACK"
+
+        if text_content:
+            # 区分不同来源的标记方式
+            if source_type == "SUMMARY":
+                texts.append(f"【第{c}章摘要】\n{text_content}")
+                logging.debug(f"Loaded summary for chapter {c}")
+            elif source_type == "SUMMARY_FALLBACK":
+                # 上一章的原文不存在，降级使用摘要，添加特殊标记
+                texts.append(f"【第{c}章（仅摘要可用）】\n{text_content}")
+                logging.debug(f"Loaded summary (fallback) for chapter {c}")
+            else:
+                # RAW 或 RAW_FALLBACK：直接使用原文
+                texts.append(text_content)
+                logging.debug(f"Loaded raw text for chapter {c}")
         else:
             texts.append("")
+
     return texts
 
 def summarize_recent_chapters(
@@ -828,6 +927,13 @@ def build_chapter_prompt(
     character_state_file = os.path.join(filepath, "character_state.txt")
     character_state_text = read_file(character_state_file)
 
+    # [Plan A] 读取关键剧情伏笔
+    unresolved_plot_arcs = extract_key_plot_arcs(filepath)
+    if unresolved_plot_arcs and unresolved_plot_arcs != "（暂无记录）":
+        logging.info(f"Injecting {len(unresolved_plot_arcs.splitlines())} unresolved plot arcs into prompt")
+    else:
+        unresolved_plot_arcs = "（暂无明确记录）"
+
     # 获取章节信息
     chapter_info = get_chapter_info_from_blueprint(blueprint_text, novel_number)
     chapter_title = chapter_info["chapter_title"]
@@ -939,7 +1045,8 @@ def build_chapter_prompt(
             scene_location=scene_location,
             time_constraint=time_constraint,
             user_guidance=user_guidance,
-            novel_setting=novel_architecture_text
+            novel_setting=novel_architecture_text,
+            unresolved_plot_arcs=unresolved_plot_arcs  # 🆕 注入伏笔
         )
 
     # 获取前文内容和摘要
@@ -1244,7 +1351,8 @@ def build_chapter_prompt(
         next_chapter_plot_twist_level=next_chapter_twist,
         next_chapter_summary=next_chapter_summary,
         next_volume_display=next_volume_display,  # 新增：下一章卷展示
-        filtered_context=filtered_context
+        filtered_context=filtered_context,
+        unresolved_plot_arcs=unresolved_plot_arcs  # 🆕 注入伏笔
     )
 
 def generate_chapter_draft(
@@ -1346,7 +1454,129 @@ def generate_chapter_draft(
 
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logging.info(f"[Draft] Chapter {novel_number} generated as a draft.")
+
+    # [Plan C] 批评家-作家 双循环优化
+    # 优先使用 PromptManager 配置；如果配置加载失败则默认禁用（避免意外增加成本）
+    pm = None
+    try:
+        pm = PromptManager()
+        enable_refine = pm.is_module_enabled("chapter", "refine")
+        enable_critique = pm.is_module_enabled("chapter", "critique")
+    except Exception as e:
+        logging.warning(f"PromptManager init failed in refine loop, fallback to disabled: {e}")
+        enable_refine = False
+        enable_critique = False
+
+    # 完整的条件分支处理
+    if enable_critique and enable_refine:
+        gui_log("\n📚 [Plan C] 启动「批评家-作家」优化循环...")
+
+        try:
+            directory_file = os.path.join(filepath, "Novel_directory.txt")
+            blueprint_text = read_file(directory_file) if os.path.exists(directory_file) else ""
+            chap_info = get_chapter_info_from_blueprint(blueprint_text, novel_number) if blueprint_text else {}
+            chap_title = chap_info.get("chapter_title", "")
+
+            gui_log("   ├─ 批评家正在审阅初稿...")
+            critique_template = pm.get_prompt("chapter", "critique") if pm else ""
+            if not critique_template:
+                critique_template = chapter_critique_prompt
+
+            critique_prompt_text = critique_template.format(
+                novel_number=novel_number,
+                chapter_title=chap_title,
+                chapter_text=chapter_content
+            )
+
+            critique_response = invoke_with_cleaning(llm_adapter, critique_prompt_text, system_prompt=system_prompt)
+            gui_log(f"   ├─ 收到修改意见 ({len(critique_response)}字)")
+            logging.info(f"Critique received: {critique_response[:100]}...")
+
+            gui_log("   ├─ 作家正在根据意见重写...")
+            refine_template = pm.get_prompt("chapter", "refine") if pm else ""
+            if not refine_template:
+                refine_template = chapter_refine_prompt
+
+            refine_prompt_text = refine_template.format(
+                critique=critique_response,
+                draft_text=chapter_content,
+                word_number=word_number
+            )
+
+            refined_content = invoke_with_cleaning(llm_adapter, refine_prompt_text, system_prompt=system_prompt)
+
+            # 增强有效性校验
+            is_valid = _is_valid_refined_content(refined_content, len(chapter_content))
+
+            if is_valid:
+                chapter_content = refined_content
+
+                clear_file_content(chapter_file)
+                save_string_to_txt(chapter_content, chapter_file)
+
+                # 保存优化记录（可选，方便调试）
+                debug_file = os.path.join(chapters_dir, f"chapter_{novel_number}_critique.txt")
+                save_string_to_txt(
+                    f"Critique:\n{critique_response}\n\nRefined:\n{refined_content}",
+                    debug_file
+                )
+
+                gui_log("   └─ ✅ 优化完成，已替换初稿")
+            else:
+                gui_log("   └─ ⚠️ 重写内容无效，保留初稿")
+                logging.warning(f"Refined content invalid: length={len(refined_content) if refined_content else 0}")
+
+        except Exception as e:
+            gui_log(f"   └─ ❌ 优化循环异常: {str(e)}")
+            logging.error(f"Refine loop error: {e}")
+
+    elif enable_critique and not enable_refine:
+        gui_log("▷ [Plan C] 仅启用批评家，跳过重写（需同时启用 refine 模块）\n")
+    elif not enable_critique and enable_refine:
+        gui_log("▷ [Plan C] 作家模块依赖批评家，跳过重写（需同时启用 critique 模块）\n")
+    else:
+        # 两个都禁用，静默跳过（不输出日志，避免干扰）
+        logging.debug("[Plan C] Both critique and refine disabled, skipping optimization loop")
+
     return chapter_content
+
+
+def _is_valid_refined_content(content: str, draft_length: int) -> bool:
+    """
+    [Plan C] 校验重写内容是否有效
+
+    检查规则：
+    1. 内容不能为空或过短（<500字）
+    2. 不能是 LLM 的拒绝响应
+    3. 不能比初稿缩水太多（<40%）
+    """
+    if not content:
+        return False
+
+    content_length = len(content)
+
+    # 长度过短
+    if content_length < 500:
+        logging.debug(f"Refined content too short: {content_length}")
+        return False
+
+    # 检查是否是 LLM 拒绝响应的常见模式
+    refusal_patterns = [
+        "抱歉", "无法", "不能", "对不起", "很遗憾",
+        "I cannot", "I'm sorry", "I apologize", "unable to"
+    ]
+    first_100_chars = content[:100]
+    for pattern in refusal_patterns:
+        if pattern in first_100_chars:
+            logging.debug(f"Refined content appears to be a refusal: found '{pattern}'")
+            return False
+
+    # 比初稿缩水太多（低于40%）
+    if draft_length > 0 and content_length < draft_length * 0.4:
+        logging.debug(f"Refined content too short compared to draft: {content_length} vs {draft_length}")
+        return False
+
+    return True
 
 
 
