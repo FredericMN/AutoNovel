@@ -13,6 +13,7 @@ from azure.ai.inference.models import SystemMessage, UserMessage
 from openai import OpenAI
 
 from langchain_core.messages import SystemMessage as LCSystemMessage, HumanMessage
+from core.utils.error_utils import is_rate_limit_error
 
 def check_base_url(url: str) -> str:
     """
@@ -148,6 +149,12 @@ class GeminiAdapter(BaseLLMAdapter):
             logging.warning("No text response from Gemini API.")
             return ""
         except Exception as e:
+            # 如果是速率限制错误，重新抛出让上层重试机制处理
+            if is_rate_limit_error(e):
+                logging.warning(f"Gemini API 速率限制: {e}")
+                raise
+
+            # 其他错误记录日志并返回空字符串
             logging.error(f"Gemini API 调用失败: {e}")
             return ""
 
@@ -261,6 +268,12 @@ class MLStudioAdapter(BaseLLMAdapter):
                 return ""
             return response.content
         except Exception as e:
+            # 如果是速率限制错误，重新抛出让上层重试机制处理
+            if is_rate_limit_error(e):
+                logging.warning(f"ML Studio API 速率限制: {e}")
+                raise
+
+            # 其他错误记录日志并返回空字符串
             logging.error(f"ML Studio API 调用超时或失败: {e}")
             return ""
 
@@ -314,6 +327,12 @@ class AzureAIAdapter(BaseLLMAdapter):
             logging.warning("No response from AzureAIAdapter.")
             return ""
         except Exception as e:
+            # 如果是速率限制错误，重新抛出让上层重试机制处理
+            if is_rate_limit_error(e):
+                logging.warning(f"Azure AI Inference API 速率限制: {e}")
+                raise
+
+            # 其他错误记录日志并返回空字符串
             logging.error(f"Azure AI Inference API 调用失败: {e}")
             return ""
 
@@ -347,10 +366,16 @@ class VolcanoEngineAIAdapter(BaseLLMAdapter):
                 timeout=self.timeout
             )
             if not response:
-                logging.warning("No response from DeepSeekAdapter.")
+                logging.warning("No response from VolcanoEngineAIAdapter.")
                 return ""
             return response.choices[0].message.content
         except Exception as e:
+            # 如果是速率限制错误，重新抛出让上层重试机制处理
+            if is_rate_limit_error(e):
+                logging.warning(f"火山引擎API 速率限制: {e}")
+                raise
+
+            # 其他错误记录日志并返回空字符串
             logging.error(f"火山引擎API调用超时或失败: {e}")
             return ""
 
@@ -383,10 +408,16 @@ class SiliconFlowAdapter(BaseLLMAdapter):
                 timeout=self.timeout
             )
             if not response:
-                logging.warning("No response from DeepSeekAdapter.")
+                logging.warning("No response from SiliconFlowAdapter.")
                 return ""
             return response.choices[0].message.content
         except Exception as e:
+            # 如果是速率限制错误，重新抛出让上层重试机制处理
+            if is_rate_limit_error(e):
+                logging.warning(f"硅基流动API 速率限制: {e}")
+                raise
+
+            # 其他错误记录日志并返回空字符串
             logging.error(f"硅基流动API调用超时或失败: {e}")
             return ""
 
@@ -429,6 +460,12 @@ class GrokAdapter(BaseLLMAdapter):
             logging.warning("No response from GrokAdapter.")
             return ""
         except Exception as e:
+            # 如果是速率限制错误，重新抛出让上层重试机制处理
+            if is_rate_limit_error(e):
+                logging.warning(f"Grok API 速率限制: {e}")
+                raise
+
+            # 其他错误记录日志并返回空字符串
             logging.error(f"Grok API 调用失败: {e}")
             return ""
 
@@ -469,4 +506,3 @@ def create_llm_adapter(
     if fmt == "grok":
         return GrokAdapter(api_key, base_url, model_name, max_tokens, temperature, timeout)
     raise ValueError(f"Unknown interface_format: {interface_format}")
-

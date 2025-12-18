@@ -10,6 +10,7 @@ import traceback
 import html
 from typing import Optional
 from core.utils.file_utils import get_log_file_path
+from core.utils.error_utils import is_rate_limit_error, is_rate_limit_text
 
 logging.basicConfig(
     filename=get_log_file_path(),      # 日志文件名
@@ -18,25 +19,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-
-def is_rate_limit_error(error: Exception) -> bool:
-    """
-    判断是否为速率限制错误（429）
-    支持检测:
-    - Google Gemini: "Resource exhausted"
-    - OpenAI: "Rate limit exceeded"
-    - 通用 HTTP 429 错误
-    """
-    error_msg = str(error).lower()
-    rate_limit_keywords = [
-        "resource exhausted",  # Gemini
-        "rate limit",           # OpenAI
-        "429",                  # HTTP 状态码
-        "quota",                # 配额
-        "too many requests",    # 通用
-    ]
-    return any(keyword in error_msg for keyword in rate_limit_keywords)
-
 
 def call_with_retry(func, max_retries=3, sleep_time=2, fallback_return=None, **kwargs):
     """
@@ -74,6 +56,7 @@ def analyze_empty_response(original_text: str) -> tuple[str, str]:
         - "valid" - 有效内容
         - "truly_empty" - 真正的空内容
         - "llm_refused" - LLM拒绝回应
+        - "api_error" - API错误信息
         - "only_markup" - 仅包含标记/格式
         - "only_whitespace" - 仅包含空白字符
         - "structured_empty" - 结构化的空回复
@@ -103,6 +86,81 @@ def analyze_empty_response(original_text: str) -> tuple[str, str]:
     for pattern in refuse_patterns:
         if re.search(pattern, original_for_analysis, re.IGNORECASE | re.DOTALL):
             return "", "llm_refused"
+
+    # 检查是否为API错误信息（在清理前检查，避免误删关键信息）
+    # 平衡精确性与覆盖面：既要识别真实429错误，又要避免误判正常文本
+
+    # 首先排除明显的技术讨论和代码内容
+    exclusion_patterns = [
+        r'当.*?返回.*?时',  # 中文技术讨论："当API返回...时"
+        r'if\s*\(',        # 代码条件语句
+        r'function\s*\(',  # 函数定义
+        r'(?:^|\s)//\s*',  # 代码注释（行首或空格后的//，避免匹配URL中的//）
+        r'(?:^|\s)#\s*',   # 注释（行首或空格后的#，避免误判）
+        r'```',            # 代码块
+    ]
+
+    should_exclude = any(
+        re.search(pattern, original_for_analysis, re.IGNORECASE)
+        for pattern in exclusion_patterns
+    )
+
+    # 只匹配“足够强”的错误信号，避免把普通文本（尤其是对白里的“try again later”）误判为错误
+    api_error_patterns = [
+        # === 明确的API错误格式 ===
+        # Gemini Resource exhausted
+        r'请求失败.*?resource exhausted',
+        r'resource exhausted(?:.|\n)*?(?:please try again|try again later|error|code)',
+        r'resource exhausted(?:.|\n)*?error(?:.|\n)*?code(?:.|\n)*?429',
+
+        # === 常见的429/限制错误模式（放宽条件）===
+        # "Limit reached" 系列（包含服务上下文或指导文字）
+        r'limit reached(?:.|\n)*?(?:requests|per\s+\w+|try again|please|later)',
+        r'(?:rate\s+)?limit(?:.|\n)*?reached(?:.|\n)*?(?:requests|per\s+\w+|try again|please|later)',
+        r'rate\s+limit\s+reached(?:\s+for)?',  # "Rate limit reached" / "Rate limit reached for"
+        r'reached.*?(?:maximum|limit).*?requests',  # "reached maximum requests" 或类似
+
+        # "Too many requests" 系列
+        r'too many requests(?:.|\n)*?(?:try again|later|please|per\s+\w+|rate|limit)',
+        r'requests(?:.|\n)*?(?:too many|limit(?:.|\n)*?exceeded)(?:.|\n)*?(?:try again|later|rate|limit)',
+
+        # "Quota exceeded" 系列（包含服务上下文）
+        r'(?:you\s+)?exceeded(?:.|\n)*?quota(?:.|\n)*?(?:please|check|try|for\s+\w+|service|billing)',
+        r'quota(?:.|\n)*?exceeded(?:.|\n)*?(?:please|check|try|billing|for\s+\w+|service)',
+        r'current quota(?:.|\n)*?(?:exceeded|limit)(?:.|\n)*?(?:please|check)',
+
+        # "Rate limit" 系列
+        r'rate limit(?:.|\n)*?exceeded',
+        r'rate(?:.|\n)*?limit(?:.|\n)*?(?:exceeded|reached)',
+
+        # === HTTP 429错误（要求上下文）===
+        r'\b429\b(?:.|\n)*?too many requests',
+        r'http(?:.|\n)*?\b429\b(?:.|\n)*?(?:error|too many|rate|limit)',
+        r'(?:status\s*code|error\s*code|code)(?:.|\n)*?\b429\b',
+        r'error(?:.|\n)*?\b429\b(?:.|\n)*?(?:too many|rate|limit)',
+        r'请求失败(?:.|\n)*?\b429\b',
+
+        # === 完整的错误消息模式 ===
+        # 包含"reached"和"requests"组合的错误
+        r'you have reached.*?(?:maximum|limit).*?requests',
+        r'reached.*?(?:maximum|limit).*?(?:requests|per\s+minute|per\s+hour)',
+
+        # OpenAI风格
+        r'check your plan and billing',
+
+        # 中文错误信息
+        r'请求频率(?:.|\n)*?(?:过高|超限)',
+        r'配额(?:.|\n)*?(?:用尽|超限|不足)',
+        r'超出(?:.|\n)*?(?:限制|配额)',
+        r'请求(?:.|\n)*?(?:被限制|超限)',
+        r'重试(?:.|\n)*?(?:稍后|稍等)',
+        r'retry(?:.|\n)*?after(?:.|\n)*?(?:second|seconds|minute|minutes)',
+    ]
+
+    if not should_exclude:
+        for pattern in api_error_patterns:
+            if re.search(pattern, original_for_analysis, re.IGNORECASE | re.DOTALL):
+                return "", "api_error"
 
     # 清理步骤1: 移除thinking标记（保留内容）
     cleaned = re.sub(r'<think>.*?</think>', '', cleaned, flags=re.DOTALL)
@@ -188,9 +246,9 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
     """
     调用 LLM 并清理返回结果，支持附加 system prompt。
     增强功能：
-    - 针对 429 错误使用指数退避策略
-    - 自动识别速率限制并延长等待时间
-    - 空回复时使用递增等待时间重试
+    - 抛出的异常使用指数退避策略（如适配器层抛出的429异常）
+    - 文本形式的限流错误(API错误响应)同样使用指数退避；其他API错误文本与空回复使用线性递增（最长4秒）
+    - 自动识别各种类型的空回复和API错误
     - 向用户汇报所有重试状态
     """
     active_system_prompt = (system_prompt or "").strip()
@@ -235,6 +293,7 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
             empty_type_messages = {
                 "truly_empty": "返回真正的空内容",
                 "llm_refused": "LLM拒绝回应",
+                "api_error": "返回API错误信息",
                 "only_markup": "仅包含标记/格式符号",
                 "only_whitespace": "仅包含空白字符",
                 "structured_empty": "返回结构化的空回复"
@@ -242,8 +301,37 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
 
             empty_msg = empty_type_messages.get(empty_type, "返回空内容")
 
-            if retry_count < max_retries:
-                # 使用递增等待策略：2秒 -> 4秒 -> 8秒
+            # 如果是API错误，使用与其他空回复相同的重试策略（线性递增）
+            if empty_type == "api_error":
+                error_preview = repr(result[:200])
+
+                if is_rate_limit_text(result):
+                    # 文本形式的限流错误：与异常限流保持一致，指数退避（最长60秒）
+                    wait_time = (2 ** retry_count) * base_wait_time
+                    wait_time = min(wait_time, 60)
+                    print(f"⚠️ LLM {empty_msg}（疑似限流）(第 {retry_count}/{max_retries} 次尝试)")
+                else:
+                    # 其他 API 错误文本：线性递增（最长4秒），避免等待过久
+                    wait_time = base_wait_time * retry_count
+                    wait_time = min(wait_time, 4)
+                    print(f"⚠️ LLM {empty_msg} (第 {retry_count}/{max_retries} 次尝试)")
+
+                print(f"   错误内容: {error_preview}")
+                print(f"   等待 {wait_time} 秒后重试...")
+                logging.warning(
+                    f"LLM API error response - retry {retry_count}/{max_retries}, waiting {wait_time}s. Error: {error_preview}"
+                )
+
+                if retry_count >= max_retries:
+                    print(f"❌ LLM 连续 {max_retries} 次{empty_msg}，生成失败")
+                    print(f"   最后一次错误: {error_preview}")
+                    logging.error(f"LLM API error after {max_retries} attempts - Final error: {error_preview}")
+                    return ""
+
+                time.sleep(wait_time)
+
+            elif retry_count < max_retries:
+                # 其他类型的空回复使用递增等待策略：2秒 -> 4秒 -> 8秒
                 wait_time = base_wait_time * retry_count
                 wait_time = min(wait_time, 4)  # 最多等待4秒
 
@@ -279,7 +367,7 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
                 if retry_count >= max_retries:
                     print(f"❌ 已达到最大重试次数，请稍后再试")
                     logging.error(f"Rate limit exceeded after {max_retries} retries")
-                    raise e
+                    raise  # 保留原始堆栈信息
 
                 time.sleep(wait_time)
 
@@ -292,7 +380,7 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
                 if retry_count >= max_retries:
                     print(f"❌ 已达到最大重试次数")
                     logging.error(f"LLM call failed after {max_retries} attempts")
-                    raise e
+                    raise  # 保留原始堆栈信息
 
                 # 普通错误使用递增等待：2秒 -> 4秒 -> 6秒
                 wait_time = base_wait_time * retry_count
@@ -303,8 +391,4 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
     # 理论上不会到达这里（空回复已在循环内返回）
     logging.error("Unexpected: invoke_with_cleaning loop ended without return")
     return result
-
-
-
-
 
