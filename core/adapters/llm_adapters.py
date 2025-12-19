@@ -63,16 +63,20 @@ class DeepSeekAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        active_system_prompt = (system_prompt or "").strip()
-        if active_system_prompt:
-            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
-            response = self._client.invoke(messages)
-        else:
-            response = self._client.invoke(prompt)
-        if not response:
-            logging.warning("No response from DeepSeekAdapter.")
+        try:
+            active_system_prompt = (system_prompt or "").strip()
+            if active_system_prompt:
+                messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
+                response = self._client.invoke(messages)
+            else:
+                response = self._client.invoke(prompt)
+            if not response:
+                logging.warning("No response from DeepSeekAdapter.")
+                return ""
+            return response.content
+        except IndexError as e:
+            logging.error(f"DeepSeekAdapter received empty generations/choices: {e}")
             return ""
-        return response.content
 
 class OpenAIAdapter(BaseLLMAdapter):
     """
@@ -96,16 +100,20 @@ class OpenAIAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        active_system_prompt = (system_prompt or "").strip()
-        if active_system_prompt:
-            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
-            response = self._client.invoke(messages)
-        else:
-            response = self._client.invoke(prompt)
-        if not response:
-            logging.warning("No response from OpenAIAdapter.")
+        try:
+            active_system_prompt = (system_prompt or "").strip()
+            if active_system_prompt:
+                messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
+                response = self._client.invoke(messages)
+            else:
+                response = self._client.invoke(prompt)
+            if not response:
+                logging.warning("No response from OpenAIAdapter.")
+                return ""
+            return response.content
+        except IndexError as e:
+            logging.error(f"OpenAIAdapter received empty generations/choices: {e}")
             return ""
-        return response.content
 
 class GeminiAdapter(BaseLLMAdapter):
     """
@@ -190,16 +198,20 @@ class AzureOpenAIAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        active_system_prompt = (system_prompt or "").strip()
-        if active_system_prompt:
-            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
-            response = self._client.invoke(messages)
-        else:
-            response = self._client.invoke(prompt)
-        if not response:
-            logging.warning("No response from AzureOpenAIAdapter.")
+        try:
+            active_system_prompt = (system_prompt or "").strip()
+            if active_system_prompt:
+                messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
+                response = self._client.invoke(messages)
+            else:
+                response = self._client.invoke(prompt)
+            if not response:
+                logging.warning("No response from AzureOpenAIAdapter.")
+                return ""
+            return response.content
+        except IndexError as e:
+            logging.error(f"AzureOpenAIAdapter received empty generations/choices: {e}")
             return ""
-        return response.content
 
 class OllamaAdapter(BaseLLMAdapter):
     """
@@ -226,16 +238,20 @@ class OllamaAdapter(BaseLLMAdapter):
         )
 
     def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        active_system_prompt = (system_prompt or "").strip()
-        if active_system_prompt:
-            messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
-            response = self._client.invoke(messages)
-        else:
-            response = self._client.invoke(prompt)
-        if not response:
-            logging.warning("No response from OllamaAdapter.")
+        try:
+            active_system_prompt = (system_prompt or "").strip()
+            if active_system_prompt:
+                messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
+                response = self._client.invoke(messages)
+            else:
+                response = self._client.invoke(prompt)
+            if not response:
+                logging.warning("No response from OllamaAdapter.")
+                return ""
+            return response.content
+        except IndexError as e:
+            logging.error(f"OllamaAdapter received empty generations/choices: {e}")
             return ""
-        return response.content
 
 class MLStudioAdapter(BaseLLMAdapter):
     def __init__(self, api_key: str, base_url: str, model_name: str, max_tokens: int, temperature: float = 0.7, timeout: Optional[int] = 600):
@@ -267,6 +283,9 @@ class MLStudioAdapter(BaseLLMAdapter):
                 logging.warning("No response from MLStudioAdapter.")
                 return ""
             return response.content
+        except IndexError as e:
+            logging.error(f"MLStudioAdapter received empty generations/choices: {e}")
+            return ""
         except Exception as e:
             # 如果是速率限制错误，重新抛出让上层重试机制处理
             if is_rate_limit_error(e):

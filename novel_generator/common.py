@@ -53,6 +53,12 @@ def _log_llm_payload(label: str, text: str):
             truncated = _truncate_text(text, LLM_LOG_TRUNCATE)
             logging.info("%s (len=%d):\n%s", label, len(text), truncated)
 
+    if LLM_STDOUT_ENABLED and LLM_LOG_PAYLOAD_ENABLED:
+        if text is None:
+            print(f"{label}: <empty>")
+        else:
+            print(f"{label} (len={len(text)}):\n{text}")
+
     if LLM_LOG_FULL_ENABLED and text:
         try:
             log_dir = Path(get_log_file_path()).parent / "llm_debug"
