@@ -16,7 +16,11 @@ from core.prompting.prompt_definitions import (
     plot_architecture_prompt,
     volume_breakdown_prompt,  # 新增：分卷架构提示词
     create_character_state_prompt,
-    resolve_global_system_prompt
+    resolve_global_system_prompt,
+    # 构思模式专用提示词
+    user_concept_to_core_seed_prompt,
+    concept_character_dynamics_prompt,
+    concept_world_building_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
 from core.utils.file_utils import clear_file_content, save_string_to_txt, get_log_file_path
@@ -179,6 +183,8 @@ def Novel_architecture_generate(
     filepath: str,
     num_volumes: int = 0,  # 新增：分卷数量（0或1表示不分卷）
     user_guidance: str = "",  # 新增参数
+    creation_mode: str = "灵感模式",  # 新增：创作模式（"灵感模式" 或 "构思模式"）
+    user_concept: str = "",  # 新增：用户构思（构思模式专用）
     use_global_system_prompt: bool = False,
     temperature: float = 0.7,
     max_tokens: int = 2048,
@@ -238,34 +244,64 @@ def Novel_architecture_generate(
             gui_log_callback(msg)
         logging.info(msg)
 
+    # 判断是否为构思模式
+    is_concept_mode = creation_mode == "构思模式" and user_concept.strip()
+
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     gui_log("📚 开始生成小说架构")
-    gui_log(f"   主题: {topic} | 类型: {genre}")
+    if is_concept_mode:
+        gui_log(f"   创作模式: 构思模式（基于用户构思）")
+        gui_log(f"   类型: {genre}")
+        gui_log(f"   用户构思长度: {len(user_concept)}字")
+    else:
+        gui_log(f"   创作模式: 灵感模式（从头开始）")
+        gui_log(f"   主题: {topic} | 类型: {genre}")
     gui_log(f"   章节数: {number_of_chapters} | 每章字数: {word_number}")
     gui_log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
     # 确定总步骤数
     total_steps = 6 if num_volumes > 1 else 5
 
-    # Step1: 核心种子
+    # Step1: 核心种子（根据模式选择不同的生成方式）
     if "core_seed_result" not in partial_data:
-        gui_log(f"▶ [1/{total_steps}] 核心种子生成")
-        gui_log("   ├─ 分析主题与类型...")
-        logging.info("Step1: Generating core_seed_prompt (核心种子) ...")
+        if is_concept_mode:
+            # 构思模式：基于用户构思提炼核心种子
+            gui_log(f"▶ [1/{total_steps}] 核心种子提炼（构思模式）")
+            gui_log("   ├─ 分析用户构思...")
+            logging.info("Step1: Extracting core_seed from user concept (构思模式) ...")
 
-        # 使用PromptManager获取提示词
-        prompt_template = pm.get_prompt("architecture", "core_seed")
-        if not prompt_template:
-            gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
-            prompt_template = core_seed_prompt
+            # 使用构思模式专用的提示词
+            prompt_template = pm.get_prompt("architecture", "user_concept_to_core_seed")
+            if not prompt_template:
+                prompt_template = user_concept_to_core_seed_prompt
 
-        prompt_core = prompt_template.format(
-            topic=topic,
-            genre=genre,
-            number_of_chapters=number_of_chapters,
-            word_number=word_number,
-            user_guidance=user_guidance
-        )
+            prompt_core = prompt_template.format(
+                user_concept=user_concept,
+                genre=genre,
+                number_of_chapters=number_of_chapters,
+                word_number=word_number,
+                user_guidance=user_guidance
+            )
+        else:
+            # 灵感模式：通过主题和类型生成核心种子
+            gui_log(f"▶ [1/{total_steps}] 核心种子生成")
+            gui_log("   ├─ 分析主题与类型...")
+            logging.info("Step1: Generating core_seed_prompt (核心种子) ...")
+
+            # 使用PromptManager获取提示词
+            prompt_template = pm.get_prompt("architecture", "core_seed")
+            if not prompt_template:
+                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                prompt_template = core_seed_prompt
+
+            prompt_core = prompt_template.format(
+                topic=topic,
+                genre=genre,
+                number_of_chapters=number_of_chapters,
+                word_number=word_number,
+                user_guidance=user_guidance
+            )
+
         gui_log("   ├─ 向LLM发起请求...")
         core_seed_result = invoke_with_cleaning(llm_adapter, prompt_core, system_prompt=system_prompt)
         if not core_seed_result.strip():
@@ -275,10 +311,29 @@ def Novel_architecture_generate(
             return
         gui_log("   └─ ✅ 核心种子生成完成\n")
         partial_data["core_seed_result"] = core_seed_result
+        # 构思模式下保存用户构思
+        if is_concept_mode:
+            partial_data["user_concept"] = user_concept
+            partial_data["creation_mode"] = "构思模式"
+        else:
+            partial_data["creation_mode"] = "灵感模式"
         save_partial_architecture_data(filepath, partial_data)
     else:
         gui_log(f"▷ [1/{total_steps}] 核心种子 (已完成，跳过)\n")
         logging.info("Step1 already done. Skipping...")
+        # 从partial_data恢复创作模式
+        if "creation_mode" in partial_data:
+            saved_mode = partial_data["creation_mode"]
+            saved_concept = partial_data.get("user_concept", "").strip()
+            # 仅当创作模式为构思模式且user_concept非空时才进入构思模式
+            if saved_mode == "构思模式" and saved_concept:
+                is_concept_mode = True
+                user_concept = saved_concept
+            else:
+                # user_concept为空时回退为灵感模式
+                is_concept_mode = False
+                if saved_mode == "构思模式" and not saved_concept:
+                    gui_log("   ⚠️ 检测到构思模式但用户构思为空，已回退为灵感模式")
 
     # Step2: 角色动力学（可选）
     if pm.is_module_enabled("architecture", "character_dynamics"):
@@ -295,16 +350,29 @@ def Novel_architecture_generate(
             gui_log("   ├─ 基于核心种子设计角色...")
             logging.info("Step2: Generating character_dynamics_prompt ...")
 
-            # 使用PromptManager获取提示词
-            prompt_template = pm.get_prompt("architecture", "character_dynamics")
-            if not prompt_template:
-                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
-                prompt_template = character_dynamics_prompt
+            # 根据创作模式选择提示词
+            if is_concept_mode:
+                # 构思模式：使用包含用户构思的提示词
+                prompt_template = pm.get_prompt("architecture", "concept_character_dynamics")
+                if not prompt_template:
+                    prompt_template = concept_character_dynamics_prompt
 
-            prompt_character = prompt_template.format(
-                core_seed=partial_data["core_seed_result"].strip(),
-                user_guidance=user_guidance
-            )
+                prompt_character = prompt_template.format(
+                    user_concept=user_concept,
+                    core_seed=partial_data["core_seed_result"].strip(),
+                    user_guidance=user_guidance
+                )
+            else:
+                # 灵感模式：使用原有提示词
+                prompt_template = pm.get_prompt("architecture", "character_dynamics")
+                if not prompt_template:
+                    gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                    prompt_template = character_dynamics_prompt
+
+                prompt_character = prompt_template.format(
+                    core_seed=partial_data["core_seed_result"].strip(),
+                    user_guidance=user_guidance
+                )
             gui_log("   ├─ 向LLM发起请求...")
             character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character, system_prompt=system_prompt)
             if not character_dynamics_result.strip():
@@ -385,15 +453,29 @@ def Novel_architecture_generate(
             gui_log("   ├─ 构建世界观设定...")
             logging.info("Step3: Generating world_building_prompt ...")
 
-            prompt_template = pm.get_prompt("architecture", "world_building")
-            if not prompt_template:
-                gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
-                prompt_template = world_building_prompt
+            # 根据创作模式选择提示词
+            if is_concept_mode:
+                # 构思模式：使用包含用户构思的提示词
+                prompt_template = pm.get_prompt("architecture", "concept_world_building")
+                if not prompt_template:
+                    prompt_template = concept_world_building_prompt
 
-            prompt_world = prompt_template.format(
-                core_seed=partial_data["core_seed_result"].strip(),
-                user_guidance=user_guidance
-            )
+                prompt_world = prompt_template.format(
+                    user_concept=user_concept,
+                    core_seed=partial_data["core_seed_result"].strip(),
+                    user_guidance=user_guidance
+                )
+            else:
+                # 灵感模式：使用原有提示词
+                prompt_template = pm.get_prompt("architecture", "world_building")
+                if not prompt_template:
+                    gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
+                    prompt_template = world_building_prompt
+
+                prompt_world = prompt_template.format(
+                    core_seed=partial_data["core_seed_result"].strip(),
+                    user_guidance=user_guidance
+                )
             gui_log("   ├─ 向LLM发起请求...")
             world_building_result = invoke_with_cleaning(llm_adapter, prompt_world, system_prompt=system_prompt)
             if not world_building_result.strip():
@@ -465,10 +547,28 @@ def Novel_architecture_generate(
     world_building_result = partial_data["world_building_result"]
     plot_arch_result = partial_data["plot_arch_result"]
 
+    # 构建小说设定部分（根据创作模式不同显示不同内容）
+    if is_concept_mode:
+        # 构思模式：显示用户构思和类型
+        setting_section = (
+            "#=== 0) 小说设定 ===\n"
+            f"创作模式：构思模式\n"
+            f"类型：{genre},篇幅：约{number_of_chapters}章（每章{word_number}字）\n"
+            f"分卷：{'不分卷' if num_volumes <= 1 else f'{num_volumes}卷'}\n\n"
+            "#=== 0.5) 用户构思 ===\n"
+            f"{user_concept}\n\n"
+        )
+    else:
+        # 灵感模式：显示主题和类型
+        setting_section = (
+            "#=== 0) 小说设定 ===\n"
+            f"创作模式：灵感模式\n"
+            f"主题：{topic},类型：{genre},篇幅：约{number_of_chapters}章（每章{word_number}字）\n"
+            f"分卷：{'不分卷' if num_volumes <= 1 else f'{num_volumes}卷'}\n\n"
+        )
+
     final_content = (
-        "#=== 0) 小说设定 ===\n"
-        f"主题：{topic},类型：{genre},篇幅：约{number_of_chapters}章（每章{word_number}字）\n"
-        f"分卷：{'不分卷' if num_volumes <= 1 else f'{num_volumes}卷'}\n\n"
+        setting_section +
         "#=== 1) 核心种子 ===\n"
         f"{core_seed_result}\n\n"
         "#=== 2) 角色动力学 ===\n"

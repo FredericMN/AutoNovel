@@ -59,6 +59,16 @@ def generate_novel_architecture_ui(self):
             # 获取内容指导
             user_guidance = self.user_guide_text.get("0.0", "end").strip()
 
+            # 新增：获取创作模式和用户构思
+            creation_mode = self.get_creation_mode() if hasattr(self, 'get_creation_mode') else "灵感模式"
+            user_concept = self.get_user_concept() if hasattr(self, 'get_user_concept') else ""
+
+            # 构思模式下验证用户构思是否填写
+            if creation_mode == "构思模式" and not user_concept.strip():
+                messagebox.showwarning("警告", "构思模式下请填写您的故事构思")
+                self.enable_button_safe(self.btn_generate_architecture)
+                return
+
             # 强制校验分卷配置
             if not self.validate_volume_config():
                 self.enable_button_safe(self.btn_generate_architecture)
@@ -79,6 +89,8 @@ def generate_novel_architecture_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 user_guidance=user_guidance,  # 添加内容指导参数
+                creation_mode=creation_mode,  # 新增：传递创作模式
+                user_concept=user_concept,  # 新增：传递用户构思
                 use_global_system_prompt=None,  # 使用PromptManager配置
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )

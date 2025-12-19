@@ -25,21 +25,53 @@ def build_novel_params_area(self, start_row=1):
     self.save_status_indicator = SaveStatusIndicator(status_container)
     self.save_status_indicator.pack(side="right")
 
-    # 1) 主题(Topic)
-    create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="主题(Topic):", tooltip_key="topic", row=1, column=0, font=("Microsoft YaHei", 12), sticky="ne")
+    # 0) 创作模式选择器
+    create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="创作模式:", tooltip_key="creation_mode", row=1, column=0, font=("Microsoft YaHei", 12))
+
+    # 创作模式切换按钮（使用 CTkSegmentedButton）
+    # 从配置中恢复创作模式
+    default_mode = getattr(self, 'creation_mode_default', '灵感模式')
+    self.creation_mode_var = ctk.StringVar(value=default_mode)
+    self.creation_mode_selector = ctk.CTkSegmentedButton(
+        self.params_frame,
+        values=["灵感模式", "构思模式"],
+        variable=self.creation_mode_var,
+        command=lambda mode: _on_creation_mode_changed(self, mode),
+        font=("Microsoft YaHei", 11)
+    )
+    self.creation_mode_selector.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+    # 1) 主题(Topic) - 灵感模式下显示
+    self.topic_label_frame = create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="主题(Topic):", tooltip_key="topic", row=2, column=0, font=("Microsoft YaHei", 12), sticky="ne")
     self.topic_text = ctk.CTkTextbox(self.params_frame, height=70, wrap="word", font=("Microsoft YaHei", 12))
     TextWidgetContextMenu(self.topic_text)
-    self.topic_text.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+    self.topic_text.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
     if hasattr(self, 'topic_default') and self.topic_default:
         self.topic_text.insert("0.0", self.topic_default)
 
+    # 1.5) 用户构思输入框 - 构思模式下显示（初始隐藏）
+    self.user_concept_label_frame = create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="故事构思:", tooltip_key="user_concept", row=2, column=0, font=("Microsoft YaHei", 12), sticky="ne")
+    self.user_concept_text = ctk.CTkTextbox(self.params_frame, height=150, wrap="word", font=("Microsoft YaHei", 12))
+    TextWidgetContextMenu(self.user_concept_text)
+    self.user_concept_text.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
+    # 从配置中恢复用户构思
+    if hasattr(self, 'user_concept_default') and self.user_concept_default:
+        self.user_concept_text.insert("0.0", self.user_concept_default)
+    # 根据默认创作模式显示/隐藏对应输入框
+    if default_mode == "灵感模式":
+        self.user_concept_label_frame.grid_remove()
+        self.user_concept_text.grid_remove()
+    else:
+        self.topic_label_frame.grid_remove()
+        self.topic_text.grid_remove()
+
     # 2) 类型(Genre)
-    create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="类型(Genre):", tooltip_key="genre", row=2, column=0, font=("Microsoft YaHei", 12))
+    create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="类型(Genre):", tooltip_key="genre", row=3, column=0, font=("Microsoft YaHei", 12))
     genre_entry = ctk.CTkEntry(self.params_frame, textvariable=self.genre_var, font=("Microsoft YaHei", 12))
-    genre_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+    genre_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
 
     # 3) 小说结构（章节数 & 每章字数 & 分卷数量）
-    row_for_chapter_and_word = 3
+    row_for_chapter_and_word = 4
     create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="小说结构:", tooltip_key="num_chapters", row=row_for_chapter_and_word, column=0, font=("Microsoft YaHei", 12))
     chapter_word_frame = ctk.CTkFrame(self.params_frame)
     chapter_word_frame.grid(row=row_for_chapter_and_word, column=1, padx=5, pady=5, sticky="ew")
@@ -89,7 +121,7 @@ def build_novel_params_area(self, start_row=1):
     self.config_locked = False
 
     # 4) 保存路径
-    row_fp = 4
+    row_fp = 5
     create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="保存路径:", tooltip_key="filepath", row=row_fp, column=0, font=("Microsoft YaHei", 12))
     self.filepath_frame = ctk.CTkFrame(self.params_frame)
     self.filepath_frame.grid(row=row_fp, column=1, padx=5, pady=5, sticky="nsew")
@@ -100,13 +132,13 @@ def build_novel_params_area(self, start_row=1):
     browse_btn.grid(row=0, column=1, padx=3, pady=3, sticky="e")
 
     # 5) 章节号
-    row_chap_num = 5
+    row_chap_num = 6
     create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="章节号:", tooltip_key="chapter_num", row=row_chap_num, column=0, font=("Microsoft YaHei", 12))
     chapter_num_entry = ctk.CTkEntry(self.params_frame, textvariable=self.chapter_num_var, width=80, font=("Microsoft YaHei", 12))
     chapter_num_entry.grid(row=row_chap_num, column=1, padx=5, pady=5, sticky="w")
 
     # 6) 内容指导
-    row_user_guide = 6
+    row_user_guide = 7
     create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="内容指导:", tooltip_key="user_guidance", row=row_user_guide, column=0, font=("Microsoft YaHei", 12), sticky="ne")
     self.user_guide_text = ctk.CTkTextbox(self.params_frame, height=70, wrap="word", font=("Microsoft YaHei", 12))
     TextWidgetContextMenu(self.user_guide_text)
@@ -115,7 +147,7 @@ def build_novel_params_area(self, start_row=1):
         self.user_guide_text.insert("0.0", self.user_guidance_default)
 
     # 7) 可选元素：核心人物/关键道具/空间坐标/时间压力
-    row_idx = 7
+    row_idx = 8
     create_label_with_help_for_novel_params(self, parent=self.params_frame, label_text="核心人物:", tooltip_key="characters_involved", row=row_idx, column=0, font=("Microsoft YaHei", 12))
 
     # 核心人物输入框+按钮容器
@@ -301,5 +333,50 @@ def setup_novel_params_change_listeners(self):
     self.topic_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
     self.user_guide_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
     self.char_inv_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
+
+    # 新增：用户构思输入框的变更监听
+    if hasattr(self, 'user_concept_text'):
+        self.user_concept_text.bind("<KeyRelease>", lambda e: mark_unsaved_debounced())
+
+    # 新增：创作模式变更监听
+    if hasattr(self, 'creation_mode_var'):
+        self.creation_mode_var.trace_add("write", mark_unsaved)
+
+
+def _on_creation_mode_changed(self, mode):
+    """
+    创作模式切换回调函数
+
+    灵感模式：显示主题输入框，隐藏故事构思输入框
+    构思模式：隐藏主题输入框，显示故事构思输入框
+    """
+    if mode == "灵感模式":
+        # 显示主题输入框
+        self.topic_label_frame.grid()
+        self.topic_text.grid()
+        # 隐藏构思输入框
+        self.user_concept_label_frame.grid_remove()
+        self.user_concept_text.grid_remove()
+    else:  # 构思模式
+        # 隐藏主题输入框
+        self.topic_label_frame.grid_remove()
+        self.topic_text.grid_remove()
+        # 显示构思输入框
+        self.user_concept_label_frame.grid()
+        self.user_concept_text.grid()
+
+
+def get_creation_mode(self):
+    """获取当前创作模式"""
+    if hasattr(self, 'creation_mode_var'):
+        return self.creation_mode_var.get()
+    return "灵感模式"  # 默认灵感模式
+
+
+def get_user_concept(self):
+    """获取用户构思内容"""
+    if hasattr(self, 'user_concept_text'):
+        return self.user_concept_text.get("0.0", "end").strip()
+    return ""
 
 

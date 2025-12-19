@@ -31,7 +31,7 @@ except ImportError:
 
 from ui.context_menu import TextWidgetContextMenu
 from ui.main_tab import build_main_tab, build_left_layout, build_right_layout
-from ui.novel_params_tab import build_novel_params_area, build_optional_buttons_area
+from ui.novel_params_tab import build_novel_params_area, build_optional_buttons_area, get_creation_mode, get_user_concept
 from ui.generation_handlers import (
     generate_novel_architecture_ui,
     generate_chapter_blueprint_ui,
@@ -171,6 +171,9 @@ class NovelGeneratorGUI:
             self.webdav_url_var = ctk.StringVar(value=op.get("webdav_url", ""))
             self.webdav_username_var = ctk.StringVar(value=op.get("webdav_username", ""))
             self.webdav_password_var = ctk.StringVar(value=op.get("webdav_password", ""))
+            # 新增：创作模式和用户构思
+            self.creation_mode_default = op.get("creation_mode", "灵感模式")
+            self.user_concept_default = op.get("user_concept", "")
 
         else:
             self.topic_default = ""
@@ -185,6 +188,9 @@ class NovelGeneratorGUI:
             self.scene_location_var = ctk.StringVar(value="")
             self.time_constraint_var = ctk.StringVar(value="")
             self.user_guidance_default = ""
+            # 新增：创作模式和用户构思默认值
+            self.creation_mode_default = "灵感模式"
+            self.user_concept_default = ""
 
         # --------------- 整体Tab布局 ---------------
         # 添加顶部边距，营造iOS风格的留白感
@@ -264,6 +270,10 @@ class NovelGeneratorGUI:
         # 【防呆3：设置小说参数变更监听器】
         from ui.novel_params_tab import setup_novel_params_change_listeners
         setup_novel_params_change_listeners(self)
+
+        # 绑定创作模式相关方法（供generation_handlers使用）
+        self.get_creation_mode = lambda: get_creation_mode(self)
+        self.get_user_concept = lambda: get_user_concept(self)
 
         # 【优化3：初始加载完成后，标记为已保存状态】
         if hasattr(self, 'save_status_indicator'):
@@ -639,7 +649,10 @@ class NovelGeneratorGUI:
                 "characters_involved": self.char_inv_text.get("0.0", "end").strip(),
                 "key_items": self.key_items_var.get().strip(),
                 "scene_location": self.scene_location_var.get().strip(),
-                "time_constraint": self.time_constraint_var.get().strip()
+                "time_constraint": self.time_constraint_var.get().strip(),
+                # 新增：保存创作模式和用户构思
+                "creation_mode": self.get_creation_mode() if hasattr(self, 'get_creation_mode') else "灵感模式",
+                "user_concept": self.get_user_concept() if hasattr(self, 'get_user_concept') else ""
             }
 
             # 【防呆2：配置变更检测】

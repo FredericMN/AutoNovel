@@ -76,6 +76,47 @@
           "volume_format_examples"
         ],
         "dependencies": []
+      },
+      "user_concept_to_core_seed": {
+        "enabled": true,
+        "required": false,
+        "display_name": "构思提炼核心种子",
+        "description": "【构思模式】从用户已有故事构思中提炼核心种子",
+        "file": "custom_prompts/user_concept_to_core_seed_prompt.txt",
+        "dependencies": [],
+        "variables": [
+          "user_concept",
+          "genre",
+          "number_of_chapters",
+          "word_number",
+          "user_guidance"
+        ]
+      },
+      "concept_character_dynamics": {
+        "enabled": true,
+        "required": false,
+        "display_name": "构思角色动力学",
+        "description": "【构思模式】基于用户构思设计角色，优先采用用户已有角色设定",
+        "file": "custom_prompts/concept_character_dynamics_prompt.txt",
+        "dependencies": ["user_concept_to_core_seed"],
+        "variables": [
+          "user_concept",
+          "core_seed",
+          "user_guidance"
+        ]
+      },
+      "concept_world_building": {
+        "enabled": true,
+        "required": false,
+        "display_name": "构思世界观构建",
+        "description": "【构思模式】基于用户构思构建世界观，优先采用用户已有设定",
+        "file": "custom_prompts/concept_world_building_prompt.txt",
+        "dependencies": ["user_concept_to_core_seed"],
+        "variables": [
+          "user_concept",
+          "core_seed",
+          "user_guidance"
+        ]
       }
     },
     "blueprint": {
@@ -100,8 +141,10 @@
         "file": "custom_prompts/chunked_chapter_blueprint_prompt.txt",
         "variables": [
           "novel_architecture",
-          "start_chapter",
-          "end_chapter",
+          "chapter_list",
+          "number_of_chapters",
+          "n",
+          "m",
           "user_guidance"
         ],
         "dependencies": []
@@ -202,7 +245,7 @@
         "dependencies": []
       },
       "critique": {
-        "enabled": true,
+        "enabled": false,
         "required": false,
         "display_name": "批评家审阅【Plan C】",
         "description": "【Plan C - 默认关闭】对初稿进行批评性分析，指出逻辑和文笔问题。⚠️ 启用后每章增加2次API调用，成本较高",
@@ -215,7 +258,7 @@
         "dependencies": []
       },
       "refine": {
-        "enabled": true,
+        "enabled": false,
         "required": false,
         "display_name": "作家重写【Plan C】",
         "description": "【Plan C - 默认关闭】根据批评意见重写章节，需与批评家模块同时启用才能生效",
@@ -251,7 +294,21 @@
         "variables": [
           "combined_text",
           "novel_number",
-          "chapter_title"
+          "chapter_title",
+          "chapter_role",
+          "chapter_purpose",
+          "suspense_level",
+          "foreshadowing",
+          "plot_twist_level",
+          "chapter_summary",
+          "next_chapter_number",
+          "next_chapter_title",
+          "next_chapter_role",
+          "next_chapter_purpose",
+          "next_chapter_suspense_level",
+          "next_chapter_foreshadowing",
+          "next_chapter_plot_twist_level",
+          "next_chapter_summary"
         ],
         "dependencies": []
       }
@@ -357,8 +414,17 @@
         "description": "从知识库中搜索相关内容",
         "file": "custom_prompts/knowledge_search_prompt.txt",
         "variables": [
-          "chapter_info",
-          "knowledge_content"
+          "chapter_number",
+          "chapter_title",
+          "characters_involved",
+          "key_items",
+          "scene_location",
+          "chapter_role",
+          "chapter_purpose",
+          "foreshadowing",
+          "short_summary",
+          "user_guidance",
+          "time_constraint"
         ],
         "dependencies": []
       },
@@ -369,8 +435,8 @@
         "description": "过滤知识库搜索结果",
         "file": "custom_prompts/knowledge_filter_prompt.txt",
         "variables": [
-          "chapter_info",
-          "knowledge_chunks"
+          "retrieved_texts",
+          "chapter_info"
         ],
         "dependencies": []
       },
