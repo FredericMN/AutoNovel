@@ -8,6 +8,9 @@ import re
 import time
 import traceback
 import html
+import os
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from core.utils.file_utils import get_log_file_path
 from core.utils.error_utils import is_rate_limit_error, is_rate_limit_text
@@ -17,8 +20,48 @@ logging.basicConfig(
     filemode='a',            # 追加模式（'w' 会覆盖）
     level=logging.INFO,      # 记录 INFO 及以上级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S',
+    encoding='utf-8'
 )
+
+LLM_STDOUT_ENABLED = os.getenv("AUTONOVEL_LLM_STDOUT", "").lower() in ("1", "true", "yes")
+LLM_LOG_PAYLOAD_ENABLED = os.getenv("AUTONOVEL_LLM_LOG_PAYLOAD", "").lower() in ("1", "true", "yes")
+LLM_LOG_FULL_ENABLED = os.getenv("AUTONOVEL_LLM_LOG_FULL", "").lower() in ("1", "true", "yes")
+try:
+    LLM_LOG_TRUNCATE = int(os.getenv("AUTONOVEL_LLM_LOG_TRUNCATE", "2000"))
+except ValueError:
+    LLM_LOG_TRUNCATE = 2000
+
+def _truncate_text(text: str, limit: int) -> str:
+    if limit <= 0:
+        return ""
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}\n...（已截断 {len(text) - limit} 字）"
+
+def _console_log(message: str):
+    if LLM_STDOUT_ENABLED:
+        print(message)
+
+def _log_llm_payload(label: str, text: str):
+    if LLM_LOG_PAYLOAD_ENABLED:
+        if text is None:
+            logging.info("%s: <empty>", label)
+        else:
+            truncated = _truncate_text(text, LLM_LOG_TRUNCATE)
+            logging.info("%s (len=%d):\n%s", label, len(text), truncated)
+
+    if LLM_LOG_FULL_ENABLED and text:
+        try:
+            log_dir = Path(get_log_file_path()).parent / "llm_debug"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            file_path = log_dir / f"{timestamp}_{label.strip('[]')}.txt"
+            file_path.write_text(text, encoding="utf-8")
+        except Exception as e:
+            logging.warning(f"Failed to write full LLM payload log: {e}")
 
 def call_with_retry(func, max_retries=3, sleep_time=2, fallback_return=None, **kwargs):
     """
@@ -243,12 +286,8 @@ def analyze_empty_response(original_text: str) -> tuple[str, str]:
     return cleaned, "valid"
 
 def debug_log(prompt: str, response_content: str):
-    logging.info(
-        f"\n[#########################################  Prompt  #########################################]\n{prompt}\n"
-    )
-    logging.info(
-        f"\n[######################################### Response #########################################]\n{response_content}\n"
-    )
+    _log_llm_payload("[Prompt]", prompt)
+    _log_llm_payload("[Response]", response_content)
 
 def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system_prompt: Optional[str] = None) -> str:
     """
@@ -261,15 +300,16 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
     """
     active_system_prompt = (system_prompt or "").strip()
 
-    print("" + "=" * 50)
-    print("发送到 LLM 的提示词:")
-    print("-" * 50)
+    logging.info(
+        "LLM call start (prompt_len=%d, system_prompt_len=%d)",
+        len(prompt),
+        len(active_system_prompt)
+    )
     if active_system_prompt:
-        print("[System]")
-        print(active_system_prompt)
-        print("-" * 50)
-    print(prompt)
-    print("=" * 50 + "")
+        _log_llm_payload("[System]", active_system_prompt)
+    else:
+        logging.info("[System]: <empty>")
+    _log_llm_payload("[Prompt]", prompt)
 
     result = ""
     retry_count = 0
@@ -278,11 +318,8 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
     while retry_count < max_retries:
         try:
             result = llm_adapter.invoke(prompt, system_prompt=active_system_prompt)
-            print("" + "=" * 50)
-            print("LLM 返回的内容:")
-            print("-" * 50)
-            print(result)
-            print("=" * 50 + "")
+            logging.info("LLM response received (len=%d)", len(result))
+            _log_llm_payload("[Response]", result)
 
             # 使用增强的清理和分析逻辑
             cleaned_result, empty_type = analyze_empty_response(result)
@@ -290,7 +327,8 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
             if empty_type == "valid":
                 # 有效内容，返回清理后的结果
                 if retry_count > 0:
-                    print(f"✅ 重试成功！（第 {retry_count + 1} 次尝试）")
+                    msg = f"✅ 重试成功！（第 {retry_count + 1} 次尝试）"
+                    _console_log(msg)
                     logging.info(f"LLM call succeeded after {retry_count} retries")
                 return cleaned_result
 
@@ -317,22 +355,23 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
                     # 文本形式的限流错误：与异常限流保持一致，指数退避（最长60秒）
                     wait_time = (2 ** retry_count) * base_wait_time
                     wait_time = min(wait_time, 60)
-                    print(f"⚠️ LLM {empty_msg}（疑似限流）(第 {retry_count}/{max_retries} 次尝试)")
+                    msg = f"⚠️ LLM {empty_msg}（疑似限流）(第 {retry_count}/{max_retries} 次尝试)"
                 else:
                     # 其他 API 错误文本：线性递增（最长4秒），避免等待过久
                     wait_time = base_wait_time * retry_count
                     wait_time = min(wait_time, 4)
-                    print(f"⚠️ LLM {empty_msg} (第 {retry_count}/{max_retries} 次尝试)")
+                    msg = f"⚠️ LLM {empty_msg} (第 {retry_count}/{max_retries} 次尝试)"
 
-                print(f"   错误内容: {error_preview}")
-                print(f"   等待 {wait_time} 秒后重试...")
+                _console_log(msg)
+                _console_log(f"   错误内容: {error_preview}")
+                _console_log(f"   等待 {wait_time} 秒后重试...")
                 logging.warning(
                     f"LLM API error response - retry {retry_count}/{max_retries}, waiting {wait_time}s. Error: {error_preview}"
                 )
 
                 if retry_count >= max_retries:
-                    print(f"❌ LLM 连续 {max_retries} 次{empty_msg}，生成失败")
-                    print(f"   最后一次错误: {error_preview}")
+                    _console_log(f"❌ LLM 连续 {max_retries} 次{empty_msg}，生成失败")
+                    _console_log(f"   最后一次错误: {error_preview}")
                     logging.error(f"LLM API error after {max_retries} attempts - Final error: {error_preview}")
                     return ""
 
@@ -343,15 +382,15 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
                 wait_time = base_wait_time * retry_count
                 wait_time = min(wait_time, 4)  # 最多等待4秒
 
-                print(f"⚠️ LLM {empty_msg} (第 {retry_count}/{max_retries} 次尝试)")
-                print(f"   原始回复: {repr(result[:100])}")  # 显示原始回复的前100字符
-                print(f"   等待 {wait_time} 秒后重试...")
+                _console_log(f"⚠️ LLM {empty_msg} (第 {retry_count}/{max_retries} 次尝试)")
+                _console_log(f"   原始回复: {repr(result[:100])}")  # 显示原始回复的前100字符
+                _console_log(f"   等待 {wait_time} 秒后重试...")
                 logging.warning(f"LLM empty response - Type: {empty_type}, retry {retry_count}/{max_retries}, waiting {wait_time}s. Original: {repr(result[:200])}")
 
                 time.sleep(wait_time)
             else:
-                print(f"❌ LLM 连续 {max_retries} 次{empty_msg}，生成失败")
-                print(f"   最后一次回复: {repr(result[:100])}")
+                _console_log(f"❌ LLM 连续 {max_retries} 次{empty_msg}，生成失败")
+                _console_log(f"   最后一次回复: {repr(result[:100])}")
                 logging.error(f"LLM empty response after {max_retries} attempts - Final type: {empty_type}. Last response: {repr(result[:200])}")
                 # 返回空字符串，由上层代码处理
                 return ""
@@ -367,13 +406,13 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
                 # 最长等待60秒
                 wait_time = min(wait_time, 60)
 
-                print(f"⚠️ 遇到速率限制 (第 {retry_count}/{max_retries} 次尝试)")
-                print(f"   错误信息: {error_msg[:100]}...")
-                print(f"   等待 {wait_time} 秒后重试...")
+                _console_log(f"⚠️ 遇到速率限制 (第 {retry_count}/{max_retries} 次尝试)")
+                _console_log(f"   错误信息: {error_msg[:100]}...")
+                _console_log(f"   等待 {wait_time} 秒后重试...")
                 logging.warning(f"[Rate Limit] Attempt {retry_count}/{max_retries}, waiting {wait_time}s. Error: {error_msg[:200]}")
 
                 if retry_count >= max_retries:
-                    print(f"❌ 已达到最大重试次数，请稍后再试")
+                    _console_log("❌ 已达到最大重试次数，请稍后再试")
                     logging.error(f"Rate limit exceeded after {max_retries} retries")
                     raise  # 保留原始堆栈信息
 
@@ -381,19 +420,19 @@ def invoke_with_cleaning(llm_adapter, prompt: str, max_retries: int = 10, system
 
             else:
                 # 非速率限制错误，使用普通重试
-                print(f"⚠️ 调用失败 (第 {retry_count}/{max_retries} 次尝试)")
-                print(f"   错误信息: {error_msg[:100]}...")
+                _console_log(f"⚠️ 调用失败 (第 {retry_count}/{max_retries} 次尝试)")
+                _console_log(f"   错误信息: {error_msg[:100]}...")
                 logging.error(f"[LLM Error] Attempt {retry_count}/{max_retries}: {error_msg}")
 
                 if retry_count >= max_retries:
-                    print(f"❌ 已达到最大重试次数")
+                    _console_log("❌ 已达到最大重试次数")
                     logging.error(f"LLM call failed after {max_retries} attempts")
                     raise  # 保留原始堆栈信息
 
                 # 普通错误使用递增等待：2秒 -> 4秒 -> 6秒
                 wait_time = base_wait_time * retry_count
                 wait_time = min(wait_time, 10)  # 最多等待10秒
-                print(f"   等待 {wait_time} 秒后重试...")
+                _console_log(f"   等待 {wait_time} 秒后重试...")
                 time.sleep(wait_time)
 
     # 理论上不会到达这里（空回复已在循环内返回）

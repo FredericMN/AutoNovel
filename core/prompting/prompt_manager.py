@@ -311,7 +311,7 @@ class PromptManager:
                         "description": "【Plan C - 默认关闭】对初稿进行批评性分析，指出逻辑和文笔问题。⚠️ 启用后每章增加2次API调用，成本较高",
                         "file": "custom_prompts/critique_prompt.txt",
                         "dependencies": [],
-                        "variables": ["novel_number", "chapter_title", "chapter_text"]
+                        "variables": ["novel_number", "chapter_title", "chapter_text", "short_summary", "previous_chapter_excerpt"]
                     },
                     "refine": {
                         "enabled": False,
@@ -320,7 +320,7 @@ class PromptManager:
                         "description": "【Plan C - 默认关闭】根据批评意见重写章节，需与批评家模块同时启用才能生效",
                         "file": "custom_prompts/refine_prompt.txt",
                         "dependencies": ["critique"],
-                        "variables": ["critique", "draft_text", "word_number"]
+                        "variables": ["critique", "draft_text", "word_number", "short_summary", "previous_chapter_excerpt"]
                     },
                     "single_chapter_summary": {
                         "enabled": True,

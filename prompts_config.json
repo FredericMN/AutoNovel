@@ -257,7 +257,9 @@
         "variables": [
           "novel_number",
           "chapter_title",
-          "chapter_text"
+          "chapter_text",
+          "short_summary",
+          "previous_chapter_excerpt"
         ],
         "dependencies": []
       },
@@ -270,7 +272,9 @@
         "variables": [
           "critique",
           "draft_text",
-          "word_number"
+          "word_number",
+          "short_summary",
+          "previous_chapter_excerpt"
         ],
         "dependencies": [
           "critique"

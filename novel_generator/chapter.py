@@ -21,7 +21,7 @@ from core.prompting.prompt_definitions import (
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
 from core.utils.chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
-from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, get_log_file_path
+from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, save_data_to_json, get_log_file_path
 from novel_generator.vectorstore_utils import load_vector_store
 from core.utils.volume_utils import (
     get_volume_number,
@@ -1121,6 +1121,20 @@ def build_chapter_prompt(
             previous_excerpt = text[-800:] if len(text) > 800 else text
             break
 
+    # 缓存本章上下文（供 Plan C 重写使用，避免重复计算）
+    if novel_number > 1:
+        context_cache = {
+            "novel_number": novel_number,
+            "short_summary": short_summary,
+            "previous_chapter_excerpt": previous_excerpt
+        }
+        context_cache_file = os.path.join(chapters_dir, f"chapter_{novel_number}_context.json")
+        try:
+            save_data_to_json(context_cache, context_cache_file)
+            logging.info(f"Saved Plan C context cache: {context_cache_file}")
+        except Exception as e:
+            logging.warning(f"Failed to save Plan C context cache: {e}")
+
     # 知识库检索和处理
     try:
         gui_log("\n━━━━ 知识库检索 ━━━━")
@@ -1477,16 +1491,75 @@ def generate_chapter_draft(
             chap_info = get_chapter_info_from_blueprint(blueprint_text, novel_number) if blueprint_text else {}
             chap_title = chap_info.get("chapter_title", "")
 
+            # 读取 Plan C 上下文（前文提要 + 上一章结尾）
+            context_short_summary = ""
+            context_prev_excerpt = ""
+
+            if novel_number > 1:
+                context_cache_file = os.path.join(chapters_dir, f"chapter_{novel_number}_context.json")
+                cache_is_fresh = False
+                if os.path.exists(context_cache_file):
+                    try:
+                        cache_mtime = os.path.getmtime(context_cache_file)
+                        prev_chapter_file = os.path.join(chapters_dir, f"chapter_{novel_number - 1}.txt")
+                        global_summary_file = os.path.join(filepath, "global_summary.txt")
+
+                        cache_is_fresh = True
+                        if os.path.exists(prev_chapter_file):
+                            if os.path.getmtime(prev_chapter_file) > cache_mtime:
+                                cache_is_fresh = False
+                        if os.path.exists(global_summary_file):
+                            if os.path.getmtime(global_summary_file) > cache_mtime:
+                                cache_is_fresh = False
+
+                        if cache_is_fresh:
+                            with open(context_cache_file, "r", encoding="utf-8") as f:
+                                context_cache = json.load(f)
+                            context_short_summary = context_cache.get("short_summary", "").strip()
+                            context_prev_excerpt = context_cache.get("previous_chapter_excerpt", "").strip()
+                        else:
+                            logging.info("Plan C context cache is stale, fallback to latest files")
+                    except Exception as e:
+                        logging.warning(f"Failed to read Plan C context cache: {e}")
+
+                # 若缓存缺失，尝试从章节文件回退
+                if not context_prev_excerpt or not cache_is_fresh:
+                    recent_texts = get_last_n_chapters_text(chapters_dir, novel_number, n=2)
+                    for text in reversed(recent_texts):
+                        if text.strip():
+                            context_prev_excerpt = text[-800:] if len(text) > 800 else text
+                            break
+
+                # 若摘要缺失，尝试使用全局摘要兜底
+                if not context_short_summary or not cache_is_fresh:
+                    global_summary_file = os.path.join(filepath, "global_summary.txt")
+                    context_short_summary = read_file(global_summary_file).strip()
+
+            if not context_short_summary:
+                context_short_summary = "（暂无前文摘要）"
+            if not context_prev_excerpt:
+                context_prev_excerpt = "（暂无上一章内容）"
+
             gui_log("   ├─ 批评家正在审阅初稿...")
             critique_template = pm.get_prompt("chapter", "critique") if pm else ""
             if not critique_template:
                 critique_template = chapter_critique_prompt
 
-            critique_prompt_text = critique_template.format(
-                novel_number=novel_number,
-                chapter_title=chap_title,
-                chapter_text=chapter_content
-            )
+            try:
+                critique_prompt_text = critique_template.format(
+                    novel_number=novel_number,
+                    chapter_title=chap_title,
+                    chapter_text=chapter_content,
+                    short_summary=context_short_summary,
+                    previous_chapter_excerpt=context_prev_excerpt
+                )
+            except KeyError as e:
+                logging.warning(f"Critique prompt missing placeholder {e}, falling back without context")
+                critique_prompt_text = critique_template.format(
+                    novel_number=novel_number,
+                    chapter_title=chap_title,
+                    chapter_text=chapter_content
+                )
 
             critique_response = invoke_with_cleaning(llm_adapter, critique_prompt_text, system_prompt=system_prompt)
             gui_log(f"   ├─ 收到修改意见 ({len(critique_response)}字)")
@@ -1497,11 +1570,21 @@ def generate_chapter_draft(
             if not refine_template:
                 refine_template = chapter_refine_prompt
 
-            refine_prompt_text = refine_template.format(
-                critique=critique_response,
-                draft_text=chapter_content,
-                word_number=word_number
-            )
+            try:
+                refine_prompt_text = refine_template.format(
+                    critique=critique_response,
+                    draft_text=chapter_content,
+                    word_number=word_number,
+                    short_summary=context_short_summary,
+                    previous_chapter_excerpt=context_prev_excerpt
+                )
+            except KeyError as e:
+                logging.warning(f"Refine prompt missing placeholder {e}, falling back without context")
+                refine_prompt_text = refine_template.format(
+                    critique=critique_response,
+                    draft_text=chapter_content,
+                    word_number=word_number
+                )
 
             refined_content = invoke_with_cleaning(llm_adapter, refine_prompt_text, system_prompt=system_prompt)
 
