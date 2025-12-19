@@ -8,6 +8,10 @@ title AI_NovelGenerator - Run GUI
 rem Unbuffered, UTF-8 output from Python so logs are visible
 set PYTHONUNBUFFERED=1
 set PYTHONIOENCODING=utf-8
+set AUTONOVEL_LLM_STDOUT=1
+set AUTONOVEL_LLM_LOG_PAYLOAD=1
+rem set AUTONOVEL_LLM_LOG_FULL=1
+rem set AUTONOVEL_LLM_LOG_TRUNCATE=2000
 
 set "VENV_PY=%ROOT%venv\Scripts\python.exe"
 
