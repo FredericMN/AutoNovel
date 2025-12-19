@@ -5,11 +5,13 @@
 三列布局：模块列表 | 编辑器 | 操作面板
 """
 import os
+import re
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import logging
+from string import Formatter
 from core.prompting.prompt_manager import PromptManager
-from ui.ios_theme import IOSColors, IOSLayout, IOSStyles
+from ui.ios_theme import IOSColors, IOSLayout, IOSStyles, IOSFonts
 
 class PromptManagerTab(ctk.CTkFrame):
     """提示词管理页签"""
@@ -21,6 +23,7 @@ class PromptManagerTab(ctk.CTkFrame):
         "number_of_chapters": "总章节数",
         "word_number": "每章字数",
         "user_guidance": "用户的额外指导内容",
+        "user_concept": "用户提供的故事构思（构思模式专用）",
         "core_seed": "核心种子（主题、冲突）",
         "character_dynamics": "角色动力学设定",
         "world_building": "世界观设定",
@@ -94,6 +97,8 @@ class PromptManagerTab(ctk.CTkFrame):
         self.current_category = None
         self.current_module = None
         self.is_modified = False  # 跟踪是否有未保存的修改
+        self.module_items = {}
+        self.selected_item_key = None
 
         self.setup_ui()
         self.load_module_list()
@@ -130,7 +135,7 @@ class PromptManagerTab(ctk.CTkFrame):
         title_label = ctk.CTkLabel(
             left_frame,
             text="提示词模块",
-            font=("Microsoft YaHei", 16, "bold"),
+            font=IOSFonts.get_title_font(IOSLayout.FONT_SIZE_TITLE),
             text_color=IOSColors.TEXT_PRIMARY
         )
         title_label.pack(pady=(15, 10))
@@ -167,7 +172,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.editor_title = ctk.CTkLabel(
             title_frame,
             text="选择一个模块开始编辑",
-            font=("Microsoft YaHei", 16, "bold"),
+            font=IOSFonts.get_title_font(IOSLayout.FONT_SIZE_TITLE),
             text_color=IOSColors.TEXT_PRIMARY,
             anchor="w"
         )
@@ -176,7 +181,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.editor_subtitle = ctk.CTkLabel(
             title_frame,
             text="",
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL),
             text_color=IOSColors.TEXT_SECONDARY,
             anchor="w"
         )
@@ -186,7 +191,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.editor_textbox = ctk.CTkTextbox(
             center_frame,
             wrap="word",
-            font=("Microsoft YaHei", IOSLayout.FONT_SIZE_EDITOR),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_EDITOR),
             fg_color=IOSColors.BG_CARD,
             border_width=1,
             border_color=IOSColors.SEPARATOR,
@@ -202,7 +207,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.word_count_label = ctk.CTkLabel(
             stats_frame,
             text="字数：0",
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL),
             text_color=IOSColors.TEXT_SECONDARY
         )
         self.word_count_label.pack(side="left")
@@ -210,7 +215,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.modified_indicator = ctk.CTkLabel(
             stats_frame,
             text="",
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL),
             text_color=IOSColors.DANGER
         )
         self.modified_indicator.pack(side="right")
@@ -230,7 +235,7 @@ class PromptManagerTab(ctk.CTkFrame):
         title_label = ctk.CTkLabel(
             right_frame,
             text="操作面板",
-            font=("Microsoft YaHei", 16, "bold"),
+            font=IOSFonts.get_title_font(IOSLayout.FONT_SIZE_TITLE),
             text_color=IOSColors.TEXT_PRIMARY
         )
         title_label.pack(pady=(15, 20))
@@ -239,21 +244,21 @@ class PromptManagerTab(ctk.CTkFrame):
         self.enable_switch = ctk.CTkSwitch(
             right_frame,
             text="启用此模块",
-            font=("Microsoft YaHei", 12),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_NORMAL),
             command=self.toggle_module_enabled,
-            fg_color="#C7C7CC",  # 关闭时的灰色
+            fg_color=IOSColors.TEXT_PLACEHOLDER,  # 关闭时的灰色
             progress_color=IOSColors.SUCCESS  # 开启时的绿色
         )
         self.enable_switch.pack(pady=(0, 20))
 
         # 模块说明
-        self.info_frame = ctk.CTkFrame(right_frame, fg_color="#F5F5F5", corner_radius=8)
+        self.info_frame = ctk.CTkFrame(right_frame, fg_color=IOSColors.BG_CARD, corner_radius=8)
         self.info_frame.pack(fill="x", padx=15, pady=(0, 15))
 
         self.info_title = ctk.CTkLabel(
             self.info_frame,
             text="模块信息",
-            font=("Microsoft YaHei", 12, "bold"),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_NORMAL, "bold"),
             text_color=IOSColors.TEXT_PRIMARY,
             anchor="w"
         )
@@ -262,7 +267,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.info_text = ctk.CTkLabel(
             self.info_frame,
             text="",
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL),
             text_color=IOSColors.TEXT_SECONDARY,
             anchor="w",
             justify="left",
@@ -270,23 +275,60 @@ class PromptManagerTab(ctk.CTkFrame):
         )
         self.info_text.pack(anchor="w", padx=10, pady=(0, 10))
 
+        self.deps_text = ctk.CTkLabel(
+            self.info_frame,
+            text="依赖: 无",
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL),
+            text_color=IOSColors.TEXT_TERTIARY,
+            anchor="w",
+            justify="left",
+            wraplength=240
+        )
+        self.deps_text.pack(anchor="w", padx=10, pady=(0, 10))
+
         # 变量说明
-        self.vars_frame = ctk.CTkFrame(right_frame, fg_color="#F5F5F5", corner_radius=8)
+        self.vars_frame = ctk.CTkFrame(right_frame, fg_color=IOSColors.BG_CARD, corner_radius=8)
         self.vars_frame.pack(fill="x", padx=15, pady=(0, 15))
 
+        vars_header = ctk.CTkFrame(self.vars_frame, fg_color="transparent")
+        vars_header.pack(fill="x", padx=10, pady=(10, 5))
+
         vars_title = ctk.CTkLabel(
-            self.vars_frame,
+            vars_header,
             text="支持的变量",
-            font=("Microsoft YaHei", 12, "bold"),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_NORMAL, "bold"),
             text_color=IOSColors.TEXT_PRIMARY,
             anchor="w"
         )
-        vars_title.pack(anchor="w", padx=10, pady=(10, 5))
+        vars_title.pack(side="left")
+
+        vars_badge = ctk.CTkLabel(
+            vars_header,
+            text="🔒 只读",
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL, "bold"),
+            text_color=IOSColors.TEXT_SECONDARY,
+            fg_color=IOSColors.SEPARATOR,
+            corner_radius=6,
+            padx=6,
+            pady=2
+        )
+        vars_badge.pack(side="right")
+
+        self.vars_hint = ctk.CTkLabel(
+            self.vars_frame,
+            text="变量名由系统维护，用于确保模板与参数一致，无法修改。",
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_SMALL),
+            text_color=IOSColors.TEXT_SECONDARY,
+            anchor="w",
+            justify="left",
+            wraplength=240
+        )
+        self.vars_hint.pack(anchor="w", padx=10, pady=(0, 6))
 
         self.vars_text = ctk.CTkLabel(
             self.vars_frame,
             text="",
-            font=("Consolas", 10),
+            font=(IOSFonts.FONT_FAMILY_MONO, IOSLayout.FONT_SIZE_SMALL),
             text_color=IOSColors.TEXT_SECONDARY,
             anchor="w",
             justify="left",
@@ -342,6 +384,7 @@ class PromptManagerTab(ctk.CTkFrame):
     def load_module_list(self):
         """加载模块列表"""
         modules = self.pm.get_all_modules()
+        self.module_items = {}
 
         # 分类名称映射
         category_names = {
@@ -357,7 +400,7 @@ class PromptManagerTab(ctk.CTkFrame):
             category_label = ctk.CTkLabel(
                 self.modules_scroll,
                 text=category_names.get(category, category),
-                font=("Microsoft YaHei", 13, "bold"),
+                font=IOSFonts.get_font(IOSLayout.FONT_SIZE_MEDIUM, "bold"),
                 text_color=IOSColors.TEXT_PRIMARY,
                 anchor="w"
             )
@@ -367,11 +410,14 @@ class PromptManagerTab(ctk.CTkFrame):
             for name, info in category_modules.items():
                 self.create_module_item(category, name, info)
 
+        if self.selected_item_key:
+            self._set_selected_item(*self.selected_item_key)
+
     def create_module_item(self, category: str, name: str, info: dict):
         """创建单个模块项"""
         item_frame = ctk.CTkFrame(
             self.modules_scroll,
-            fg_color="#FFFFFF",
+            fg_color=IOSColors.BG_CARD,
             border_width=1,
             border_color=IOSColors.SEPARATOR,
             corner_radius=8
@@ -387,10 +433,10 @@ class PromptManagerTab(ctk.CTkFrame):
             left_frame,
             text="",
             width=20,
-            command=lambda: self.toggle_module(category, name, checkbox),
             fg_color=IOSColors.SUCCESS,
             hover_color=IOSColors.SUCCESS
         )
+        checkbox.configure(command=lambda c=category, n=name, cb=checkbox: self.toggle_module(c, n, cb))
         checkbox.pack(side="left")
 
         if info["enabled"]:
@@ -408,14 +454,15 @@ class PromptManagerTab(ctk.CTkFrame):
         name_label = ctk.CTkButton(
             left_frame,
             text=display_name,
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(IOSLayout.FONT_SIZE_NORMAL),
             fg_color="transparent",
             text_color=IOSColors.TEXT_PRIMARY,
-            hover_color="#E8E8ED",
+            hover_color=IOSColors.BG_TERTIARY,
             anchor="w",
-            command=lambda: self.select_module(category, name)
+            command=lambda c=category, n=name: self.select_module(c, n)
         )
         name_label.pack(side="left", fill="both", expand=True, padx=10)
+        self.module_items[(category, name)] = {"frame": item_frame, "label": name_label}
 
     def select_module(self, category: str, name: str):
         """选择模块进行编辑"""
@@ -427,6 +474,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.current_category = category
         self.current_module = name
         self.is_modified = False
+        self._set_selected_item(category, name)
 
         # 加载模块信息
         info = self.pm.get_module_info(category, name)
@@ -452,6 +500,12 @@ class PromptManagerTab(ctk.CTkFrame):
 
         # 更新模块信息
         self.info_text.configure(text=info.get("description", ""))
+        deps = info.get("dependencies", [])
+        if deps:
+            deps_text = "依赖: " + ", ".join(deps)
+        else:
+            deps_text = "依赖: 无"
+        self.deps_text.configure(text=deps_text)
 
         # 更新变量列表
         variables = info.get("variables", [])
@@ -529,14 +583,67 @@ class PromptManagerTab(ctk.CTkFrame):
             messagebox.showwarning("警告", "提示词内容不能为空")
             return
 
+        # 占位符校验：只允许使用系统支持的变量名
+        info = self.pm.get_module_info(self.current_category, self.current_module) or {}
+        expected_vars = set(info.get("variables", []) or [])
+        used_vars = self._extract_placeholders(content)
+        invalid_vars = sorted(used_vars - expected_vars)
+        unused_vars = sorted(expected_vars - used_vars)
+
+        if invalid_vars:
+            messagebox.showerror(
+                "保存失败：无效占位符",
+                "检测到以下占位符未被系统支持，请修正后再保存。\n"
+                "请检查拼写，或仅使用右侧“支持的变量”列表中的变量。\n\n"
+                + "\n".join([f"• {{{name}}}" for name in invalid_vars])
+            )
+            return
+
+        if unused_vars:
+            proceed = messagebox.askyesno(
+                "提示：未使用变量",
+                "当前提示词未使用以下可用变量：\n\n"
+                + "\n".join([f"• {{{name}}}" for name in unused_vars])
+                + "\n\n是否仍要保存？"
+            )
+            if not proceed:
+                return
+
         try:
             self.pm.save_custom_prompt(self.current_category, self.current_module, content)
             self.is_modified = False
             self.modified_indicator.configure(text="✅ 已保存", text_color=IOSColors.SUCCESS)
             messagebox.showinfo("成功", "提示词已保存")
+            logging.info("Prompt saved: %s.%s", self.current_category, self.current_module)
         except Exception as e:
             messagebox.showerror("错误", f"保存失败: {str(e)}")
             logging.error(f"Failed to save prompt: {e}")
+
+    def _extract_placeholders(self, content: str) -> set:
+        """提取提示词中的占位符变量名（仅取根变量）"""
+        formatter = Formatter()
+        placeholders = set()
+        for _, field_name, _, _ in formatter.parse(content):
+            if not field_name:
+                continue
+            name_only = field_name.split("!")[0].split(":")[0]
+            name_only = re.split(r"[\[\.]", name_only, 1)[0]
+            if name_only:
+                placeholders.add(name_only)
+        return placeholders
+
+    def _set_selected_item(self, category: str, name: str):
+        """高亮当前选中的模块项"""
+        key = (category, name)
+        if self.selected_item_key in self.module_items:
+            prev = self.module_items[self.selected_item_key]
+            prev["frame"].configure(fg_color=IOSColors.BG_CARD)
+            prev["label"].configure(text_color=IOSColors.TEXT_PRIMARY)
+        if key in self.module_items:
+            current = self.module_items[key]
+            current["frame"].configure(fg_color=IOSColors.BG_TERTIARY)
+            current["label"].configure(text_color=IOSColors.PRIMARY)
+            self.selected_item_key = key
 
     def reset_to_default(self):
         """重置为默认提示词"""
@@ -552,6 +659,7 @@ class PromptManagerTab(ctk.CTkFrame):
             # 重新加载
             self.select_module(self.current_category, self.current_module)
             messagebox.showinfo("成功", "已重置为默认提示词")
+            logging.info("Prompt reset to default: %s.%s", self.current_category, self.current_module)
         except Exception as e:
             messagebox.showerror("错误", f"重置失败: {str(e)}")
             logging.error(f"Failed to reset prompt: {e}")
@@ -577,6 +685,7 @@ class PromptManagerTab(ctk.CTkFrame):
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             messagebox.showinfo("成功", f"提示词已导出至:\n{file_path}")
+            logging.info("Prompt exported: %s", file_path)
         except Exception as e:
             messagebox.showerror("错误", f"导出失败: {str(e)}")
             logging.error(f"Failed to export prompt: {e}")
@@ -603,6 +712,7 @@ class PromptManagerTab(ctk.CTkFrame):
             self.editor_textbox.insert("1.0", content)
             self.on_text_modified()  # 标记为已修改
             messagebox.showinfo("成功", "提示词已导入，请点击保存按钮")
+            logging.info("Prompt imported: %s", file_path)
         except Exception as e:
             messagebox.showerror("错误", f"导入失败: {str(e)}")
             logging.error(f"Failed to import prompt: {e}")
