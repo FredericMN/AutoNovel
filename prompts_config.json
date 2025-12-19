@@ -98,7 +98,9 @@
         "display_name": "构思角色动力学",
         "description": "【构思模式】基于用户构思设计角色，优先采用用户已有角色设定",
         "file": "custom_prompts/concept_character_dynamics_prompt.txt",
-        "dependencies": ["user_concept_to_core_seed"],
+        "dependencies": [
+          "user_concept_to_core_seed"
+        ],
         "variables": [
           "user_concept",
           "core_seed",
@@ -111,7 +113,9 @@
         "display_name": "构思世界观构建",
         "description": "【构思模式】基于用户构思构建世界观，优先采用用户已有设定",
         "file": "custom_prompts/concept_world_building_prompt.txt",
-        "dependencies": ["user_concept_to_core_seed"],
+        "dependencies": [
+          "user_concept_to_core_seed"
+        ],
         "variables": [
           "user_concept",
           "core_seed",
@@ -245,7 +249,7 @@
         "dependencies": []
       },
       "critique": {
-        "enabled": false,
+        "enabled": true,
         "required": false,
         "display_name": "批评家审阅【Plan C】",
         "description": "【Plan C - 默认关闭】对初稿进行批评性分析，指出逻辑和文笔问题。⚠️ 启用后每章增加2次API调用，成本较高",
@@ -258,7 +262,7 @@
         "dependencies": []
       },
       "refine": {
-        "enabled": false,
+        "enabled": true,
         "required": false,
         "display_name": "作家重写【Plan C】",
         "description": "【Plan C - 默认关闭】根据批评意见重写章节，需与批评家模块同时启用才能生效",
