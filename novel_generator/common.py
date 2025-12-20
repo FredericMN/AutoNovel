@@ -124,20 +124,22 @@ def analyze_empty_response(original_text: str) -> tuple[str, str]:
 
     refuse_patterns = [
         # 中文拒绝模式 - 要求出现在开头附近
-        r'^[「『"\']*我无法',
-        r'^[「『"\']*我不能',
-        r'^[「『"\']*抱歉.*?无法',
-        r'^[「『"\']*很抱歉.*?不能',
-        r'^[「『"\']*对不起.*?无法',
-        r'^[「『"\']*作为.*?(?:AI|人工智能|语言模型)',
+        # 注意：这些模式必须精确匹配LLM拒绝响应，避免误判角色扮演内容
+        r'^[「『"\']*我无法(?:为你|帮你|生成|创作|写)',
+        r'^[「『"\']*我不能(?:为你|帮你|生成|创作|写)',
+        r'^[「『"\']*抱歉[，,]?\s*(?:我)?无法',
+        r'^[「『"\']*很抱歉[，,]?\s*(?:我)?不能',
+        r'^[「『"\']*对不起[，,]?\s*(?:我)?无法',
+        # "作为AI"模式需要紧密匹配，避免误判"作为编辑"等角色扮演
+        r'^[「『"\']*作为(?:一个)?(?:AI|人工智能|语言模型|大模型|LLM)',
         # 英文拒绝模式 - 要求出现在开头附近
-        r'^["\']?i cannot',
-        r'^["\']?i can\'t',
-        r'^["\']?i\'m unable',
-        r'^["\']?i\'m not able',
-        r'^["\']?sorry.*?(?:cannot|can\'t|unable)',
-        r'^["\']?i apologize.*?(?:cannot|can\'t)',
-        r'^["\']?as an ai',
+        r'^["\']?i cannot\s+(?:help|assist|generate|create|write)',
+        r'^["\']?i can\'t\s+(?:help|assist|generate|create|write)',
+        r'^["\']?i\'m unable to',
+        r'^["\']?i\'m not able to',
+        r'^["\']?sorry[,.]?\s*(?:i\s+)?(?:cannot|can\'t|am unable)',
+        r'^["\']?i apologize[,.]?\s*(?:but\s+)?(?:i\s+)?(?:cannot|can\'t)',
+        r'^["\']?as an ai(?:\s+(?:language\s+)?model)?[,.]?\s*i',
     ]
 
     for pattern in refuse_patterns:
