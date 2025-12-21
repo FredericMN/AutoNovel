@@ -5,7 +5,45 @@ PromptManager 辅助函数
 提供统一的初始化和获取提示词逻辑，带完整的异常保护和 fallback 机制
 """
 import logging
+import string
 from typing import Optional
+
+
+def _extract_template_fields(template: str) -> set:
+    """
+    提取模板中的占位符字段（仅取顶层变量名）
+    """
+    fields = set()
+    if not template:
+        return fields
+    for _, field_name, _, _ in string.Formatter().parse(template):
+        if not field_name:
+            continue
+        root = field_name.split(".", 1)[0].split("[", 1)[0]
+        if root:
+            fields.add(root)
+    return fields
+
+
+def format_prompt_safe(template: str, variables: dict, prompt_name: str = "") -> str:
+    """
+    安全格式化提示词，避免因缺失占位符导致异常。
+    """
+    if template is None:
+        return ""
+    variables = variables or {}
+    placeholders = _extract_template_fields(template)
+    missing = sorted(placeholders - set(variables.keys()))
+    if missing:
+        name = f" ({prompt_name})" if prompt_name else ""
+        logging.warning(f"Prompt format missing variables{name}: {', '.join(missing)}")
+
+    class _SafeDict(dict):
+        def __missing__(self, key):
+            return ""
+
+    safe_vars = {k: ("" if v is None else v) for k, v in variables.items()}
+    return template.format_map(_SafeDict(safe_vars))
 
 
 def get_prompt_manager():

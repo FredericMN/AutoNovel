@@ -15,6 +15,7 @@ from core.prompting.prompt_definitions import (
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.prompting.prompt_manager_helper import format_prompt_safe
 from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, get_log_file_path
 from core.utils.volume_utils import calculate_volume_ranges  # 新增：分卷工具函数
 logging.basicConfig(
@@ -226,18 +227,22 @@ def Chapter_blueprint_generate(
                 logging.warning("Volume chapter blueprint prompt not found, using default")
                 volume_prompt_template = volume_chapter_blueprint_prompt
 
-            volume_prompt = volume_prompt_template.format(
-                novel_architecture=architecture_text,
-                volume_architecture=volume_architecture_text,
-                volume_number=vol_idx,
-                volume_start=actual_start,  # 实际起始章号（续写时会跳过已完成章节）
-                volume_end=vol_end,  # 卷结束章号
-                volume_total_chapters=vol_total_chapters,  # 本卷总章数（整卷规划）
-                volume_chapter_count=vol_chapter_count,  # 本次待生成章节数
-                volume_original_start=vol_start,  # 本卷原始起始章号（用于判断是否续写）
-                previous_volumes_summary=previous_volumes_summary,
-                resume_mode_notice=resume_mode_notice,  # 🆕 条件化续写提示
-                user_guidance=user_guidance
+            volume_prompt = format_prompt_safe(
+                volume_prompt_template,
+                {
+                    "novel_architecture": architecture_text,
+                    "volume_architecture": volume_architecture_text,
+                    "volume_number": vol_idx,
+                    "volume_start": actual_start,
+                    "volume_end": vol_end,
+                    "volume_total_chapters": vol_total_chapters,
+                    "volume_chapter_count": vol_chapter_count,
+                    "volume_original_start": vol_start,
+                    "previous_volumes_summary": previous_volumes_summary,
+                    "resume_mode_notice": resume_mode_notice,
+                    "user_guidance": user_guidance
+                },
+                "blueprint.volume_chapter_blueprint"
             )
 
             gui_log(f"   ├─ 向LLM发起请求...")
@@ -302,13 +307,17 @@ def Chapter_blueprint_generate(
                 logging.warning("Chunked blueprint prompt not found, using default")
                 chunked_prompt_template = chunked_chapter_blueprint_prompt
 
-            chunk_prompt = chunked_prompt_template.format(
-                novel_architecture=architecture_text,
-                chapter_list=limited_blueprint,
-                number_of_chapters=number_of_chapters,
-                n=current_start,
-                m=current_end,
-                user_guidance=user_guidance  # 新增参数
+            chunk_prompt = format_prompt_safe(
+                chunked_prompt_template,
+                {
+                    "novel_architecture": architecture_text,
+                    "chapter_list": limited_blueprint,
+                    "number_of_chapters": number_of_chapters,
+                    "n": current_start,
+                    "m": current_end,
+                    "user_guidance": user_guidance
+                },
+                "blueprint.chunked_blueprint"
             )
             gui_log(f"   ├─ 向LLM发起请求...")
             logging.info(f"Generating chapters [{current_start}..{current_end}] in a chunk...")
@@ -340,10 +349,14 @@ def Chapter_blueprint_generate(
             logging.warning("Chapter blueprint prompt not found, using default")
             blueprint_prompt_template = chapter_blueprint_prompt
 
-        prompt = blueprint_prompt_template.format(
-            novel_architecture=architecture_text,
-            number_of_chapters=number_of_chapters,
-            user_guidance=user_guidance  # 新增参数
+        prompt = format_prompt_safe(
+            blueprint_prompt_template,
+            {
+                "novel_architecture": architecture_text,
+                "number_of_chapters": number_of_chapters,
+                "user_guidance": user_guidance
+            },
+            "blueprint.chapter_blueprint"
         )
         gui_log("   ├─ 向LLM发起请求...")
         blueprint_text = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
@@ -379,13 +392,17 @@ def Chapter_blueprint_generate(
             logging.warning("Chunked blueprint prompt not found, using default")
             chunked_prompt_template = chunked_chapter_blueprint_prompt
 
-        chunk_prompt = chunked_prompt_template.format(
-            novel_architecture=architecture_text,
-            chapter_list=limited_blueprint,
-            number_of_chapters=number_of_chapters,
-            n=current_start,
-            m=current_end,
-            user_guidance=user_guidance  # 新增参数
+        chunk_prompt = format_prompt_safe(
+            chunked_prompt_template,
+            {
+                "novel_architecture": architecture_text,
+                "chapter_list": limited_blueprint,
+                "number_of_chapters": number_of_chapters,
+                "n": current_start,
+                "m": current_end,
+                "user_guidance": user_guidance
+            },
+            "blueprint.chunked_blueprint"
         )
         gui_log(f"   ├─ 向LLM发起请求...")
         logging.info(f"Generating chapters [{current_start}..{current_end}] in a chunk...")

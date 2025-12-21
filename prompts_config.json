@@ -342,7 +342,9 @@
         "file": "custom_prompts/update_character_state_prompt.txt",
         "variables": [
           "chapter_text",
-          "old_state"
+          "old_state",
+          "character_dynamics",
+          "context_summary"
         ],
         "dependencies": []
       },
@@ -355,7 +357,10 @@
         "variables": [
           "volume_number",
           "volume_start",
-          "volume_end"
+          "volume_end",
+          "volume_chapters_text",
+          "volume_architecture",
+          "plot_arcs"
         ],
         "dependencies": []
       },

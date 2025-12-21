@@ -7,6 +7,7 @@
 import json
 import os
 import logging
+import string
 from typing import Dict, Optional
 
 class PromptManager:
@@ -358,7 +359,7 @@ class PromptManager:
                         "description": "定稿时更新角色状态表",
                         "file": "custom_prompts/update_character_state_prompt.txt",
                         "dependencies": [],
-                        "variables": ["chapter_text", "old_state"]
+                        "variables": ["chapter_text", "old_state", "character_dynamics", "context_summary"]
                     },
                     "volume_summary": {
                         "enabled": True,
@@ -367,7 +368,7 @@ class PromptManager:
                         "description": "生成每卷的总结",
                         "file": "custom_prompts/volume_summary_prompt.txt",
                         "dependencies": [],
-                        "variables": ["volume_number", "volume_start", "volume_end"]
+                        "variables": ["volume_number", "volume_start", "volume_end", "volume_chapters_text", "volume_architecture", "plot_arcs"]
                     },
                     "plot_arcs_update": {
                         "enabled": True,
@@ -534,15 +535,61 @@ class PromptManager:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read().strip()
                     if content:
-                        return content
+                        if self._validate_prompt_placeholders(content, module, category, name, is_custom=True):
+                            return content
+                        return ""
 
             # 否则返回默认值
             prompt_key = self._get_prompt_key(category, name)
-            return self.default_prompts.get(prompt_key, "")
+            default_prompt = self.default_prompts.get(prompt_key, "")
+            self._validate_prompt_placeholders(default_prompt, module, category, name, is_custom=False)
+            return default_prompt
 
         except Exception as e:
             logging.error(f"Failed to get prompt {category}.{name}: {e}")
             return None
+
+    def _extract_prompt_fields(self, prompt: str) -> set:
+        fields = set()
+        if not prompt:
+            return fields
+        for _, field_name, _, _ in string.Formatter().parse(prompt):
+            if not field_name:
+                continue
+            root = field_name.split(".", 1)[0].split("[", 1)[0]
+            if root:
+                fields.add(root)
+        return fields
+
+    def _validate_prompt_placeholders(
+        self,
+        prompt: str,
+        module: dict,
+        category: str,
+        name: str,
+        is_custom: bool
+    ) -> bool:
+        expected = set(module.get("variables", []) or [])
+        if not expected or not prompt:
+            return True
+
+        placeholders = self._extract_prompt_fields(prompt)
+        missing = sorted(expected - placeholders)
+        extra = sorted(placeholders - expected)
+
+        if missing:
+            msg = f"Prompt {category}.{name} missing placeholders: {', '.join(missing)}"
+            if is_custom:
+                logging.warning(msg + " (custom prompt fallback to default)")
+                return False
+            logging.error(msg + " (default prompt)")
+
+        if extra:
+            logging.warning(
+                f"Prompt {category}.{name} has unknown placeholders: {', '.join(extra)}"
+            )
+
+        return True
 
     def save_custom_prompt(self, category: str, name: str, content: str):
         """保存自定义提示词到文件"""

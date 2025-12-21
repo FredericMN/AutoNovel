@@ -19,6 +19,7 @@ from core.prompting.prompt_definitions import (
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.prompting.prompt_manager_helper import format_prompt_safe
 from core.utils.chapter_directory_parser import get_chapter_info_from_blueprint
 from novel_generator.common import invoke_with_cleaning
 from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, save_data_to_json, get_log_file_path
@@ -53,7 +54,7 @@ def extract_volume_architecture(volume_arch_text: str, target_volume_num: int) -
     # 必须以 # 或 * 开头，确保是 Markdown 标题
     # 支持格式: ### **第一卷（第1-10章）** 等
     volume_header_pattern = re.compile(
-        r'^[#*]+\s*\**\s*第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
+        r'^\s*(?:[#*>\-]+\s*)?第\s*([零〇一二两三四五六七八九十百千万\d]+)\s*卷',
         re.MULTILINE
     )
 
@@ -363,6 +364,12 @@ def summarize_recent_chapters(
             logging.error(f"Failed to initialize PromptManager in summarize_recent_chapters: {e}")
             pm = None
 
+        if pm and not pm.is_module_enabled("chapter", "chapter_summary"):
+            chapter_info = chapter_info or {}
+            chapter_title = chapter_info.get("chapter_title", "未命名")
+            chapter_purpose = chapter_info.get("chapter_purpose", "推进剧情")
+            return f"当前为第{novel_number}章《{chapter_title}》，本章围绕「{chapter_purpose}」推进。"
+
         if pm:
             summary_prompt_template = pm.get_prompt("chapter", "chapter_summary")
         else:
@@ -372,24 +379,28 @@ def summarize_recent_chapters(
             logging.warning("Chapter summary prompt not found, using default")
             summary_prompt_template = summarize_recent_chapters_prompt
 
-        prompt = summary_prompt_template.format(
-            combined_text=combined_text,
-            novel_number=novel_number,
-            chapter_title=chapter_info.get("chapter_title", "未命名"),
-            chapter_role=chapter_info.get("chapter_role", "常规章节"),
-            chapter_purpose=chapter_info.get("chapter_purpose", "内容推进"),
-            suspense_level=chapter_info.get("suspense_level", "中等"),
-            foreshadowing=chapter_info.get("foreshadowing", "无"),
-            plot_twist_level=chapter_info.get("plot_twist_level", "★☆☆☆☆"),
-            chapter_summary=chapter_info.get("chapter_summary", ""),
-            next_chapter_number=novel_number + 1,
-            next_chapter_title=next_chapter_info.get("chapter_title", "（未命名）"),
-            next_chapter_role=next_chapter_info.get("chapter_role", "过渡章节"),
-            next_chapter_purpose=next_chapter_info.get("chapter_purpose", "承上启下"),
-            next_chapter_summary=next_chapter_info.get("chapter_summary", "衔接过渡内容"),
-            next_chapter_suspense_level=next_chapter_info.get("suspense_level", "中等"),
-            next_chapter_foreshadowing=next_chapter_info.get("foreshadowing", "无特殊伏笔"),
-            next_chapter_plot_twist_level=next_chapter_info.get("plot_twist_level", "★☆☆☆☆")
+        prompt = format_prompt_safe(
+            summary_prompt_template,
+            {
+                "combined_text": combined_text,
+                "novel_number": novel_number,
+                "chapter_title": chapter_info.get("chapter_title", "未命名"),
+                "chapter_role": chapter_info.get("chapter_role", "常规章节"),
+                "chapter_purpose": chapter_info.get("chapter_purpose", "内容推进"),
+                "suspense_level": chapter_info.get("suspense_level", "中等"),
+                "foreshadowing": chapter_info.get("foreshadowing", "无"),
+                "plot_twist_level": chapter_info.get("plot_twist_level", "★☆☆☆☆"),
+                "chapter_summary": chapter_info.get("chapter_summary", ""),
+                "next_chapter_number": novel_number + 1,
+                "next_chapter_title": next_chapter_info.get("chapter_title", "（未命名）"),
+                "next_chapter_role": next_chapter_info.get("chapter_role", "过渡章节"),
+                "next_chapter_purpose": next_chapter_info.get("chapter_purpose", "承上启下"),
+                "next_chapter_summary": next_chapter_info.get("chapter_summary", "衔接过渡内容"),
+                "next_chapter_suspense_level": next_chapter_info.get("suspense_level", "中等"),
+                "next_chapter_foreshadowing": next_chapter_info.get("foreshadowing", "无特殊伏笔"),
+                "next_chapter_plot_twist_level": next_chapter_info.get("plot_twist_level", "★☆☆☆☆"),
+            },
+            "chapter.chapter_summary"
         )
 
         active_system_prompt = system_prompt.strip()
@@ -812,6 +823,10 @@ def get_filtered_knowledge_context(
             logging.error(f"Failed to initialize PromptManager in filter_knowledge_context: {e}")
             pm = None
 
+        if pm and not pm.is_module_enabled("helper", "knowledge_filter"):
+            logging.info("Knowledge filter disabled, returning preprocessed contexts without LLM filtering")
+            return "\n\n".join(formatted_texts) if formatted_texts else "（知识库过滤已禁用）"
+
         if pm:
             filter_prompt_template = pm.get_prompt("helper", "knowledge_filter")
         else:
@@ -821,9 +836,13 @@ def get_filtered_knowledge_context(
             logging.warning("Knowledge filter prompt not found, using default")
             filter_prompt_template = knowledge_filter_prompt
 
-        prompt = filter_prompt_template.format(
-            chapter_info=formatted_chapter_info,
-            retrieved_texts="\n\n".join(formatted_texts) if formatted_texts else "（无检索结果）"
+        prompt = format_prompt_safe(
+            filter_prompt_template,
+            {
+                "chapter_info": formatted_chapter_info,
+                "retrieved_texts": "\n\n".join(formatted_texts) if formatted_texts else "（无检索结果）"
+            },
+            "helper.knowledge_filter"
         )
 
         filtered_content = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
@@ -1027,26 +1046,30 @@ def build_chapter_prompt(
             logging.warning("First chapter prompt not found, using default")
             first_prompt_template = first_chapter_draft_prompt
 
-        return first_prompt_template.format(
-            volume_display=current_volume_display,  # 新增：传递卷信息
-            volume_architecture=current_volume_architecture,  # 新增：传递卷架构
-            novel_number=novel_number,
-            word_number=word_number,
-            chapter_title=chapter_title,
-            chapter_role=chapter_role,
-            chapter_purpose=chapter_purpose,
-            suspense_level=suspense_level,
-            foreshadowing=foreshadowing,
-            plot_twist_level=plot_twist_level,
-            volume_position=volume_position,  # 🆕 新增：传递卷内位置
-            chapter_summary=chapter_summary,
-            characters_involved=characters_involved,
-            key_items=key_items,
-            scene_location=scene_location,
-            time_constraint=time_constraint,
-            user_guidance=user_guidance,
-            novel_setting=novel_architecture_text,
-            unresolved_plot_arcs=unresolved_plot_arcs  # 🆕 注入伏笔
+        return format_prompt_safe(
+            first_prompt_template,
+            {
+                "volume_display": current_volume_display,
+                "volume_architecture": current_volume_architecture,
+                "novel_number": novel_number,
+                "word_number": word_number,
+                "chapter_title": chapter_title,
+                "chapter_role": chapter_role,
+                "chapter_purpose": chapter_purpose,
+                "suspense_level": suspense_level,
+                "foreshadowing": foreshadowing,
+                "plot_twist_level": plot_twist_level,
+                "volume_position": volume_position,
+                "chapter_summary": chapter_summary,
+                "characters_involved": characters_involved,
+                "key_items": key_items,
+                "scene_location": scene_location,
+                "time_constraint": time_constraint,
+                "user_guidance": user_guidance,
+                "novel_setting": novel_architecture_text,
+                "unresolved_plot_arcs": unresolved_plot_arcs
+            },
+            "chapter.first_chapter"
         )
 
     # 获取前文内容和摘要
@@ -1160,31 +1183,42 @@ def build_chapter_prompt(
             logging.error(f"Failed to initialize PromptManager in build_next_chapter_prompt (knowledge search): {e}")
             pm = None
 
-        if pm:
-            search_prompt_template = pm.get_prompt("helper", "knowledge_search")
+        knowledge_search_enabled = pm.is_module_enabled("helper", "knowledge_search") if pm else True
+        knowledge_filter_enabled = pm.is_module_enabled("helper", "knowledge_filter") if pm else True
+
+        if not knowledge_search_enabled:
+            gui_log("   ├─ 知识库搜索已禁用，跳过关键词生成")
+            keyword_groups = []
         else:
-            search_prompt_template = None
+            if pm:
+                search_prompt_template = pm.get_prompt("helper", "knowledge_search")
+            else:
+                search_prompt_template = None
 
-        if not search_prompt_template:
-            logging.warning("Knowledge search prompt not found, using default")
-            search_prompt_template = knowledge_search_prompt
+            if not search_prompt_template:
+                logging.warning("Knowledge search prompt not found, using default")
+                search_prompt_template = knowledge_search_prompt
 
-        search_prompt = search_prompt_template.format(
-            chapter_number=novel_number,
-            chapter_title=chapter_title,
-            characters_involved=characters_involved,
-            key_items=key_items,
-            scene_location=scene_location,
-            chapter_role=chapter_role,
-            chapter_purpose=chapter_purpose,
-            foreshadowing=foreshadowing,
-            short_summary=short_summary,
-            user_guidance=user_guidance,
-            time_constraint=time_constraint
-        )
+            search_prompt = format_prompt_safe(
+                search_prompt_template,
+                {
+                    "chapter_number": novel_number,
+                    "chapter_title": chapter_title,
+                    "characters_involved": characters_involved,
+                    "key_items": key_items,
+                    "scene_location": scene_location,
+                    "chapter_role": chapter_role,
+                    "chapter_purpose": chapter_purpose,
+                    "foreshadowing": foreshadowing,
+                    "short_summary": short_summary,
+                    "user_guidance": user_guidance,
+                    "time_constraint": time_constraint
+                },
+                "helper.knowledge_search"
+            )
 
-        search_response = invoke_with_cleaning(llm_adapter, search_prompt, system_prompt=system_prompt)
-        keyword_groups = parse_search_keywords(search_response)
+            search_response = invoke_with_cleaning(llm_adapter, search_prompt, system_prompt=system_prompt)
+            keyword_groups = parse_search_keywords(search_response)
 
         if keyword_groups:
             gui_log(f"   ├─ 生成关键词组: {len(keyword_groups)}组")
@@ -1205,18 +1239,22 @@ def build_chapter_prompt(
             embedding_model_name
         )
 
-        gui_log("   ├─ 执行向量检索...")
-        # 使用新的去重检索函数（支持分卷检索）
-        retrieved_docs = get_relevant_contexts_deduplicated(
-            embedding_adapter=embedding_adapter,
-            query_groups=keyword_groups,
-            filepath=filepath,
-            k_per_group=embedding_retrieval_k,
-            max_total_results=embedding_retrieval_k * len(keyword_groups) if keyword_groups else 10,
-            current_chapter=novel_number,  # 新增：当前章节号
-            num_volumes=num_volumes,  # 新增：总卷数
-            total_chapters=total_chapters  # 新增：总章节数
-        )
+        retrieved_docs = []
+        if keyword_groups:
+            gui_log("   ├─ 执行向量检索...")
+            # 使用新的去重检索函数（支持分卷检索）
+            retrieved_docs = get_relevant_contexts_deduplicated(
+                embedding_adapter=embedding_adapter,
+                query_groups=keyword_groups,
+                filepath=filepath,
+                k_per_group=embedding_retrieval_k,
+                max_total_results=embedding_retrieval_k * len(keyword_groups),
+                current_chapter=novel_number,  # 新增：当前章节号
+                num_volumes=num_volumes,  # 新增：总卷数
+                total_chapters=total_chapters  # 新增：总章节数
+            )
+        else:
+            gui_log("   ├─ 无关键词，跳过向量检索")
 
         # 记录检索统计
         from novel_generator.vectorstore_monitor import log_retrieval
@@ -1234,19 +1272,20 @@ def build_chapter_prompt(
             for doc_type, count in type_counts.items():
                 gui_log(f"       · {doc_type}: {count}条")
 
-        for keyword_group in keyword_groups:
-            # 为每个关键词组找到所有命中的文档
-            docs_for_group = [
-                {"content": d["content"], "type": d["type"]}
-                for d in retrieved_docs
-                if keyword_group in d.get("queries", [])
-            ]
-            log_retrieval(
-                filepath=filepath,
-                query=keyword_group,
-                retrieved_docs=docs_for_group,
-                chapter_number=novel_number
-            )
+        if keyword_groups:
+            for keyword_group in keyword_groups:
+                # 为每个关键词组找到所有命中的文档
+                docs_for_group = [
+                    {"content": d["content"], "type": d["type"]}
+                    for d in retrieved_docs
+                    if keyword_group in d.get("queries", [])
+                ]
+                log_retrieval(
+                    filepath=filepath,
+                    query=keyword_group,
+                    retrieved_docs=docs_for_group,
+                    chapter_number=novel_number
+                )
 
         # 格式化检索结果
         all_contexts = []
@@ -1271,36 +1310,42 @@ def build_chapter_prompt(
         gui_log(f"       · 历史参考: {history_count}条")
 
         # 执行知识过滤：30%
-        update_progress("🧠 LLM二次过滤与整合", 0.30)
-        gui_log("   ├─ LLM二次过滤与整合...")
-        chapter_info_for_filter = {
-            "chapter_number": novel_number,
-            "chapter_title": chapter_title,
-            "chapter_role": chapter_role,
-            "chapter_purpose": chapter_purpose,
-            "characters_involved": characters_involved,
-            "key_items": key_items,
-            "scene_location": scene_location,
-            "foreshadowing": foreshadowing,  # 修复拼写错误
-            "suspense_level": suspense_level,
-            "plot_twist_level": plot_twist_level,
-            "chapter_summary": chapter_summary,
-            "time_constraint": time_constraint
-        }
-        
-        filtered_context = get_filtered_knowledge_context(
-            api_key=api_key,
-            base_url=base_url,
-            model_name=model_name,
-            interface_format=interface_format,
-            embedding_adapter=embedding_adapter,
-            filepath=filepath,
-            chapter_info=chapter_info_for_filter,
-            retrieved_texts=processed_contexts,
-            max_tokens=max_tokens,
-            timeout=timeout,
-            system_prompt=system_prompt
-        )
+        if not knowledge_filter_enabled:
+            update_progress("🧠 跳过LLM过滤", 0.30)
+            gui_log("   ├─ 知识库过滤已禁用，使用规则过滤结果")
+            usable_contexts = [ctx for ctx in processed_contexts if not ctx.startswith("[SKIP]")]
+            filtered_context = "\n".join(usable_contexts[:10]) if usable_contexts else "（无可用知识库内容）"
+        else:
+            update_progress("🧠 LLM二次过滤与整合", 0.30)
+            gui_log("   ├─ LLM二次过滤与整合...")
+            chapter_info_for_filter = {
+                "chapter_number": novel_number,
+                "chapter_title": chapter_title,
+                "chapter_role": chapter_role,
+                "chapter_purpose": chapter_purpose,
+                "characters_involved": characters_involved,
+                "key_items": key_items,
+                "scene_location": scene_location,
+                "foreshadowing": foreshadowing,  # 修复拼写错误
+                "suspense_level": suspense_level,
+                "plot_twist_level": plot_twist_level,
+                "chapter_summary": chapter_summary,
+                "time_constraint": time_constraint
+            }
+            
+            filtered_context = get_filtered_knowledge_context(
+                api_key=api_key,
+                base_url=base_url,
+                model_name=model_name,
+                interface_format=interface_format,
+                embedding_adapter=embedding_adapter,
+                filepath=filepath,
+                chapter_info=chapter_info_for_filter,
+                retrieved_texts=processed_contexts,
+                max_tokens=max_tokens,
+                timeout=timeout,
+                system_prompt=system_prompt
+            )
 
         # 统计最终使用的知识
         final_length = len(filtered_context)
@@ -1333,40 +1378,44 @@ def build_chapter_prompt(
     update_progress("✅ 提示词构建完成", 0.35)
 
     # 返回最终提示词
-    return next_prompt_template.format(
-        user_guidance=user_guidance if user_guidance else "无特殊指导",
-        global_summary=global_summary_text,
-        volume_info=volume_info_text,  # 新增：分卷信息
-        volume_architecture=current_volume_architecture,  # 新增：卷架构
-        previous_chapter_excerpt=previous_excerpt,
-        character_state=character_state_text,
-        short_summary=short_summary,
-        novel_number=novel_number,
-        chapter_title=chapter_title,
-        chapter_role=chapter_role,
-        chapter_purpose=chapter_purpose,
-        suspense_level=suspense_level,
-        foreshadowing=foreshadowing,
-        plot_twist_level=plot_twist_level,
-        volume_position=volume_position,  # 🆕 新增：传递卷内位置
-        chapter_summary=chapter_summary,
-        word_number=word_number,
-        characters_involved=characters_involved,
-        key_items=key_items,
-        scene_location=scene_location,
-        time_constraint=time_constraint,
-        current_volume_display=current_volume_display,  # 新增：当前卷展示
-        next_chapter_number=next_chapter_number,
-        next_chapter_title=next_chapter_title,
-        next_chapter_role=next_chapter_role,
-        next_chapter_purpose=next_chapter_purpose,
-        next_chapter_suspense_level=next_chapter_suspense,
-        next_chapter_foreshadowing=next_chapter_foreshadow,
-        next_chapter_plot_twist_level=next_chapter_twist,
-        next_chapter_summary=next_chapter_summary,
-        next_volume_display=next_volume_display,  # 新增：下一章卷展示
-        filtered_context=filtered_context,
-        unresolved_plot_arcs=unresolved_plot_arcs  # 🆕 注入伏笔
+    return format_prompt_safe(
+        next_prompt_template,
+        {
+            "user_guidance": user_guidance if user_guidance else "无特殊指导",
+            "global_summary": global_summary_text,
+            "volume_info": volume_info_text,
+            "volume_architecture": current_volume_architecture,
+            "previous_chapter_excerpt": previous_excerpt,
+            "character_state": character_state_text,
+            "short_summary": short_summary,
+            "novel_number": novel_number,
+            "chapter_title": chapter_title,
+            "chapter_role": chapter_role,
+            "chapter_purpose": chapter_purpose,
+            "suspense_level": suspense_level,
+            "foreshadowing": foreshadowing,
+            "plot_twist_level": plot_twist_level,
+            "volume_position": volume_position,
+            "chapter_summary": chapter_summary,
+            "word_number": word_number,
+            "characters_involved": characters_involved,
+            "key_items": key_items,
+            "scene_location": scene_location,
+            "time_constraint": time_constraint,
+            "current_volume_display": current_volume_display,
+            "next_chapter_number": next_chapter_number,
+            "next_chapter_title": next_chapter_title,
+            "next_chapter_role": next_chapter_role,
+            "next_chapter_purpose": next_chapter_purpose,
+            "next_chapter_suspense_level": next_chapter_suspense,
+            "next_chapter_foreshadowing": next_chapter_foreshadow,
+            "next_chapter_plot_twist_level": next_chapter_twist,
+            "next_chapter_summary": next_chapter_summary,
+            "next_volume_display": next_volume_display,
+            "filtered_context": filtered_context,
+            "unresolved_plot_arcs": unresolved_plot_arcs
+        },
+        "chapter.next_chapter"
     )
 
 def generate_chapter_draft(

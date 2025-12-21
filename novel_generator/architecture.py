@@ -23,6 +23,7 @@ from core.prompting.prompt_definitions import (
     concept_world_building_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.prompting.prompt_manager_helper import format_prompt_safe
 from core.utils.file_utils import clear_file_content, save_string_to_txt, get_log_file_path
 logging.basicConfig(
     filename=get_log_file_path(),      # 日志文件名
@@ -131,9 +132,9 @@ def generate_volume_architecture(
     gui_log("   ├─ 向LLM发起请求...")
     # 使用自定义提示词或默认提示词
     if prompt_template:
-        prompt = prompt_template.format(**format_params)
+        prompt = format_prompt_safe(prompt_template, format_params, "architecture.volume_breakdown")
     else:
-        prompt = volume_breakdown_prompt.format(**format_params)
+        prompt = format_prompt_safe(volume_breakdown_prompt, format_params, "architecture.volume_breakdown")
     result = invoke_with_cleaning(llm_adapter, prompt, system_prompt=system_prompt)
 
     if not result or not result.strip():
@@ -275,12 +276,16 @@ def Novel_architecture_generate(
             if not prompt_template:
                 prompt_template = user_concept_to_core_seed_prompt
 
-            prompt_core = prompt_template.format(
-                user_concept=user_concept,
-                genre=genre,
-                number_of_chapters=number_of_chapters,
-                word_number=word_number,
-                user_guidance=user_guidance
+            prompt_core = format_prompt_safe(
+                prompt_template,
+                {
+                    "user_concept": user_concept,
+                    "genre": genre,
+                    "number_of_chapters": number_of_chapters,
+                    "word_number": word_number,
+                    "user_guidance": user_guidance
+                },
+                "architecture.user_concept_to_core_seed"
             )
         else:
             # 灵感模式：通过主题和类型生成核心种子
@@ -294,12 +299,16 @@ def Novel_architecture_generate(
                 gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
                 prompt_template = core_seed_prompt
 
-            prompt_core = prompt_template.format(
-                topic=topic,
-                genre=genre,
-                number_of_chapters=number_of_chapters,
-                word_number=word_number,
-                user_guidance=user_guidance
+            prompt_core = format_prompt_safe(
+                prompt_template,
+                {
+                    "topic": topic,
+                    "genre": genre,
+                    "number_of_chapters": number_of_chapters,
+                    "word_number": word_number,
+                    "user_guidance": user_guidance
+                },
+                "architecture.core_seed"
             )
 
         gui_log("   ├─ 向LLM发起请求...")
@@ -357,10 +366,14 @@ def Novel_architecture_generate(
                 if not prompt_template:
                     prompt_template = concept_character_dynamics_prompt
 
-                prompt_character = prompt_template.format(
-                    user_concept=user_concept,
-                    core_seed=partial_data["core_seed_result"].strip(),
-                    user_guidance=user_guidance
+                prompt_character = format_prompt_safe(
+                    prompt_template,
+                    {
+                        "user_concept": user_concept,
+                        "core_seed": partial_data["core_seed_result"].strip(),
+                        "user_guidance": user_guidance
+                    },
+                    "architecture.concept_character_dynamics"
                 )
             else:
                 # 灵感模式：使用原有提示词
@@ -369,9 +382,13 @@ def Novel_architecture_generate(
                     gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
                     prompt_template = character_dynamics_prompt
 
-                prompt_character = prompt_template.format(
-                    core_seed=partial_data["core_seed_result"].strip(),
-                    user_guidance=user_guidance
+                prompt_character = format_prompt_safe(
+                    prompt_template,
+                    {
+                        "core_seed": partial_data["core_seed_result"].strip(),
+                        "user_guidance": user_guidance
+                    },
+                    "architecture.character_dynamics"
                 )
             gui_log("   ├─ 向LLM发起请求...")
             character_dynamics_result = invoke_with_cleaning(llm_adapter, prompt_character, system_prompt=system_prompt)
@@ -417,8 +434,12 @@ def Novel_architecture_generate(
             gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
             prompt_template = create_character_state_prompt
 
-        prompt_char_state_init = prompt_template.format(
-            character_dynamics=partial_data["character_dynamics_result"].strip()
+        prompt_char_state_init = format_prompt_safe(
+            prompt_template,
+            {
+                "character_dynamics": partial_data["character_dynamics_result"].strip()
+            },
+            "helper.create_character_state"
         )
         gui_log("   ├─ 向LLM发起请求...")
         character_state_init = invoke_with_cleaning(llm_adapter, prompt_char_state_init, system_prompt=system_prompt)
@@ -460,10 +481,14 @@ def Novel_architecture_generate(
                 if not prompt_template:
                     prompt_template = concept_world_building_prompt
 
-                prompt_world = prompt_template.format(
-                    user_concept=user_concept,
-                    core_seed=partial_data["core_seed_result"].strip(),
-                    user_guidance=user_guidance
+                prompt_world = format_prompt_safe(
+                    prompt_template,
+                    {
+                        "user_concept": user_concept,
+                        "core_seed": partial_data["core_seed_result"].strip(),
+                        "user_guidance": user_guidance
+                    },
+                    "architecture.concept_world_building"
                 )
             else:
                 # 灵感模式：使用原有提示词
@@ -472,9 +497,13 @@ def Novel_architecture_generate(
                     gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
                     prompt_template = world_building_prompt
 
-                prompt_world = prompt_template.format(
-                    core_seed=partial_data["core_seed_result"].strip(),
-                    user_guidance=user_guidance
+                prompt_world = format_prompt_safe(
+                    prompt_template,
+                    {
+                        "core_seed": partial_data["core_seed_result"].strip(),
+                        "user_guidance": user_guidance
+                    },
+                    "architecture.world_building"
                 )
             gui_log("   ├─ 向LLM发起请求...")
             world_building_result = invoke_with_cleaning(llm_adapter, prompt_world, system_prompt=system_prompt)
@@ -515,13 +544,17 @@ def Novel_architecture_generate(
                 gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
                 prompt_template = plot_architecture_prompt
 
-            prompt_plot = prompt_template.format(
-                core_seed=partial_data["core_seed_result"].strip(),
-                character_dynamics=sanitize_prompt_variable(partial_data["character_dynamics_result"].strip()),
-                world_building=sanitize_prompt_variable(partial_data["world_building_result"].strip()),
-                user_guidance=user_guidance,
-                number_of_chapters=number_of_chapters,  # 新增：总章节数
-                num_volumes=num_volumes if num_volumes > 1 else 1  # 新增：分卷数（至少为1）
+            prompt_plot = format_prompt_safe(
+                prompt_template,
+                {
+                    "core_seed": partial_data["core_seed_result"].strip(),
+                    "character_dynamics": sanitize_prompt_variable(partial_data["character_dynamics_result"].strip()),
+                    "world_building": sanitize_prompt_variable(partial_data["world_building_result"].strip()),
+                    "user_guidance": user_guidance,
+                    "number_of_chapters": number_of_chapters,
+                    "num_volumes": num_volumes if num_volumes > 1 else 1
+                },
+                "architecture.plot_architecture"
             )
             gui_log("   ├─ 向LLM发起请求...")
             plot_arch_result = invoke_with_cleaning(llm_adapter, prompt_plot, system_prompt=system_prompt)

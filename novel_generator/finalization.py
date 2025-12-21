@@ -20,6 +20,7 @@ from core.prompting.prompt_definitions import (
     resolve_global_system_prompt
 )
 from core.prompting.prompt_manager import PromptManager  # 新增：提示词管理器
+from core.prompting.prompt_manager_helper import format_prompt_safe
 from novel_generator.common import invoke_with_cleaning
 from core.utils.file_utils import read_file, clear_file_content, save_string_to_txt, get_log_file_path
 from novel_generator.vectorstore_utils import update_vector_store
@@ -180,29 +181,18 @@ def finalize_volume(
         gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
         prompt_template = volume_summary_prompt
 
-    # 尝试使用新格式（6个参数），如果旧模板缺少占位符则回退
-    try:
-        volume_summary_prompt_text = prompt_template.format(
-            volume_number=volume_number,
-            volume_start=volume_start,
-            volume_end=volume_end,
-            volume_chapters_text=combined_volume_text,
-            volume_architecture=volume_architecture_text,
-            plot_arcs=plot_arcs_text  # 🆕 传入完整版伏笔
-        )
-    except KeyError as e:
-        # 兼容旧版自定义模板（缺少 plot_arcs 占位符）
-        gui_log(f"   │  └─ ⚠️ 自定义模板缺少占位符 {e}，使用默认模板")
-        logging.warning(f"Custom prompt missing placeholder {e}, falling back to default")
-        prompt_template = volume_summary_prompt  # 回退到默认
-        volume_summary_prompt_text = prompt_template.format(
-            volume_number=volume_number,
-            volume_start=volume_start,
-            volume_end=volume_end,
-            volume_chapters_text=combined_volume_text,
-            volume_architecture=volume_architecture_text,
-            plot_arcs=plot_arcs_text
-        )
+    volume_summary_prompt_text = format_prompt_safe(
+        prompt_template,
+        {
+            "volume_number": volume_number,
+            "volume_start": volume_start,
+            "volume_end": volume_end,
+            "volume_chapters_text": combined_volume_text,
+            "volume_architecture": volume_architecture_text,
+            "plot_arcs": plot_arcs_text
+        },
+        "finalization.volume_summary"
+    )
 
     volume_summary_result = invoke_with_cleaning(
         llm_adapter,
@@ -421,9 +411,13 @@ def finalize_chapter(
             gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
             prompt_template = summary_prompt
 
-        prompt_summary = prompt_template.format(
-            chapter_text=chapter_text,
-            global_summary=old_global_summary
+        prompt_summary = format_prompt_safe(
+            prompt_template,
+            {
+                "chapter_text": chapter_text,
+                "global_summary": old_global_summary
+            },
+            "finalization.summary_update"
         )
         gui_log("   ├─ 向LLM发起请求...")
         new_global_summary = invoke_with_cleaning(llm_adapter, prompt_summary, system_prompt=system_prompt)
@@ -472,25 +466,16 @@ def finalize_chapter(
             gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
             prompt_template = update_character_state_prompt
 
-        # 🆕 尝试使用新格式（4个参数），如果旧模板缺少占位符则回退
-        try:
-            prompt_char_state = prompt_template.format(
-                chapter_text=chapter_text,
-                old_state=old_character_state,
-                character_dynamics=character_dynamics,      # 🆕 传入角色框架
-                context_summary=context_summary             # 🆕 传入上下文摘要
-            )
-        except KeyError as e:
-            # 兼容旧版自定义模板（缺少新占位符）
-            gui_log(f"   │  └─ ⚠️ 自定义模板缺少占位符 {e}，使用默认模板")
-            logging.warning(f"Custom prompt missing placeholder {e}, falling back to default")
-            prompt_template = update_character_state_prompt  # 回退到默认
-            prompt_char_state = prompt_template.format(
-                chapter_text=chapter_text,
-                old_state=old_character_state,
-                character_dynamics=character_dynamics,
-                context_summary=context_summary
-            )
+        prompt_char_state = format_prompt_safe(
+            prompt_template,
+            {
+                "chapter_text": chapter_text,
+                "old_state": old_character_state,
+                "character_dynamics": character_dynamics,
+                "context_summary": context_summary
+            },
+            "finalization.character_state_update"
+        )
 
         gui_log("   ├─ 向LLM发起请求...")
         new_char_state = invoke_with_cleaning(llm_adapter, prompt_char_state, system_prompt=system_prompt)
@@ -519,9 +504,13 @@ def finalize_chapter(
             gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
             prompt_template = plot_arcs_update_prompt
 
-        prompt_plot_arcs = prompt_template.format(
-            chapter_text=chapter_text,
-            old_plot_arcs=old_plot_arcs if old_plot_arcs.strip() else "（暂无记录）"
+        prompt_plot_arcs = format_prompt_safe(
+            prompt_template,
+            {
+                "chapter_text": chapter_text,
+                "old_plot_arcs": old_plot_arcs if old_plot_arcs.strip() else "（暂无记录）"
+            },
+            "finalization.plot_arcs_update"
         )
         gui_log("   ├─ 向LLM发起请求...")
         new_plot_arcs = invoke_with_cleaning(llm_adapter, prompt_plot_arcs, system_prompt=system_prompt)
@@ -576,11 +565,15 @@ def finalize_chapter(
                         gui_log("       └─ ⚠️ 提示词加载失败，使用默认提示词")
                         compress_prompt_template = plot_arcs_compress_auto_prompt
 
-                    compress_prompt = compress_prompt_template.format(
-                        classified_plot_arcs=current_plot_arcs,  # 直接使用已分级的内容
-                        current_chapter=novel_number,
-                        unresolved_count=unresolved_count,
-                        resolved_count=resolved_count
+                    compress_prompt = format_prompt_safe(
+                        compress_prompt_template,
+                        {
+                            "classified_plot_arcs": current_plot_arcs,
+                            "current_chapter": novel_number,
+                            "unresolved_count": unresolved_count,
+                            "resolved_count": resolved_count
+                        },
+                        "finalization.plot_arcs_compress_auto"
                     )
 
                     compressed_arcs = invoke_with_cleaning(llm_adapter, compress_prompt, system_prompt=system_prompt)
@@ -628,7 +621,11 @@ def finalize_chapter(
                 gui_log("   └─ ⚠️ 提示词加载失败，使用默认提示词")
                 prompt_template = plot_arcs_distill_prompt
 
-            prompt_distill = prompt_template.format(plot_arcs_text=new_plot_arcs)
+            prompt_distill = format_prompt_safe(
+                prompt_template,
+                {"plot_arcs_text": new_plot_arcs},
+                "finalization.plot_arcs_distill"
+            )
             gui_log("   ├─ 向LLM发起请求...")
             distilled_arcs = invoke_with_cleaning(llm_adapter, prompt_distill, system_prompt=system_prompt)
 
@@ -644,7 +641,11 @@ def finalize_chapter(
                     if not compress_prompt_template:
                         compress_prompt_template = plot_arcs_compress_prompt
 
-                    compress_prompt = compress_prompt_template.format(distilled_arcs=distilled_arcs)
+                    compress_prompt = format_prompt_safe(
+                        compress_prompt_template,
+                        {"distilled_arcs": distilled_arcs},
+                        "finalization.plot_arcs_compress"
+                    )
                     distilled_arcs = invoke_with_cleaning(llm_adapter, compress_prompt, system_prompt=system_prompt)
 
                     if distilled_arcs.strip():
@@ -787,10 +788,14 @@ def finalize_chapter(
         if not prompt_template:
             prompt_template = single_chapter_summary_prompt
 
-        summary_prompt_text = prompt_template.format(
-            novel_number=novel_number,
-            chapter_title=chap_info.get("chapter_title", "未命名"),
-            chapter_text=chapter_text
+        summary_prompt_text = format_prompt_safe(
+            prompt_template,
+            {
+                "novel_number": novel_number,
+                "chapter_title": chap_info.get("chapter_title", "未命名"),
+                "chapter_text": chapter_text
+            },
+            "chapter.single_chapter_summary"
         )
 
         chapter_summary_content = invoke_with_cleaning(llm_adapter, summary_prompt_text, system_prompt=system_prompt)
