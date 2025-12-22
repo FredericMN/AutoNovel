@@ -6,7 +6,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
 from ui.context_menu import TextWidgetContextMenu
-from ui.ios_theme import IOSColors, IOSLayout, IOSStyles
+from ui.ios_theme import IOSColors, IOSLayout, IOSStyles, IOSFonts
 
 def build_volume_summary_tab(self):
     self.volume_summary_tab = self.tabview.add("分卷概要")
@@ -112,7 +112,7 @@ def refresh_volume_list(self):
         volume_selector_frame,
         values=volume_labels,
         command=self.on_volume_selected,
-        font=("Microsoft YaHei", 12)
+        font=IOSFonts.get_font(12)
     )
     self.volume_selector.pack(side="left", fill="x", expand=True, padx=5)
 

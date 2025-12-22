@@ -549,7 +549,7 @@ class NovelGeneratorGUI:
                     
                     # 添加分类标签
                     category_label = ctk.CTkLabel(category_frame, text=f"【{category}】", 
-                                                font=("Microsoft YaHei", 12, "bold"))
+                                                font=IOSFonts.get_font(12, "bold"))
                     category_label.grid(row=0, column=0, padx=(0,10), sticky="w")
                     
                     # 初始化角色排列参数
@@ -780,7 +780,7 @@ class NovelGeneratorGUI:
         title_label = ctk.CTkLabel(
             dialog,
             text="⚠️ 警告：修改关键配置",
-            font=("Microsoft YaHei", 18, "bold"),
+            font=IOSFonts.get_font(18, "bold"),
             text_color="#FF6347"
         )
         title_label.pack(pady=20)
@@ -791,7 +791,7 @@ class NovelGeneratorGUI:
 
         warning_text = ctk.CTkTextbox(
             warning_frame,
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(11),
             wrap="word",
             fg_color="#FFF5EE"
         )
@@ -833,7 +833,7 @@ class NovelGeneratorGUI:
             button_frame,
             text="我明白风险，继续解锁",
             command=on_unlock,
-            font=("Microsoft YaHei", 12),
+            font=IOSFonts.get_font(12),
             width=160,
             fg_color="#FF6347",
             hover_color="#FF4500"
@@ -844,7 +844,7 @@ class NovelGeneratorGUI:
             button_frame,
             text="取消",
             command=on_cancel,
-            font=("Microsoft YaHei", 12),
+            font=IOSFonts.get_font(12),
             width=100
         )
         btn_cancel.pack(side="left", padx=10)

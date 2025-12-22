@@ -95,6 +95,7 @@
 - **Python 3.9+** (推荐 3.10-3.12)
 - **pip** 包管理器
 - **API密钥**: OpenAI、Claude、Gemini、DeepSeek 等任一服务
+- **本地模型(可选)**: 使用本地 RAG/Embedding 时需安装 Ollama 服务
 
 ### 安装步骤
 
@@ -124,10 +125,17 @@
 
 4. **启动应用**
    ```bash
+   # macOS/Linux
+   python3 main.py
+
+   # Windows
    python main.py
 
    # Windows 用户也可使用启动脚本
    run_gui.bat
+
+   # macOS/Linux 用户也可使用启动脚本
+   bash run_gui.sh
    ```
 
 ### 第一次运行
@@ -138,6 +146,21 @@
 5. 开始创作你的第一部智能小说！
 
 ---
+
+## macOS/Linux 运行说明
+
+1. **安装 Python**
+   - 建议使用官方 Python 3.10+ 或 Homebrew 安装的 Python
+2. **启动应用**
+   ```bash
+   bash run_gui.sh
+   ```
+3. **本地 Ollama（如需本地 RAG/Embedding）**
+   - 安装并启动 Ollama 服务
+   - 下载模型，例如：
+     - `ollama pull llama3:8b`
+     - `ollama pull nomic-embed-text`
+   - 在 `config.json` 中将 LLM/Embedding 的 `base_url` 配置为 `http://localhost:11434/v1`
 
 ## 项目架构
 
@@ -621,6 +644,10 @@ python tests/manual/test_prompt_manager.py
 python -c "from core.config.config_manager import ConfigManager; print('配置加载测试通过')"
 
 # 测试 UI 启动
+# macOS/Linux
+python3 main.py
+
+# Windows
 python main.py
 ```
 
@@ -635,6 +662,8 @@ pyinstaller packaging/main.spec
 
 # 生成的可执行文件在 dist/ 目录
 ```
+
+macOS 打包需准备 `.icns` 图标并调整 `packaging/main.spec` 中的 `icon` 配置。
 
 ---
 
@@ -667,9 +696,15 @@ A: 确保 Ollama 服务运行后，配置如下：
 {
   "api_key": "ollama",
   "base_url": "http://localhost:11434/v1",
-  "model_name": "llama3:8b",
+  "model_name": "mxbai-embed-large",
   "interface_format": "OpenAI"
 }
+```
+
+macOS/Linux 可先安装并启动 Ollama（`ollama serve` 或启动桌面 App），然后执行：
+```bash
+ollama pull llama3:8b
+ollama pull mxbai-embed-large
 ```
 
 ### 功能相关

@@ -18,6 +18,7 @@ import shutil
 import time
 
 from core.config.config_manager import load_config, save_config
+from ui.ios_theme import IOSFonts
 from ui.config_tab import (
     create_label_with_help,
     build_ai_config_tab,
@@ -43,7 +44,7 @@ def build_settings_tab(self):
     row_idx = 0
 
     # ========== 1. LLM Model Settings ==========
-    llm_title = ctk.CTkLabel(scroll_container, text="LLM Model Settings", font=("Microsoft YaHei", 14, "bold"))
+    llm_title = ctk.CTkLabel(scroll_container, text="LLM Model Settings", font=IOSFonts.get_font(14, "bold"))
     llm_title.grid(row=row_idx, column=0, padx=10, pady=(15, 5), sticky="w")
     row_idx += 1
 
@@ -58,7 +59,7 @@ def build_settings_tab(self):
     build_ai_config_tab(self)
 
     # ========== 2. Embedding Settings ==========
-    embedding_title = ctk.CTkLabel(scroll_container, text="Embedding Settings", font=("Microsoft YaHei", 14, "bold"))
+    embedding_title = ctk.CTkLabel(scroll_container, text="Embedding Settings", font=IOSFonts.get_font(14, "bold"))
     embedding_title.grid(row=row_idx, column=0, padx=10, pady=(15, 5), sticky="w")
     row_idx += 1
 
@@ -71,7 +72,7 @@ def build_settings_tab(self):
     build_embeddings_config_tab(self)
 
     # ========== 3. Config Choose ==========
-    choose_title = ctk.CTkLabel(scroll_container, text="Config Choose", font=("Microsoft YaHei", 14, "bold"))
+    choose_title = ctk.CTkLabel(scroll_container, text="Config Choose", font=IOSFonts.get_font(14, "bold"))
     choose_title.grid(row=row_idx, column=0, padx=10, pady=(15, 5), sticky="w")
     row_idx += 1
 
@@ -84,7 +85,7 @@ def build_settings_tab(self):
     build_config_choose_tab(self)
 
     # ========== 4. Proxy Setting ==========
-    proxy_title = ctk.CTkLabel(scroll_container, text="代理设置", font=("Microsoft YaHei", 14, "bold"))
+    proxy_title = ctk.CTkLabel(scroll_container, text="代理设置", font=IOSFonts.get_font(14, "bold"))
     proxy_title.grid(row=row_idx, column=0, padx=10, pady=(15, 5), sticky="w")
     row_idx += 1
 
@@ -96,7 +97,7 @@ def build_settings_tab(self):
     build_proxy_section(self, proxy_frame)
 
     # ========== 5. WebDAV Setting ==========
-    webdav_title = ctk.CTkLabel(scroll_container, text="WebDAV 设置", font=("Microsoft YaHei", 14, "bold"))
+    webdav_title = ctk.CTkLabel(scroll_container, text="WebDAV 设置", font=IOSFonts.get_font(14, "bold"))
     webdav_title.grid(row=row_idx, column=0, padx=10, pady=(15, 5), sticky="w")
     row_idx += 1
 
@@ -125,7 +126,7 @@ def build_proxy_section(self, parent):
         variable=self.proxy_enabled_var,
         onvalue=True,
         offvalue=False,
-        font=("Microsoft YaHei", 12)
+        font=IOSFonts.get_font(12)
     )
     proxy_enabled_switch.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
@@ -133,14 +134,14 @@ def build_proxy_section(self, parent):
     create_label_with_help(self, parent, "地址:", "proxy_address", 1, 0)
     if not hasattr(self, 'proxy_address_var'):
         self.proxy_address_var = ctk.StringVar(value=proxy_setting.get("proxy_url", "127.0.0.1"))
-    proxy_address_entry = ctk.CTkEntry(parent, textvariable=self.proxy_address_var, font=("Microsoft YaHei", 12))
+    proxy_address_entry = ctk.CTkEntry(parent, textvariable=self.proxy_address_var, font=IOSFonts.get_font(12))
     proxy_address_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
     # 端口输入框
     create_label_with_help(self, parent, "端口:", "proxy_port", 2, 0)
     if not hasattr(self, 'proxy_port_var'):
         self.proxy_port_var = ctk.StringVar(value=proxy_setting.get("proxy_port", "10809"))
-    proxy_port_entry = ctk.CTkEntry(parent, textvariable=self.proxy_port_var, font=("Microsoft YaHei", 12))
+    proxy_port_entry = ctk.CTkEntry(parent, textvariable=self.proxy_port_var, font=IOSFonts.get_font(12))
     proxy_port_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
     def save_proxy_setting():
@@ -172,7 +173,7 @@ def build_proxy_section(self, parent):
         parent,
         text="保存代理设置",
         command=save_proxy_setting,
-        font=("Microsoft YaHei", 12)
+        font=IOSFonts.get_font(12)
     )
     save_btn.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 
@@ -254,18 +255,18 @@ def build_webdav_section(self, parent):
             return False
 
     # WebDAV URL
-    create_label_with_help(self, parent, "Webdav URL", "webdav_url", 0, 0, font=("Microsoft YaHei", 12), sticky="w")
-    dav_url_entry = ctk.CTkEntry(parent, textvariable=self.webdav_url_var, font=("Microsoft YaHei", 12))
+    create_label_with_help(self, parent, "Webdav URL", "webdav_url", 0, 0, font=IOSFonts.get_font(12), sticky="w")
+    dav_url_entry = ctk.CTkEntry(parent, textvariable=self.webdav_url_var, font=IOSFonts.get_font(12))
     dav_url_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
     # WebDAV 用户名
-    create_label_with_help(self, parent, "Webdav用户名", "webdav_username", 1, 0, font=("Microsoft YaHei", 12), sticky="w")
-    dav_username_entry = ctk.CTkEntry(parent, textvariable=self.webdav_username_var, font=("Microsoft YaHei", 12))
+    create_label_with_help(self, parent, "Webdav用户名", "webdav_username", 1, 0, font=IOSFonts.get_font(12), sticky="w")
+    dav_username_entry = ctk.CTkEntry(parent, textvariable=self.webdav_username_var, font=IOSFonts.get_font(12))
     dav_username_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
     # WebDAV 密码
-    create_label_with_help(self, parent, "Webdav密码", "webdav_password", 2, 0, font=("Microsoft YaHei", 12), sticky="w")
-    dav_password_entry = ctk.CTkEntry(parent, textvariable=self.webdav_password_var, font=("Microsoft YaHei", 12), show="*")
+    create_label_with_help(self, parent, "Webdav密码", "webdav_password", 2, 0, font=IOSFonts.get_font(12), sticky="w")
+    dav_password_entry = ctk.CTkEntry(parent, textvariable=self.webdav_password_var, font=IOSFonts.get_font(12), show="*")
     dav_password_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
     # 按钮组
@@ -273,15 +274,15 @@ def build_webdav_section(self, parent):
     button_frame.grid(row=3, column=0, columnspan=2, padx=5, pady=10, sticky="ew")
     button_frame.columnconfigure((0, 1, 2), weight=1)
 
-    test_btn = ctk.CTkButton(button_frame, text="测试连接", font=("Microsoft YaHei", 12),
+    test_btn = ctk.CTkButton(button_frame, text="测试连接", font=IOSFonts.get_font(12),
                             command=test_webdav_connection)
     test_btn.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
-    save_btn = ctk.CTkButton(button_frame, text="备份", font=("Microsoft YaHei", 12),
+    save_btn = ctk.CTkButton(button_frame, text="备份", font=IOSFonts.get_font(12),
                             command=backup_to_webdav)
     save_btn.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-    reset_btn = ctk.CTkButton(button_frame, text="恢复", font=("Microsoft YaHei", 12),
+    reset_btn = ctk.CTkButton(button_frame, text="恢复", font=IOSFonts.get_font(12),
                              command=restore_from_webdav)
     reset_btn.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 

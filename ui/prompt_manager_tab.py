@@ -328,7 +328,7 @@ class PromptManagerTab(ctk.CTkFrame):
         self.vars_text = ctk.CTkLabel(
             self.vars_frame,
             text="",
-            font=(IOSFonts.FONT_FAMILY_MONO, IOSLayout.FONT_SIZE_SMALL),
+            font=IOSFonts.get_mono_font(IOSLayout.FONT_SIZE_SMALL),
             text_color=IOSColors.TEXT_SECONDARY,
             anchor="w",
             justify="left",

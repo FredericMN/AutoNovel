@@ -24,6 +24,7 @@ from novel_generator import (
 )
 from core.consistency.consistency_checker import check_consistency
 from ui.validation_utils import validate_chapter_continuity
+from ui.ios_theme import IOSFonts
 
 def generate_novel_architecture_ui(self):
     filepath = self.filepath_var.get().strip()
@@ -198,7 +199,7 @@ def generate_chapter_draft_ui(self):
                     title_label = ctk.CTkLabel(
                         dialog,
                         text=validation_result["message"],
-                        font=("Microsoft YaHei", 16, "bold"),
+                        font=IOSFonts.get_font(16, "bold"),
                         text_color="#FF6347"
                     )
                     title_label.pack(pady=15)
@@ -209,7 +210,7 @@ def generate_chapter_draft_ui(self):
 
                     suggestion_text = ctk.CTkTextbox(
                         suggestion_frame,
-                        font=("Microsoft YaHei", 11),
+                        font=IOSFonts.get_font(11),
                         wrap="word",
                         height=150,
                         fg_color="#F5F5F5"
@@ -236,7 +237,7 @@ def generate_chapter_draft_ui(self):
                         button_frame,
                         text="强制生成",
                         command=on_force_generate,
-                        font=("Microsoft YaHei", 12),
+                        font=IOSFonts.get_font(12),
                         width=120,
                         fg_color="#FF6347",
                         hover_color="#FF4500"
@@ -247,7 +248,7 @@ def generate_chapter_draft_ui(self):
                         button_frame,
                         text="返回修改",
                         command=on_cancel,
-                        font=("Microsoft YaHei", 12),
+                        font=IOSFonts.get_font(12),
                         width=120
                     )
                     btn_cancel.pack(side="left", padx=10)
@@ -346,11 +347,11 @@ def generate_chapter_draft_ui(self):
                 dialog = ctk.CTkToplevel(self.master)
                 dialog.title("当前章节请求提示词（可编辑）")
                 dialog.geometry("600x400")
-                text_box = ctk.CTkTextbox(dialog, wrap="word", font=("Microsoft YaHei", 12))
+                text_box = ctk.CTkTextbox(dialog, wrap="word", font=IOSFonts.get_font(12))
                 text_box.pack(fill="both", expand=True, padx=10, pady=10)
 
                 # 字数统计标签
-                wordcount_label = ctk.CTkLabel(dialog, text="字数：0", font=("Microsoft YaHei", 12))
+                wordcount_label = ctk.CTkLabel(dialog, text="字数：0", font=IOSFonts.get_font(12))
                 wordcount_label.pack(side="left", padx=(10,0), pady=5)
                 
                 # 插入角色内容
@@ -416,9 +417,9 @@ def generate_chapter_draft_ui(self):
                     result["prompt"] = None
                     dialog.destroy()
                     event.set()
-                btn_confirm = ctk.CTkButton(button_frame, text="确认使用", font=("Microsoft YaHei", 12), command=on_confirm)
+                btn_confirm = ctk.CTkButton(button_frame, text="确认使用", font=IOSFonts.get_font(12), command=on_confirm)
                 btn_confirm.pack(side="left", padx=10)
-                btn_cancel = ctk.CTkButton(button_frame, text="取消请求", font=("Microsoft YaHei", 12), command=on_cancel)
+                btn_cancel = ctk.CTkButton(button_frame, text="取消请求", font=IOSFonts.get_font(12), command=on_cancel)
                 btn_cancel.pack(side="left", padx=10)
                 # 若用户直接关闭弹窗，则调用 on_cancel 处理
                 dialog.protocol("WM_DELETE_WINDOW", on_cancel)
@@ -828,20 +829,20 @@ def generate_batch_ui(self):
                     ctk.CTkLabel(
                         warning_frame,
                         text=f"⚠️ 检测到 {len(existing_chapters)} 个章节已存在！",
-                        font=("Microsoft YaHei", 14, "bold"),
+                        font=IOSFonts.get_font(14, "bold"),
                         text_color="#FF6B6B"
                     ).pack(pady=(0, 10))
 
                     ctk.CTkLabel(
                         warning_frame,
                         text=f"范围: 第{start}章 - 第{end}章 (共{total}章)",
-                        font=("Microsoft YaHei", 12)
+                        font=IOSFonts.get_font(12)
                     ).pack(pady=5)
 
                     ctk.CTkLabel(
                         warning_frame,
                         text=f"冲突章节: {conflict_list}",
-                        font=("Microsoft YaHei", 11),
+                        font=IOSFonts.get_font(11),
                         wraplength=450,
                         justify="left"
                     ).pack(pady=5)
@@ -849,7 +850,7 @@ def generate_batch_ui(self):
                     ctk.CTkLabel(
                         warning_frame,
                         text="覆盖将导致：\n1. 旧内容永久丢失\n2. 重复定稿会污染向量库",
-                        font=("Microsoft YaHei", 10),
+                        font=IOSFonts.get_font(10),
                         text_color="#FFA500",
                         justify="left"
                     ).pack(pady=(10, 0))
@@ -1408,7 +1409,7 @@ def show_vectorstore_report(self):
         title_label = ctk.CTkLabel(
             report_window,
             text="向量库使用统计与质量分析",
-            font=("Microsoft YaHei", 16, "bold")
+            font=IOSFonts.get_font(16, "bold")
         )
         title_label.pack(pady=10)
 
@@ -1438,7 +1439,7 @@ def show_vectorstore_report(self):
             button_frame,
             text="刷新报告",
             command=refresh_report,
-            font=("Microsoft YaHei", 12)
+            font=IOSFonts.get_font(12)
         )
         refresh_btn.pack(side="left", padx=5)
 
@@ -1454,7 +1455,7 @@ def show_vectorstore_report(self):
             button_frame,
             text="清空统计",
             command=clear_stats_confirm,
-            font=("Microsoft YaHei", 12),
+            font=IOSFonts.get_font(12),
             fg_color="orange"
         )
         clear_stats_btn.pack(side="left", padx=5)
@@ -1464,7 +1465,7 @@ def show_vectorstore_report(self):
             button_frame,
             text="关闭",
             command=report_window.destroy,
-            font=("Microsoft YaHei", 12)
+            font=IOSFonts.get_font(12)
         )
         close_btn.pack(side="left", padx=5)
 
@@ -1492,7 +1493,7 @@ def show_plot_arcs_ui(self):
     top = ctk.CTkToplevel(self.master)
     top.title("剧情要点/未解决冲突")
     top.geometry("600x400")
-    text_area = ctk.CTkTextbox(top, wrap="word", font=("Microsoft YaHei", 12))
+    text_area = ctk.CTkTextbox(top, wrap="word", font=IOSFonts.get_font(12))
     text_area.pack(fill="both", expand=True, padx=10, pady=10)
     text_area.insert("0.0", arcs_text)
     text_area.configure(state="disabled")

@@ -5,6 +5,9 @@ iOS风格主题配置
 参考Apple Human Interface Guidelines设计规范
 """
 
+import os
+import sys
+
 # ========== 配色方案 ==========
 # 基于iOS的浅色/深色模式配色
 
@@ -83,21 +86,100 @@ class IOSLayout:
 class IOSFonts:
     """iOS风格字体配置"""
 
-    # 优先使用系统字体，回退到微软雅黑
+    # 优先使用系统字体，回退到常见等宽/中文字体
     FONT_FAMILY = "Microsoft YaHei"
     FONT_FAMILY_MONO = "Consolas"
+    _resolved_family = None
+    _resolved_mono_family = None
+
+    FONT_FAMILY_CANDIDATES = {
+        "win32": ["Microsoft YaHei", "Microsoft YaHei UI", "Segoe UI", "Arial Unicode MS"],
+        "darwin": ["PingFang SC", "Hiragino Sans GB", "Heiti SC", "STHeiti", "Arial Unicode MS"],
+        "linux": ["Noto Sans CJK SC", "Noto Sans CJK", "WenQuanYi Micro Hei", "Source Han Sans CN", "DejaVu Sans", "Liberation Sans"],
+    }
+
+    MONO_FAMILY_CANDIDATES = {
+        "win32": ["Consolas", "Cascadia Mono", "Courier New"],
+        "darwin": ["SF Mono", "Menlo", "Monaco", "Courier New"],
+        "linux": ["DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Ubuntu Mono"],
+    }
+
+    @staticmethod
+    def _get_platform_key() -> str:
+        if sys.platform.startswith("win"):
+            return "win32"
+        if sys.platform == "darwin":
+            return "darwin"
+        return "linux"
+
+    @staticmethod
+    def _available_font_families() -> set:
+        try:
+            import tkinter as tk
+            import tkinter.font as tkfont
+
+            root = tk._default_root
+            if root is None:
+                temp_root = tk.Tk()
+                temp_root.withdraw()
+                families = set(tkfont.families(temp_root))
+                temp_root.destroy()
+            else:
+                families = set(tkfont.families(root))
+            return families
+        except Exception:
+            return set()
+
+    @classmethod
+    def _select_family(cls, candidates, env_override) -> str:
+        if env_override:
+            candidates = [env_override] + [c for c in candidates if c != env_override]
+
+        families = cls._available_font_families()
+        if families:
+            for name in candidates:
+                if name in families:
+                    return name
+        return candidates[0] if candidates else "Arial"
+
+    @classmethod
+    def get_family(cls) -> str:
+        if cls._resolved_family is None:
+            platform_key = cls._get_platform_key()
+            candidates = cls.FONT_FAMILY_CANDIDATES.get(platform_key, cls.FONT_FAMILY_CANDIDATES["linux"])
+            cls._resolved_family = cls._select_family(candidates, os.environ.get("AUTONOVEL_FONT_FAMILY"))
+            cls.FONT_FAMILY = cls._resolved_family
+        return cls._resolved_family
+
+    @classmethod
+    def get_mono_family(cls) -> str:
+        if cls._resolved_mono_family is None:
+            platform_key = cls._get_platform_key()
+            candidates = cls.MONO_FAMILY_CANDIDATES.get(platform_key, cls.MONO_FAMILY_CANDIDATES["linux"])
+            cls._resolved_mono_family = cls._select_family(candidates, os.environ.get("AUTONOVEL_MONO_FONT_FAMILY"))
+            cls.FONT_FAMILY_MONO = cls._resolved_mono_family
+        return cls._resolved_mono_family
 
     @staticmethod
     def get_font(size=13, weight="normal"):
         """获取字体配置"""
+        family = IOSFonts.get_family()
         if weight == "bold":
-            return (IOSFonts.FONT_FAMILY, size, "bold")
-        return (IOSFonts.FONT_FAMILY, size)
+            return (family, size, "bold")
+        return (family, size)
 
     @staticmethod
     def get_title_font(size=18):
         """获取标题字体"""
-        return (IOSFonts.FONT_FAMILY, size, "bold")
+        return IOSFonts.get_font(size, "bold")
+
+    @staticmethod
+    def get_mono_font(size=13, weight="normal"):
+        """获取等宽字体配置"""
+        family = IOSFonts.get_mono_family()
+        if weight == "bold":
+            return (family, size, "bold")
+        return (family, size)
 
 
 # ========== CustomTkinter主题配置 ==========

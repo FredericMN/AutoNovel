@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import customtkinter as ctk
 import tkinter as tk
+from ui.ios_theme import IOSFonts
 
 
 def validate_chapter_continuity(filepath: str, chapter_num: int) -> dict:
@@ -216,7 +217,7 @@ class SaveStatusIndicator:
         self.status_text = ctk.CTkLabel(
             self.frame,
             text="已保存",
-            font=("Microsoft YaHei", 11),
+            font=IOSFonts.get_font(11),
             text_color="#00AA00"
         )
         self.status_text.grid(row=0, column=0, padx=3)
@@ -225,7 +226,7 @@ class SaveStatusIndicator:
         self.time_label = ctk.CTkLabel(
             self.frame,
             text="",
-            font=("Microsoft YaHei", 10),
+            font=IOSFonts.get_font(10),
             text_color="gray"
         )
         self.time_label.grid(row=0, column=1, padx=5)
