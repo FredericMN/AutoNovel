@@ -71,7 +71,7 @@ mdurl==0.1.2
 mmh3==5.2.0
 mpmath==1.3.0
 multidict==6.6.4
-mypy_extensions==1.1.1
+mypy_extensions==1.1.0
 networkx==3.5
 nltk==3.9.1
 numpy==2.3.2
