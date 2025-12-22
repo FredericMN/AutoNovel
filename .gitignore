@@ -25,3 +25,8 @@ pyproject.toml
 legacy/prompts/global_prompt.json
 nul
 legacy/prompts/global_prompt.example.json
+
+# AI Assistant docs (local only)
+GEMINI.md
+CLAUDE.md
+AGENTS.md
