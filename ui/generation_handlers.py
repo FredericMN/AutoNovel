@@ -26,6 +26,14 @@ from core.consistency.consistency_checker import check_consistency
 from ui.validation_utils import validate_chapter_continuity
 from ui.ios_theme import IOSFonts
 
+# 导入异步对话框工具
+from core.utils.async_dialog import (
+    get_dialog_helper,
+    ConflictDialogOptions,
+    ContinuityDialogOptions,
+    PromptEditDialogOptions
+)
+
 def generate_novel_architecture_ui(self):
     filepath = self.filepath_var.get().strip()
     if not filepath:
@@ -163,6 +171,8 @@ def generate_chapter_draft_ui(self):
     def task():
         self.disable_button_safe(self.btn_generate_chapter)
         try:
+            # 获取对话框助手
+            dialog_helper = get_dialog_helper()
 
             interface_format = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["interface_format"]
             api_key = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["api_key"]
@@ -175,121 +185,35 @@ def generate_chapter_draft_ui(self):
 
             chap_num = self.safe_get_int(self.chapter_num_var, 1)
 
-            # 【防呆1：章节连续性校验】
+            # 【防呆1：章节连续性校验】- 使用异步对话框
             validation_result = validate_chapter_continuity(filepath, chap_num)
             if not validation_result["valid"]:
-                # 在主线程中显示对话框
-                confirm_result = {"confirmed": False}
-                confirm_event = threading.Event()
+                # 使用异步对话框助手（带超时）
+                confirmed = dialog_helper.ask_continuity_override(
+                    ContinuityDialogOptions(
+                        chapter_num=chap_num,
+                        message=validation_result["message"],
+                        suggestion=validation_result["suggestion"]
+                    ),
+                    timeout=60.0  # 60秒超时
+                )
 
-                def ask_continuity_override():
-                    dialog = ctk.CTkToplevel(self.master)
-                    dialog.title("章节连续性检查")
-                    dialog.geometry("450x320")
-                    dialog.transient(self.master)
-                    dialog.grab_set()
-
-                    # 居中显示
-                    dialog.update_idletasks()
-                    x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
-                    y = (dialog.winfo_screenheight() // 2) - (320 // 2)
-                    dialog.geometry(f"450x320+{x}+{y}")
-
-                    # 标题
-                    title_label = ctk.CTkLabel(
-                        dialog,
-                        text=validation_result["message"],
-                        font=IOSFonts.get_font(16, "bold"),
-                        text_color="#FF6347"
-                    )
-                    title_label.pack(pady=15)
-
-                    # 建议内容
-                    suggestion_frame = ctk.CTkFrame(dialog, fg_color="#F5F5F5")
-                    suggestion_frame.pack(padx=20, pady=10, fill="both", expand=True)
-
-                    suggestion_text = ctk.CTkTextbox(
-                        suggestion_frame,
-                        font=IOSFonts.get_font(11),
-                        wrap="word",
-                        height=150,
-                        fg_color="#F5F5F5"
-                    )
-                    suggestion_text.pack(padx=10, pady=10, fill="both", expand=True)
-                    suggestion_text.insert("1.0", validation_result["suggestion"])
-                    suggestion_text.configure(state="disabled")
-
-                    # 按钮区域
-                    button_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-                    button_frame.pack(pady=15)
-
-                    def on_force_generate():
-                        confirm_result["confirmed"] = True
-                        dialog.destroy()
-                        confirm_event.set()
-
-                    def on_cancel():
-                        confirm_result["confirmed"] = False
-                        dialog.destroy()
-                        confirm_event.set()
-
-                    btn_force = ctk.CTkButton(
-                        button_frame,
-                        text="强制生成",
-                        command=on_force_generate,
-                        font=IOSFonts.get_font(12),
-                        width=120,
-                        fg_color="#FF6347",
-                        hover_color="#FF4500"
-                    )
-                    btn_force.pack(side="left", padx=10)
-
-                    btn_cancel = ctk.CTkButton(
-                        button_frame,
-                        text="返回修改",
-                        command=on_cancel,
-                        font=IOSFonts.get_font(12),
-                        width=120
-                    )
-                    btn_cancel.pack(side="left", padx=10)
-
-                    # 关闭窗口时也触发取消
-                    dialog.protocol("WM_DELETE_WINDOW", on_cancel)
-
-                self.master.after(0, ask_continuity_override)
-                confirm_event.wait()
-
-                if not confirm_result["confirmed"]:
+                if not confirmed:
                     self.safe_log(f"❌ 章节连续性检查未通过，用户选择返回修改。")
                     return
                 else:
                     self.safe_log(f"⚠️ 用户选择强制生成第{chap_num}章（跳过章节连续性检查）")
 
-            # 【方案A】检查章节文件是否已存在，警告覆盖风险
+            # 【方案A】检查章节文件是否已存在，警告覆盖风险 - 使用异步对话框
             chapters_dir = os.path.join(filepath, "chapters")
             os.makedirs(chapters_dir, exist_ok=True)
             chapter_file = os.path.join(chapters_dir, f"chapter_{chap_num}.txt")
 
             if os.path.exists(chapter_file):
-                confirm_result = {"confirmed": False}
-                confirm_event = threading.Event()
+                # 使用异步对话框助手（带超时）
+                confirmed = dialog_helper.ask_overwrite(chap_num, timeout=30.0)
 
-                def ask_overwrite():
-                    result = messagebox.askyesno(
-                        "覆盖确认",
-                        f"⚠️ 第{chap_num}章已存在！\n\n"
-                        f"覆盖将导致：\n"
-                        f"1. 旧内容永久丢失\n"
-                        f"2. 定稿时向量库重复存储（污染检索）\n\n"
-                        f"是否继续？建议修改章节号为 {chap_num + 1}"
-                    )
-                    confirm_result["confirmed"] = result
-                    confirm_event.set()
-
-                self.master.after(0, ask_overwrite)
-                confirm_event.wait()
-
-                if not confirm_result["confirmed"]:
+                if not confirmed:
                     self.safe_log(f"❌ 用户取消了第{chap_num}章草稿生成，避免覆盖现有内容。")
                     return
 
@@ -339,94 +263,56 @@ def generate_chapter_draft_ui(self):
                 gui_log_callback=self.safe_log  # 传入GUI日志回调，向量检索信息会在这里输出
             )
 
-            # 弹出可编辑提示词对话框，等待用户确认或取消
-            result = {"prompt": None}
-            event = threading.Event()
+            # 处理角色库内容
+            final_prompt = prompt_text
+            role_names = [name.strip() for name in self.char_inv_text.get("0.0", "end").strip().split(',') if name.strip()]
+            role_lib_path = os.path.join(filepath, "角色库")
+            role_contents = []
 
-            def create_dialog():
-                dialog = ctk.CTkToplevel(self.master)
-                dialog.title("当前章节请求提示词（可编辑）")
-                dialog.geometry("600x400")
-                text_box = ctk.CTkTextbox(dialog, wrap="word", font=IOSFonts.get_font(12))
-                text_box.pack(fill="both", expand=True, padx=10, pady=10)
+            if os.path.exists(role_lib_path):
+                for root, dirs, files in os.walk(role_lib_path):
+                    for file in files:
+                        if file.endswith(".txt") and os.path.splitext(file)[0] in role_names:
+                            file_path_role = os.path.join(root, file)
+                            try:
+                                with open(file_path_role, 'r', encoding='utf-8') as f:
+                                    role_contents.append(f.read().strip())
+                            except Exception as e:
+                                self.safe_log(f"读取角色文件 {file} 失败: {str(e)}")
 
-                # 字数统计标签
-                wordcount_label = ctk.CTkLabel(dialog, text="字数：0", font=IOSFonts.get_font(12))
-                wordcount_label.pack(side="left", padx=(10,0), pady=5)
-                
-                # 插入角色内容
-                final_prompt = prompt_text
-                role_names = [name.strip() for name in self.char_inv_text.get("0.0", "end").strip().split(',') if name.strip()]
-                role_lib_path = os.path.join(filepath, "角色库")
-                role_contents = []
-                
-                if os.path.exists(role_lib_path):
-                    for root, dirs, files in os.walk(role_lib_path):
-                        for file in files:
-                            if file.endswith(".txt") and os.path.splitext(file)[0] in role_names:
-                                file_path = os.path.join(root, file)
-                                try:
-                                    with open(file_path, 'r', encoding='utf-8') as f:
-                                        role_contents.append(f.read().strip())  # 直接使用文件内容，不添加重复名字
-                                except Exception as e:
-                                    self.safe_log(f"读取角色文件 {file} 失败: {str(e)}")
-                
-                if role_contents:
-                    role_content_str = "\n".join(role_contents)
-                    # 更精确的替换逻辑，处理不同情况下的占位符
-                    placeholder_variations = [
-                        "核心人物(可能未指定)：{characters_involved}",
-                        "核心人物：{characters_involved}",
-                        "核心人物(可能未指定):{characters_involved}",
-                        "核心人物:{characters_involved}"
-                    ]
-                    
-                    for placeholder in placeholder_variations:
-                        if placeholder in final_prompt:
-                            final_prompt = final_prompt.replace(
-                                placeholder,
-                                f"核心人物：\n{role_content_str}"
-                            )
+            if role_contents:
+                role_content_str = "\n".join(role_contents)
+                placeholder_variations = [
+                    "核心人物(可能未指定)：{characters_involved}",
+                    "核心人物：{characters_involved}",
+                    "核心人物(可能未指定):{characters_involved}",
+                    "核心人物:{characters_involved}"
+                ]
+
+                for placeholder in placeholder_variations:
+                    if placeholder in final_prompt:
+                        final_prompt = final_prompt.replace(
+                            placeholder,
+                            f"核心人物：\n{role_content_str}"
+                        )
+                        break
+                else:
+                    lines = final_prompt.split('\n')
+                    for i, line in enumerate(lines):
+                        if "核心人物" in line and "：" in line:
+                            lines[i] = f"核心人物：\n{role_content_str}"
                             break
-                    else:  # 如果没有找到任何已知占位符变体
-                        lines = final_prompt.split('\n')
-                        for i, line in enumerate(lines):
-                            if "核心人物" in line and "：" in line:
-                                lines[i] = f"核心人物：\n{role_content_str}"
-                                break
-                        final_prompt = '\n'.join(lines)
+                    final_prompt = '\n'.join(lines)
 
-                text_box.insert("0.0", final_prompt)
-                # 更新字数函数
-                def update_word_count(event=None):
-                    text = text_box.get("0.0", "end-1c")
-                    text_length = len(text)
-                    wordcount_label.configure(text=f"字数：{text_length}")
+            # 弹出可编辑提示词对话框 - 使用异步对话框（5分钟超时）
+            edited_prompt = dialog_helper.edit_prompt(
+                PromptEditDialogOptions(
+                    initial_prompt=final_prompt,
+                    chapter_num=chap_num
+                ),
+                timeout=300.0  # 5分钟超时
+            )
 
-                text_box.bind("<KeyRelease>", update_word_count)
-                text_box.bind("<ButtonRelease>", update_word_count)
-                update_word_count()  # 初始化统计
-
-                button_frame = ctk.CTkFrame(dialog)
-                button_frame.pack(pady=10)
-                def on_confirm():
-                    result["prompt"] = text_box.get("1.0", "end").strip()
-                    dialog.destroy()
-                    event.set()
-                def on_cancel():
-                    result["prompt"] = None
-                    dialog.destroy()
-                    event.set()
-                btn_confirm = ctk.CTkButton(button_frame, text="确认使用", font=IOSFonts.get_font(12), command=on_confirm)
-                btn_confirm.pack(side="left", padx=10)
-                btn_cancel = ctk.CTkButton(button_frame, text="取消请求", font=IOSFonts.get_font(12), command=on_cancel)
-                btn_cancel.pack(side="left", padx=10)
-                # 若用户直接关闭弹窗，则调用 on_cancel 处理
-                dialog.protocol("WM_DELETE_WINDOW", on_cancel)
-                dialog.grab_set()
-            self.master.after(0, create_dialog)
-            event.wait()  # 等待用户操作完成
-            edited_prompt = result["prompt"]
             if edited_prompt is None:
                 self.safe_log("❌ 用户取消了草稿生成请求。")
                 return
@@ -477,7 +363,11 @@ def finalize_chapter_ui(self):
         return
 
     def task():
-        if not messagebox.askyesno("确认", "确定要定稿当前章节吗？"):
+        # 获取对话框助手
+        dialog_helper = get_dialog_helper()
+
+        # 使用异步对话框确认
+        if not dialog_helper.ask_yes_no("确认", "确定要定稿当前章节吗？", timeout=30.0, default=False):
             self.enable_button_safe(self.btn_finalize_chapter)
             return
 
@@ -527,25 +417,19 @@ def finalize_chapter_ui(self):
                     )
 
                     if chapter_exists:
-                        confirm_result = {"confirmed": False}
-                        confirm_event = threading.Event()
+                        # 使用异步对话框（带超时）
+                        confirmed = dialog_helper.ask_yes_no(
+                            "重复定稿确认",
+                            f"⚠️ 第{chap_num}章已在向量库中，疑似已定稿过！\n\n"
+                            f"重复定稿将导致：\n"
+                            f"1. 向量库重复存储相同内容（污染检索）\n"
+                            f"2. 摘要和角色状态可能重复更新\n\n"
+                            f"是否继续？建议检查章节号是否正确",
+                            timeout=30.0,
+                            default=False
+                        )
 
-                        def ask_refinalize():
-                            result = messagebox.askyesno(
-                                "重复定稿确认",
-                                f"⚠️ 第{chap_num}章已在向量库中，疑似已定稿过！\n\n"
-                                f"重复定稿将导致：\n"
-                                f"1. 向量库重复存储相同内容（污染检索）\n"
-                                f"2. 摘要和角色状态可能重复更新\n\n"
-                                f"是否继续？建议检查章节号是否正确"
-                            )
-                            confirm_result["confirmed"] = result
-                            confirm_event.set()
-
-                        self.master.after(0, ask_refinalize)
-                        confirm_event.wait()
-
-                        if not confirm_result["confirmed"]:
+                        if not confirmed:
                             self.safe_log(f"❌ 用户取消了第{chap_num}章定稿，避免重复写入向量库。")
                             return
                 except Exception as e:
@@ -558,7 +442,13 @@ def finalize_chapter_ui(self):
             edited_text = self.chapter_result.get("0.0", "end").strip()
 
             if len(edited_text) < 0.7 * word_number:
-                ask = messagebox.askyesno("字数不足", f"当前章节字数 ({len(edited_text)}) 低于目标字数({word_number})的70%，是否要尝试扩写？")
+                # 使用异步对话框（带超时）
+                ask = dialog_helper.ask_yes_no(
+                    "字数不足",
+                    f"当前章节字数 ({len(edited_text)}) 低于目标字数({word_number})的70%，是否要尝试扩写？",
+                    timeout=30.0,
+                    default=False
+                )
                 if ask:
                     self.safe_log("正在扩写章节内容...")
                     enriched = enrich_chapter_text(
@@ -777,6 +667,9 @@ def generate_batch_ui(self):
     # 2. 定义后台任务
     def batch_task():
         try:
+            # 初始化取消标志
+            self.init_batch_cancel_flag()
+
             # 禁用批量生成按钮
             self.disable_button_safe(self.btn_batch_generate)
 
@@ -807,111 +700,19 @@ def generate_batch_ui(self):
                 if os.path.exists(chapter_file):
                     existing_chapters.append(i)
 
-            # 如果有冲突章节，弹出对话框
+            # 如果有冲突章节，弹出对话框 - 使用异步对话框
             if existing_chapters:
-                conflict_action = {"action": None}
-                conflict_event = threading.Event()
+                dialog_helper = get_dialog_helper()
+                action = dialog_helper.ask_conflict_action(
+                    ConflictDialogOptions(
+                        start_chapter=start,
+                        end_chapter=end,
+                        total_chapters=total,
+                        existing_chapters=existing_chapters
+                    ),
+                    timeout=60.0  # 60秒超时
+                )
 
-                def show_conflict_dialog():
-                    conflict_list = ", ".join([f"第{i}章" for i in existing_chapters[:10]])
-                    if len(existing_chapters) > 10:
-                        conflict_list += f" 等{len(existing_chapters)}章"
-
-                    dialog = ctk.CTkToplevel()
-                    dialog.title("⚠️ 批量生成冲突检测")
-                    dialog.geometry("500x300")
-                    dialog.resizable(False, False)
-
-                    # 警告信息
-                    warning_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-                    warning_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-                    ctk.CTkLabel(
-                        warning_frame,
-                        text=f"⚠️ 检测到 {len(existing_chapters)} 个章节已存在！",
-                        font=IOSFonts.get_font(14, "bold"),
-                        text_color="#FF6B6B"
-                    ).pack(pady=(0, 10))
-
-                    ctk.CTkLabel(
-                        warning_frame,
-                        text=f"范围: 第{start}章 - 第{end}章 (共{total}章)",
-                        font=IOSFonts.get_font(12)
-                    ).pack(pady=5)
-
-                    ctk.CTkLabel(
-                        warning_frame,
-                        text=f"冲突章节: {conflict_list}",
-                        font=IOSFonts.get_font(11),
-                        wraplength=450,
-                        justify="left"
-                    ).pack(pady=5)
-
-                    ctk.CTkLabel(
-                        warning_frame,
-                        text="覆盖将导致：\n1. 旧内容永久丢失\n2. 重复定稿会污染向量库",
-                        font=IOSFonts.get_font(10),
-                        text_color="#FFA500",
-                        justify="left"
-                    ).pack(pady=(10, 0))
-
-                    # 按钮区
-                    button_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-                    button_frame.pack(pady=(0, 20))
-
-                    def on_cancel():
-                        conflict_action["action"] = "cancel"
-                        dialog.destroy()
-                        conflict_event.set()
-
-                    def on_skip():
-                        conflict_action["action"] = "skip"
-                        dialog.destroy()
-                        conflict_event.set()
-
-                    def on_overwrite():
-                        conflict_action["action"] = "overwrite"
-                        dialog.destroy()
-                        conflict_event.set()
-
-                    ctk.CTkButton(
-                        button_frame,
-                        text="❌ 取消批量生成",
-                        command=on_cancel,
-                        fg_color="#DC3545",
-                        hover_color="#C82333",
-                        width=140,
-                        height=32
-                    ).pack(side="left", padx=5)
-
-                    ctk.CTkButton(
-                        button_frame,
-                        text="⏭️ 跳过已存在章节",
-                        command=on_skip,
-                        fg_color="#FFC107",
-                        hover_color="#E0A800",
-                        width=140,
-                        height=32
-                    ).pack(side="left", padx=5)
-
-                    ctk.CTkButton(
-                        button_frame,
-                        text="⚠️ 覆盖全部",
-                        command=on_overwrite,
-                        fg_color="#6C757D",
-                        hover_color="#5A6268",
-                        width=140,
-                        height=32
-                    ).pack(side="left", padx=5)
-
-                    dialog.protocol("WM_DELETE_WINDOW", on_cancel)
-                    dialog.transient(self.master)
-                    dialog.grab_set()
-
-                self.master.after(0, show_conflict_dialog)
-                conflict_event.wait()
-
-                action = conflict_action["action"]
                 if action == "cancel":
                     self.safe_log("❌ 用户取消批量生成，避免覆盖现有章节。")
                     return
@@ -940,9 +741,16 @@ def generate_batch_ui(self):
             processed_count = 0  # 实际处理成功的章节数
             skipped_count = 0  # 跳过的章节数
             failed = False  # 标记是否有失败
+            cancelled = False  # 标记是否被取消
             actual_total = total - len(skip_chapters)  # 实际需要处理的章节数
 
             for i in range(start, end + 1):
+                # 检查是否被取消
+                if self.is_batch_cancelled():
+                    self.safe_log("\n⏹ 用户取消了批量生成")
+                    cancelled = True
+                    break
+
                 # 跳过已存在的章节（如果用户选择跳过）
                 if i in skip_chapters:
                     self.safe_log(f"⏭️ 跳过第{i}章（已存在）")
@@ -987,7 +795,13 @@ def generate_batch_ui(self):
 
             # 输出完成信息
             self.safe_log("\n" + "=" * 70)
-            if failed:
+            if cancelled:
+                self.safe_log("⏹ 批量生成已取消")
+                self.safe_log(f"   成功处理: {processed_count}章")
+                if skipped_count > 0:
+                    self.safe_log(f"   跳过章节: {skipped_count}章")
+                self.safe_log(f"   剩余未处理: {actual_total - processed_count}章")
+            elif failed:
                 self.safe_log("⚠️  批量生成部分完成（遇到错误已中止）")
                 self.safe_log(f"   成功处理: {processed_count}章")
                 self.safe_log(f"   失败章节: 第{i}章")
@@ -1003,6 +817,8 @@ def generate_batch_ui(self):
         except Exception as e:
             self.handle_exception("批量生成时出错")
         finally:
+            # 清除取消标志
+            self.clear_batch_cancel_flag()
             # 隐藏进度条
             self.hide_progress_bars()
             # 启用批量生成按钮

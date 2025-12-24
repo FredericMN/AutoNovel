@@ -4,6 +4,7 @@ import os
 import threading
 import logging
 import traceback
+import queue
 from pathlib import Path
 import customtkinter as ctk
 import tkinter as tk
@@ -18,6 +19,10 @@ from core.config.config_manager import load_config, save_config, test_llm_config
 from core.utils.file_utils import read_file, save_string_to_txt, clear_file_content
 from ui.common import tooltips
 from core.utils.volume_utils import validate_volume_config as validate_vol_config, get_volume_info_text
+
+# 导入任务队列管理器
+from core.utils.task_queue import init_task_manager
+from core.utils.async_dialog import init_dialog_helper
 
 ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "icons" / "app.ico"
 
@@ -75,6 +80,17 @@ class NovelGeneratorGUI:
         except Exception:
             pass
         self.master.geometry("1680x920")
+
+        # --------------- 初始化任务管理器和异步对话框助手 ---------------
+        self._task_manager = init_task_manager(self.master)
+        self._dialog_helper = init_dialog_helper(self.master)
+
+        # --------------- 异步日志系统 ---------------
+        self._log_queue = queue.Queue()
+        self._log_buffer = []
+        self._log_flush_interval = 100  # 100ms刷新一次
+        self._log_max_buffer = 20  # 最多缓冲20条
+        self._start_log_flush_timer()
 
         # --------------- 配置文件路径 ---------------
         self.config_file = "config.json"
@@ -297,14 +313,84 @@ class NovelGeneratorGUI:
             var.set(str(default))
             return default
 
+    # ========== 异步日志系统 ==========
+    def _start_log_flush_timer(self):
+        """启动日志刷新定时器"""
+        self._flush_log_buffer()
+
+    def _flush_log_buffer(self):
+        """刷新日志缓冲区到UI（在主线程中执行）"""
+        try:
+            # 从队列中获取所有待处理的日志
+            messages = []
+            while True:
+                try:
+                    msg = self._log_queue.get_nowait()
+                    messages.append(msg)
+                except queue.Empty:
+                    break
+
+            # 如果有消息，批量更新UI
+            if messages:
+                self._batch_log_to_ui(messages)
+
+        except Exception as e:
+            logging.error(f"日志刷新异常: {e}")
+        finally:
+            # 继续定时刷新
+            try:
+                self.master.after(self._log_flush_interval, self._flush_log_buffer)
+            except Exception:
+                pass  # 窗口可能已关闭
+
+    def _batch_log_to_ui(self, messages: list):
+        """批量输出日志到UI（减少UI更新频率）"""
+        if not messages:
+            return
+
+        # 保护：日志控件可能尚未创建
+        if not hasattr(self, 'log_text') or self.log_text is None:
+            return
+
+        try:
+            # 合并所有消息
+            combined = "\n".join(messages)
+
+            # 一次性更新文本框
+            self.log_text.configure(state="normal")
+            self.log_text.insert("end", combined + "\n")
+
+            # 限制日志文本框的最大行数，避免内存溢出
+            line_count = int(self.log_text.index('end-1c').split('.')[0])
+            if line_count > 2000:
+                # 删除前500行
+                self.log_text.delete("1.0", "500.0")
+
+            self.log_text.see("end")
+            self.log_text.configure(state="disabled")
+        except Exception as e:
+            logging.error(f"批量日志输出异常: {e}")
+
     def log(self, message: str):
-        self.log_text.configure(state="normal")
-        self.log_text.insert("end", message + "\n")
-        self.log_text.see("end")
-        self.log_text.configure(state="disabled")
+        """直接输出日志到UI（仅在主线程中调用）"""
+        try:
+            self.log_text.configure(state="normal")
+            self.log_text.insert("end", message + "\n")
+            self.log_text.see("end")
+            self.log_text.configure(state="disabled")
+        except Exception as e:
+            logging.error(f"日志输出异常: {e}")
 
     def safe_log(self, message: str):
-        self.master.after(0, lambda: self.log(message))
+        """
+        线程安全的日志输出（可从任何线程调用）
+
+        日志消息会被放入队列，由主线程定时批量处理
+        """
+        try:
+            self._log_queue.put(message)
+        except Exception as e:
+            logging.error(f"日志入队异常: {e}")
 
     def disable_button_safe(self, btn):
         self.master.after(0, lambda: btn.configure(state="disabled"))
@@ -366,6 +452,38 @@ class NovelGeneratorGUI:
             self.chapter_progress_label.configure(text="当前章节: 准备中...")
             self.chapter_progress_bar.set(0)
         self.master.after(0, reset)
+
+    # ========== 批量生成取消机制 ==========
+    def cancel_batch_generation(self):
+        """取消批量生成"""
+        if hasattr(self, '_batch_cancel_flag') and self._batch_cancel_flag:
+            self._batch_cancel_flag.set()
+            self.safe_log("⏹ 用户请求取消批量生成（当前章节完成后停止）...")
+            # 禁用取消按钮，更新提示文本
+            if hasattr(self, 'btn_cancel_batch'):
+                self.btn_cancel_batch.configure(state="disabled", text="等待当前章节...")
+
+    def is_batch_cancelled(self) -> bool:
+        """检查批量生成是否已取消"""
+        if hasattr(self, '_batch_cancel_flag') and self._batch_cancel_flag:
+            return self._batch_cancel_flag.is_set()
+        return False
+
+    def init_batch_cancel_flag(self):
+        """初始化批量取消标志"""
+        import threading
+        self._batch_cancel_flag = threading.Event()
+        # 重置取消按钮状态
+        if hasattr(self, 'btn_cancel_batch'):
+            self.master.after(0, lambda: self.btn_cancel_batch.configure(state="normal", text="⏹ 取消"))
+
+    def clear_batch_cancel_flag(self):
+        """清除批量取消标志"""
+        if hasattr(self, '_batch_cancel_flag'):
+            self._batch_cancel_flag = None
+        # 恢复取消按钮状态
+        if hasattr(self, 'btn_cancel_batch'):
+            self.master.after(0, lambda: self.btn_cancel_batch.configure(state="normal", text="⏹ 取消"))
 
     def test_llm_config(self):
         """

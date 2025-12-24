@@ -139,15 +139,33 @@ def build_center_layout(self):
     self.progress_frame.columnconfigure(0, weight=1)
     self.progress_frame.grid_remove()  # 默认隐藏
 
+    # 顶部行：整体进度标签 + 取消按钮
+    progress_header_frame = ctk.CTkFrame(self.progress_frame, fg_color="transparent")
+    progress_header_frame.grid(row=0, column=0, sticky="ew", padx=IOSLayout.PADDING_MEDIUM, pady=(IOSLayout.PADDING_MEDIUM, IOSLayout.PADDING_SMALL))
+    progress_header_frame.columnconfigure(0, weight=1)
+
     # 整体进度标签
     label_style = IOSStyles.label_normal()
     self.overall_progress_label = ctk.CTkLabel(
-        self.progress_frame,
+        progress_header_frame,
         text="整体进度: 0/0 (0%)",
         **label_style,
         anchor="w"
     )
-    self.overall_progress_label.grid(row=0, column=0, padx=IOSLayout.PADDING_MEDIUM, pady=(IOSLayout.PADDING_MEDIUM, IOSLayout.PADDING_SMALL), sticky="w")
+    self.overall_progress_label.grid(row=0, column=0, sticky="w")
+
+    # 取消按钮 - 使用警告色
+    self.btn_cancel_batch = ctk.CTkButton(
+        progress_header_frame,
+        text="⏹ 取消",
+        width=80,
+        height=28,
+        fg_color="#FF6B6B",
+        hover_color="#FF4757",
+        font=IOSFonts.get_font(12),
+        command=self.cancel_batch_generation
+    )
+    self.btn_cancel_batch.grid(row=0, column=1, sticky="e", padx=(IOSLayout.PADDING_MEDIUM, 0))
 
     # 整体进度条（较大） - 应用iOS风格
     progress_style = IOSStyles.progress_bar()

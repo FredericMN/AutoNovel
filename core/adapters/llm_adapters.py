@@ -1,6 +1,7 @@
 # llm_adapters.py
 # -*- coding: utf-8 -*-
 import logging
+import threading
 from typing import Optional
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
 # from google import genai
@@ -14,6 +15,49 @@ from openai import OpenAI
 
 from langchain_core.messages import SystemMessage as LCSystemMessage, HumanMessage
 from core.utils.error_utils import is_rate_limit_error
+
+
+class CancellationToken:
+    """
+    取消令牌 - 用于在LLM调用过程中支持取消操作
+
+    【注意】此功能当前暂未启用：
+    - 接口已定义但未在生成链路中传递使用
+    - 各 adapter 的 invoke() 方法已支持 cancellation_token 参数
+    - 但 generation_handlers.py 和 novel_generator 模块尚未接入
+    - 后续如需启用，需要在生成流程中传递 token 并在关键点检查
+
+    使用示例（未来启用后）:
+        token = CancellationToken()
+
+        # 在另一个线程中取消
+        token.cancel()
+
+        # 在LLM调用中检查
+        if token.is_cancelled:
+            raise CancelledException("操作已取消")
+    """
+    def __init__(self):
+        self._cancelled = threading.Event()
+
+    def cancel(self):
+        """取消操作"""
+        self._cancelled.set()
+
+    @property
+    def is_cancelled(self) -> bool:
+        """检查是否已取消"""
+        return self._cancelled.is_set()
+
+    def raise_if_cancelled(self):
+        """如果已取消则抛出异常"""
+        if self.is_cancelled:
+            raise CancelledException("操作已被用户取消")
+
+
+class CancelledException(Exception):
+    """取消异常"""
+    pass
 
 def check_base_url(url: str) -> str:
     """
@@ -37,8 +81,29 @@ def check_base_url(url: str) -> str:
 class BaseLLMAdapter:
     """
     统一的 LLM 接口基类，为不同后端（OpenAI、Ollama、ML Studio、Gemini等）提供一致的方法签名。
+
+    支持取消令牌机制，允许在长时间运行的LLM调用中优雅地取消操作。
     """
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> str:
+        """
+        调用LLM生成响应
+
+        Args:
+            prompt: 用户提示词
+            system_prompt: 系统提示词（可选）
+            cancellation_token: 取消令牌（可选），用于在调用前检查是否已取消
+
+        Returns:
+            str: LLM生成的响应文本
+
+        Raises:
+            CancelledException: 如果操作被取消
+        """
         raise NotImplementedError("Subclasses must implement .invoke(prompt) method.")
 
 class DeepSeekAdapter(BaseLLMAdapter):
@@ -62,18 +127,29 @@ class DeepSeekAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
+            # 调用前检查是否已取消
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
+
             active_system_prompt = (system_prompt or "").strip()
             if active_system_prompt:
                 messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
                 response = self._client.invoke(messages)
             else:
                 response = self._client.invoke(prompt)
+
+            # 调用后检查是否已取消
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
+
             if not response:
                 logging.warning("No response from DeepSeekAdapter.")
                 return ""
             return response.content
+        except CancelledException:
+            raise  # 重新抛出取消异常
         except IndexError as e:
             logging.error(f"DeepSeekAdapter received empty generations/choices: {e}")
             return ""
@@ -99,18 +175,29 @@ class OpenAIAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
+            # 调用前检查是否已取消
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
+
             active_system_prompt = (system_prompt or "").strip()
             if active_system_prompt:
                 messages = [LCSystemMessage(content=active_system_prompt), HumanMessage(content=prompt)]
                 response = self._client.invoke(messages)
             else:
                 response = self._client.invoke(prompt)
+
+            # 调用后检查是否已取消
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
+
             if not response:
                 logging.warning("No response from OpenAIAdapter.")
                 return ""
             return response.content
+        except CancelledException:
+            raise  # 重新抛出取消异常
         except IndexError as e:
             logging.error(f"OpenAIAdapter received empty generations/choices: {e}")
             return ""
@@ -135,8 +222,12 @@ class GeminiAdapter(BaseLLMAdapter):
         self._model_kwargs = {"model_name": self.model_name}
         self._default_model = genai.GenerativeModel(**self._model_kwargs)
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
+            # 调用前检查是否已取消
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
+
             active_system_prompt = (system_prompt or "").strip()
             model = self._default_model
             if active_system_prompt:
@@ -152,10 +243,16 @@ class GeminiAdapter(BaseLLMAdapter):
                 generation_config=generation_config
             )
 
+            # 调用后检查是否已取消
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
+
             if response and response.text:
                 return response.text
             logging.warning("No text response from Gemini API.")
             return ""
+        except CancelledException:
+            raise  # 重新抛出取消异常
         except Exception as e:
             # 如果是速率限制错误，重新抛出让上层重试机制处理
             if is_rate_limit_error(e):
@@ -197,7 +294,7 @@ class AzureOpenAIAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             if active_system_prompt:
@@ -237,7 +334,7 @@ class OllamaAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             if active_system_prompt:
@@ -271,7 +368,7 @@ class MLStudioAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             if active_system_prompt:
@@ -330,7 +427,7 @@ class AzureAIAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             messages = []
@@ -371,7 +468,7 @@ class VolcanoEngineAIAdapter(BaseLLMAdapter):
             api_key=api_key,
             timeout=timeout  # 添加超时配置
         )
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             messages = []
@@ -413,7 +510,7 @@ class SiliconFlowAdapter(BaseLLMAdapter):
             api_key=api_key,
             timeout=timeout  # 添加超时配置
         )
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             messages = []
@@ -459,7 +556,7 @@ class GrokAdapter(BaseLLMAdapter):
             timeout=self.timeout
         )
 
-    def invoke(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def invoke(self, prompt: str, system_prompt: Optional[str] = None, cancellation_token: Optional[CancellationToken] = None) -> str:
         try:
             active_system_prompt = (system_prompt or "").strip()
             messages = []
