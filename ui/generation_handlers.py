@@ -40,49 +40,40 @@ def generate_novel_architecture_ui(self):
         messagebox.showwarning("警告", "请先选择保存文件路径")
         return
 
-    def task():
-        confirm = messagebox.askyesno("确认", "确定要生成小说架构吗？")
-        if not confirm:
-            self.enable_button_safe(self.btn_generate_architecture)
-            return
+    confirm = messagebox.askyesno("确认", "确定要生成小说架构吗？")
+    if not confirm:
+        return
 
+    architecture_llm_key = self.architecture_llm_var.get()
+    llm_config = self.loaded_config["llm_configs"][architecture_llm_key]
+    interface_format = llm_config["interface_format"]
+    api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model_name = llm_config["model_name"]
+    temperature = llm_config["temperature"]
+    max_tokens = llm_config["max_tokens"]
+    timeout_val = llm_config["timeout"]
+
+    topic = self.topic_text.get("0.0", "end").strip()
+    genre = self.genre_var.get().strip()
+    num_chapters = self.safe_get_int(self.num_chapters_var, 10)
+    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+    word_number = self.safe_get_int(self.word_number_var, 3000)
+    user_guidance = self.user_guide_text.get("0.0", "end").strip()
+
+    creation_mode = self.get_creation_mode() if hasattr(self, 'get_creation_mode') else "灵感模式"
+    user_concept = self.get_user_concept() if hasattr(self, 'get_user_concept') else ""
+
+    if creation_mode == "构思模式" and not user_concept.strip():
+        messagebox.showwarning("警告", "构思模式下请填写您的故事构思")
+        return
+
+    if not self.validate_volume_config():
+        return
+
+    def task():
         self.disable_button_safe(self.btn_generate_architecture)
         try:
-
-
-            interface_format = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["interface_format"]
-            api_key = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["api_key"]
-            base_url = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["base_url"]
-            model_name = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["model_name"]
-            temperature = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["temperature"]
-            max_tokens = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["max_tokens"]
-            timeout_val = self.loaded_config["llm_configs"][self.architecture_llm_var.get()]["timeout"]
-
-
-
-            topic = self.topic_text.get("0.0", "end").strip()
-            genre = self.genre_var.get().strip()
-            num_chapters = self.safe_get_int(self.num_chapters_var, 10)
-            num_volumes = self.safe_get_int(self.num_volumes_var, 0)  # 新增：获取分卷数量
-            word_number = self.safe_get_int(self.word_number_var, 3000)
-            # 获取内容指导
-            user_guidance = self.user_guide_text.get("0.0", "end").strip()
-
-            # 新增：获取创作模式和用户构思
-            creation_mode = self.get_creation_mode() if hasattr(self, 'get_creation_mode') else "灵感模式"
-            user_concept = self.get_user_concept() if hasattr(self, 'get_user_concept') else ""
-
-            # 构思模式下验证用户构思是否填写
-            if creation_mode == "构思模式" and not user_concept.strip():
-                messagebox.showwarning("警告", "构思模式下请填写您的故事构思")
-                self.enable_button_safe(self.btn_generate_architecture)
-                return
-
-            # 强制校验分卷配置
-            if not self.validate_volume_config():
-                self.enable_button_safe(self.btn_generate_architecture)
-                return
-
             Novel_architecture_generate(
                 interface_format=interface_format,
                 api_key=api_key,
@@ -115,32 +106,30 @@ def generate_chapter_blueprint_ui(self):
         messagebox.showwarning("警告", "请先选择保存文件路径")
         return
 
+    if not messagebox.askyesno("确认", "确定要生成章节目录吗？"):
+        return
+
+    number_of_chapters = self.safe_get_int(self.num_chapters_var, 10)
+    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+
+    blueprint_llm_key = self.chapter_outline_llm_var.get()
+    llm_config = self.loaded_config["llm_configs"][blueprint_llm_key]
+    interface_format = llm_config["interface_format"]
+    api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model_name = llm_config["model_name"]
+    temperature = llm_config["temperature"]
+    max_tokens = llm_config["max_tokens"]
+    timeout_val = llm_config["timeout"]
+
+    user_guidance = self.user_guide_text.get("0.0", "end").strip()
+
+    if not self.validate_volume_config():
+        return
+
     def task():
-        if not messagebox.askyesno("确认", "确定要生成章节目录吗？"):
-            self.enable_button_safe(self.btn_generate_chapter)
-            return
         self.disable_button_safe(self.btn_generate_directory)
         try:
-
-            number_of_chapters = self.safe_get_int(self.num_chapters_var, 10)
-            num_volumes = self.safe_get_int(self.num_volumes_var, 0)  # 新增：获取分卷数量
-
-            interface_format = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["interface_format"]
-            api_key = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["api_key"]
-            base_url = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["base_url"]
-            model_name = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["model_name"]
-            temperature = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["temperature"]
-            max_tokens = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["max_tokens"]
-            timeout_val = self.loaded_config["llm_configs"][self.chapter_outline_llm_var.get()]["timeout"]
-
-
-            user_guidance = self.user_guide_text.get("0.0", "end").strip()  # 新增获取用户指导
-
-            # 强制校验分卷配置
-            if not self.validate_volume_config():
-                self.enable_button_safe(self.btn_generate_directory)
-                return
-
             Chapter_blueprint_generate(
                 interface_format=interface_format,
                 api_key=api_key,
@@ -168,22 +157,40 @@ def generate_chapter_draft_ui(self):
         messagebox.showwarning("警告", "请先配置保存文件路径。")
         return
 
+    draft_llm_key = self.prompt_draft_llm_var.get()
+    llm_config = self.loaded_config["llm_configs"][draft_llm_key]
+    interface_format = llm_config["interface_format"]
+    api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model_name = llm_config["model_name"]
+    temperature = llm_config["temperature"]
+    max_tokens = llm_config["max_tokens"]
+    timeout_val = llm_config["timeout"]
+
+    chap_num = self.safe_get_int(self.chapter_num_var, 1)
+    word_number = self.safe_get_int(self.word_number_var, 3000)
+
+    user_guidance = self.user_guide_text.get("0.0", "end").strip()
+    char_inv = self.characters_involved_var.get().strip()
+    key_items = self.key_items_var.get().strip()
+    scene_loc = self.scene_location_var.get().strip()
+    time_constr = self.time_constraint_var.get().strip()
+    char_inv_text = self.char_inv_text.get("0.0", "end").strip()
+
+    embedding_api_key = self.embedding_api_key_var.get().strip()
+    embedding_url = self.embedding_url_var.get().strip()
+    embedding_interface_format = self.embedding_interface_format_var.get().strip()
+    embedding_model_name = self.embedding_model_name_var.get().strip()
+    embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
+
+    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+    total_chapters = self.safe_get_int(self.num_chapters_var, 0)
+
     def task():
         self.disable_button_safe(self.btn_generate_chapter)
         try:
             # 获取对话框助手
             dialog_helper = get_dialog_helper()
-
-            interface_format = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["interface_format"]
-            api_key = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["api_key"]
-            base_url = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["base_url"]
-            model_name = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["model_name"]
-            temperature = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["temperature"]
-            max_tokens = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["max_tokens"]
-            timeout_val = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["timeout"]
-
-
-            chap_num = self.safe_get_int(self.chapter_num_var, 1)
 
             # 【防呆1：章节连续性校验】- 使用异步对话框
             validation_result = validate_chapter_continuity(filepath, chap_num)
@@ -217,24 +224,6 @@ def generate_chapter_draft_ui(self):
                     self.safe_log(f"❌ 用户取消了第{chap_num}章草稿生成，避免覆盖现有内容。")
                     return
 
-            word_number = self.safe_get_int(self.word_number_var, 3000)
-            user_guidance = self.user_guide_text.get("0.0", "end").strip()
-
-            char_inv = self.characters_involved_var.get().strip()
-            key_items = self.key_items_var.get().strip()
-            scene_loc = self.scene_location_var.get().strip()
-            time_constr = self.time_constraint_var.get().strip()
-
-            embedding_api_key = self.embedding_api_key_var.get().strip()
-            embedding_url = self.embedding_url_var.get().strip()
-            embedding_interface_format = self.embedding_interface_format_var.get().strip()
-            embedding_model_name = self.embedding_model_name_var.get().strip()
-            embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
-
-            # 获取分卷参数（修复分卷架构信息传递）
-            num_volumes = self.safe_get_int(self.num_volumes_var, 0)
-            total_chapters = self.safe_get_int(self.num_chapters_var, 0)
-
             # 调用新添加的 build_chapter_prompt 函数构造初始提示词（包含向量检索过程）
             prompt_text = build_chapter_prompt(
                 api_key=api_key,
@@ -265,7 +254,7 @@ def generate_chapter_draft_ui(self):
 
             # 处理角色库内容
             final_prompt = prompt_text
-            role_names = [name.strip() for name in self.char_inv_text.get("0.0", "end").strip().split(',') if name.strip()]
+            role_names = [name.strip() for name in char_inv_text.split(',') if name.strip()]
             role_lib_path = os.path.join(filepath, "角色库")
             role_contents = []
 
@@ -341,8 +330,8 @@ def generate_chapter_draft_ui(self):
                 timeout=timeout_val,
                 custom_prompt_text=edited_prompt,  # 使用用户编辑后的提示词
                 use_global_system_prompt=None,  # 使用PromptManager配置
-                num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
-                total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
+                num_volumes=num_volumes,  # 新增：传递分卷参数
+                total_chapters=total_chapters,  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
             if draft_text:
@@ -362,34 +351,34 @@ def finalize_chapter_ui(self):
         messagebox.showwarning("警告", "请先配置保存文件路径。")
         return
 
+    dialog_helper = get_dialog_helper()
+    if not dialog_helper.ask_yes_no("确认", "确定要定稿当前章节吗？", timeout=30.0, default=False):
+        return
+
+    finalize_llm_key = self.final_chapter_llm_var.get()
+    llm_config = self.loaded_config["llm_configs"][finalize_llm_key]
+    interface_format = llm_config["interface_format"]
+    api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model_name = llm_config["model_name"]
+    temperature = llm_config["temperature"]
+    max_tokens = llm_config["max_tokens"]
+    timeout_val = llm_config["timeout"]
+
+    embedding_api_key = self.embedding_api_key_var.get().strip()
+    embedding_url = self.embedding_url_var.get().strip()
+    embedding_interface_format = self.embedding_interface_format_var.get().strip()
+    embedding_model_name = self.embedding_model_name_var.get().strip()
+
+    chap_num = self.safe_get_int(self.chapter_num_var, 1)
+    word_number = self.safe_get_int(self.word_number_var, 3000)
+    edited_text = self.chapter_result.get("0.0", "end").strip()
+    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+    total_chapters = self.safe_get_int(self.num_chapters_var, 0)
+
     def task():
-        # 获取对话框助手
-        dialog_helper = get_dialog_helper()
-
-        # 使用异步对话框确认
-        if not dialog_helper.ask_yes_no("确认", "确定要定稿当前章节吗？", timeout=30.0, default=False):
-            self.enable_button_safe(self.btn_finalize_chapter)
-            return
-
         self.disable_button_safe(self.btn_finalize_chapter)
         try:
-
-            interface_format = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["interface_format"]
-            api_key = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["api_key"]
-            base_url = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["base_url"]
-            model_name = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["model_name"]
-            temperature = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["temperature"]
-            max_tokens = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["max_tokens"]
-            timeout_val = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["timeout"]
-
-
-            embedding_api_key = self.embedding_api_key_var.get().strip()
-            embedding_url = self.embedding_url_var.get().strip()
-            embedding_interface_format = self.embedding_interface_format_var.get().strip()
-            embedding_model_name = self.embedding_model_name_var.get().strip()
-
-            chap_num = self.safe_get_int(self.chapter_num_var, 1)
-
             # 【方案A】检查章节文件是否已存在，警告覆盖风险
             chapters_dir = os.path.join(filepath, "chapters")
             os.makedirs(chapters_dir, exist_ok=True)
@@ -437,10 +426,6 @@ def finalize_chapter_ui(self):
                     logging.warning(f"Failed to check chapter in vectorstore: {e}")
                     self.safe_log(f"⚠️ 无法检查章节是否已定稿（向量库查询失败），继续定稿...")
 
-            word_number = self.safe_get_int(self.word_number_var, 3000)
-
-            edited_text = self.chapter_result.get("0.0", "end").strip()
-
             if len(edited_text) < 0.7 * word_number:
                 # 使用异步对话框（带超时）
                 ask = dialog_helper.ask_yes_no(
@@ -486,8 +471,8 @@ def finalize_chapter_ui(self):
                 max_tokens=max_tokens,
                 timeout=timeout_val,
                 use_global_system_prompt=None,  # 使用PromptManager配置
-                num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
-                total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
+                num_volumes=num_volumes,  # 新增：传递分卷参数
+                total_chapters=total_chapters,  # 新增：传递总章节数
                 gui_log_callback=self.safe_log  # 传入GUI日志回调
             )
 
@@ -514,19 +499,21 @@ def do_consistency_check(self):
         messagebox.showwarning("警告", "请先配置保存文件路径。")
         return
 
+    review_llm_key = self.consistency_review_llm_var.get()
+    llm_config = self.loaded_config["llm_configs"][review_llm_key]
+    interface_format = llm_config["interface_format"]
+    api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model_name = llm_config["model_name"]
+    temperature = llm_config["temperature"]
+    max_tokens = llm_config["max_tokens"]
+    timeout = llm_config["timeout"]
+
+    chap_num = self.safe_get_int(self.chapter_num_var, 1)
+
     def task():
         self.disable_button_safe(self.btn_check_consistency)
         try:
-            interface_format = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["interface_format"]
-            api_key = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["api_key"]
-            base_url = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["base_url"]
-            model_name = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["model_name"]
-            temperature = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["temperature"]
-            max_tokens = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["max_tokens"]
-            timeout = self.loaded_config["llm_configs"][self.consistency_review_llm_var.get()]["timeout"]
-
-
-            chap_num = self.safe_get_int(self.chapter_num_var, 1)
             chap_file = os.path.join(filepath, "chapters", f"chapter_{chap_num}.txt")
             chapter_text = read_file(chap_file)
 
@@ -664,6 +651,65 @@ def generate_batch_ui(self):
     if result["close"]:
         return
 
+    filepath = self.filepath_var.get().strip()
+    draft_llm_key = self.prompt_draft_llm_var.get()
+    draft_llm_config = self.loaded_config["llm_configs"][draft_llm_key]
+    finalize_llm_key = self.final_chapter_llm_var.get()
+    finalize_llm_config = self.loaded_config["llm_configs"][finalize_llm_key]
+
+    user_guidance = self.user_guide_text.get("0.0", "end").strip()
+    char_inv = self.characters_involved_var.get().strip()
+    key_items = self.key_items_var.get().strip()
+    scene_loc = self.scene_location_var.get().strip()
+    time_constr = self.time_constraint_var.get().strip()
+    char_inv_text = self.char_inv_text.get("0.0", "end").strip()
+
+    embedding_api_key = self.embedding_api_key_var.get().strip()
+    embedding_url = self.embedding_url_var.get().strip()
+    embedding_interface_format = self.embedding_interface_format_var.get().strip()
+    embedding_model_name = self.embedding_model_name_var.get().strip()
+    embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
+
+    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
+    total_chapters = self.safe_get_int(self.num_chapters_var, 0)
+
+    batch_context = {
+        "filepath": filepath,
+        "draft": {
+            "interface_format": draft_llm_config["interface_format"],
+            "api_key": draft_llm_config["api_key"],
+            "base_url": draft_llm_config["base_url"],
+            "model_name": draft_llm_config["model_name"],
+            "temperature": draft_llm_config["temperature"],
+            "max_tokens": draft_llm_config["max_tokens"],
+            "timeout": draft_llm_config["timeout"],
+        },
+        "finalize": {
+            "interface_format": finalize_llm_config["interface_format"],
+            "api_key": finalize_llm_config["api_key"],
+            "base_url": finalize_llm_config["base_url"],
+            "model_name": finalize_llm_config["model_name"],
+            "temperature": finalize_llm_config["temperature"],
+            "max_tokens": finalize_llm_config["max_tokens"],
+            "timeout": finalize_llm_config["timeout"],
+        },
+        "user_guidance": user_guidance,
+        "characters_involved": char_inv,
+        "key_items": key_items,
+        "scene_location": scene_loc,
+        "time_constraint": time_constr,
+        "char_inv_text": char_inv_text,
+        "embedding": {
+            "api_key": embedding_api_key,
+            "url": embedding_url,
+            "interface_format": embedding_interface_format,
+            "model_name": embedding_model_name,
+            "k": embedding_k,
+        },
+        "num_volumes": num_volumes,
+        "total_chapters": total_chapters,
+    }
+
     # 2. 定义后台任务
     def batch_task():
         try:
@@ -690,7 +736,6 @@ def generate_batch_ui(self):
                 return
 
             # 【方案A-批量版】检查范围内章节文件冲突
-            filepath = self.filepath_var.get().strip()
             chapters_dir = os.path.join(filepath, "chapters")
             os.makedirs(chapters_dir, exist_ok=True)
 
@@ -768,6 +813,7 @@ def generate_batch_ui(self):
                     # 调用单章生成函数（带重试机制）
                     generate_chapter_batch_with_retry(
                         self,
+                        batch_context=batch_context,
                         chapter_num=i,
                         word=word,
                         min_word=min_word,
@@ -830,6 +876,7 @@ def generate_batch_ui(self):
 
 def generate_chapter_batch_with_retry(
     self,
+    batch_context: dict,
     chapter_num: int,
     word: int,
     min_word: int,
@@ -841,6 +888,7 @@ def generate_chapter_batch_with_retry(
     单章批量生成函数（带重试机制）
 
     Args:
+        batch_context: 批量生成上下文
         chapter_num: 章节号
         word: 期望字数
         min_word: 最低字数
@@ -858,6 +906,7 @@ def generate_chapter_batch_with_retry(
             # 调用单章生成核心逻辑
             generate_single_chapter_batch(
                 self,
+                batch_context=batch_context,
                 chapter_num=chapter_num,
                 word=word,
                 min_word=min_word,
@@ -884,6 +933,7 @@ def generate_chapter_batch_with_retry(
 
 def generate_single_chapter_batch(
     self,
+    batch_context: dict,
     chapter_num: int,
     word: int,
     min_word: int,
@@ -899,40 +949,41 @@ def generate_single_chapter_batch(
     2. 生成草稿
     3. 定稿章节
     """
-    # 获取草稿生成配置
-    draft_interface_format = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["interface_format"]
-    draft_api_key = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["api_key"]
-    draft_base_url = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["base_url"]
-    draft_model_name = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["model_name"]
-    draft_temperature = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["temperature"]
-    draft_max_tokens = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["max_tokens"]
-    draft_timeout = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["timeout"]
+    draft_config = batch_context["draft"]
+    finalize_config = batch_context["finalize"]
+    embedding_config = batch_context["embedding"]
 
-    # 获取定稿配置
-    finalize_interface_format = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["interface_format"]
-    finalize_api_key = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["api_key"]
-    finalize_base_url = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["base_url"]
-    finalize_model_name = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["model_name"]
-    finalize_temperature = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["temperature"]
-    finalize_max_tokens = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["max_tokens"]
-    finalize_timeout = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["timeout"]
+    filepath = batch_context["filepath"]
+    user_guidance = batch_context["user_guidance"]
+    char_inv = batch_context["characters_involved"]
+    key_items = batch_context["key_items"]
+    scene_loc = batch_context["scene_location"]
+    time_constr = batch_context["time_constraint"]
+    char_text = batch_context["char_inv_text"]
+    num_volumes = batch_context["num_volumes"]
+    total_chapters = batch_context["total_chapters"]
 
-    # 获取其他参数
-    user_guidance = self.user_guide_text.get("0.0", "end").strip()
-    char_inv = self.characters_involved_var.get().strip()
-    key_items = self.key_items_var.get().strip()
-    scene_loc = self.scene_location_var.get().strip()
-    time_constr = self.time_constraint_var.get().strip()
+    draft_interface_format = draft_config["interface_format"]
+    draft_api_key = draft_config["api_key"]
+    draft_base_url = draft_config["base_url"]
+    draft_model_name = draft_config["model_name"]
+    draft_temperature = draft_config["temperature"]
+    draft_max_tokens = draft_config["max_tokens"]
+    draft_timeout = draft_config["timeout"]
 
-    embedding_api_key = self.embedding_api_key_var.get().strip()
-    embedding_url = self.embedding_url_var.get().strip()
-    embedding_interface_format = self.embedding_interface_format_var.get().strip()
-    embedding_model_name = self.embedding_model_name_var.get().strip()
-    embedding_k = self.safe_get_int(self.embedding_retrieval_k_var, 4)
+    finalize_interface_format = finalize_config["interface_format"]
+    finalize_api_key = finalize_config["api_key"]
+    finalize_base_url = finalize_config["base_url"]
+    finalize_model_name = finalize_config["model_name"]
+    finalize_temperature = finalize_config["temperature"]
+    finalize_max_tokens = finalize_config["max_tokens"]
+    finalize_timeout = finalize_config["timeout"]
 
-    # 获取分卷参数（修复分卷架构信息传递）
-    num_volumes = self.safe_get_int(self.num_volumes_var, 0)
-    total_chapters = self.safe_get_int(self.num_chapters_var, 0)
+    embedding_api_key = embedding_config["api_key"]
+    embedding_url = embedding_config["url"]
+    embedding_interface_format = embedding_config["interface_format"]
+    embedding_model_name = embedding_config["model_name"]
+    embedding_k = embedding_config["k"]
 
     # ========== 阶段1: 构建提示词（含向量检索） ==========
     # 进度范围: 0% → 35% (在 build_chapter_prompt 内部更新)
@@ -942,7 +993,7 @@ def generate_single_chapter_batch(
         api_key=draft_api_key,
         base_url=draft_base_url,
         model_name=draft_model_name,
-        filepath=self.filepath_var.get().strip(),
+        filepath=filepath,
         novel_number=chapter_num,
         word_number=word,
         temperature=draft_temperature,
@@ -969,7 +1020,6 @@ def generate_single_chapter_batch(
     # 处理角色库
     final_prompt = prompt_text
     # 兼容逗号和换行两种分隔符
-    char_text = self.char_inv_text.get("0.0", "end").strip()
     role_names = []
     if ',' in char_text:
         # 逗号分隔格式（与单章流程一致）
@@ -978,7 +1028,7 @@ def generate_single_chapter_batch(
         # 换行分隔格式
         role_names = [name.strip() for name in char_text.split("\n") if name.strip()]
 
-    role_lib_path = os.path.join(self.filepath_var.get().strip(), "角色库")
+    role_lib_path = os.path.join(filepath, "角色库")
     role_contents = []
 
     if os.path.exists(role_lib_path):
@@ -1025,7 +1075,7 @@ def generate_single_chapter_batch(
         api_key=draft_api_key,
         base_url=draft_base_url,
         model_name=draft_model_name,
-        filepath=self.filepath_var.get().strip(),
+        filepath=filepath,
         novel_number=chapter_num,
         word_number=word,
         temperature=draft_temperature,
@@ -1044,8 +1094,8 @@ def generate_single_chapter_batch(
         timeout=draft_timeout,
         custom_prompt_text=final_prompt,
         use_global_system_prompt=None,  # 使用PromptManager配置
-        num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
-        total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
+        num_volumes=num_volumes,  # 新增：传递分卷参数
+        total_chapters=total_chapters,  # 新增：传递总章节数
         gui_log_callback=self.safe_log  # 传入回调
     )
 
@@ -1053,7 +1103,7 @@ def generate_single_chapter_batch(
     self.update_chapter_progress("✅ 草稿生成完成", 0.50)
 
     # 检查字数并扩写
-    chapters_dir = os.path.join(self.filepath_var.get().strip(), "chapters")
+    chapters_dir = os.path.join(filepath, "chapters")
     os.makedirs(chapters_dir, exist_ok=True)
     chapter_path = os.path.join(chapters_dir, f"chapter_{chapter_num}.txt")
 
@@ -1095,7 +1145,7 @@ def generate_single_chapter_batch(
         base_url=finalize_base_url,
         model_name=finalize_model_name,
         temperature=finalize_temperature,
-        filepath=self.filepath_var.get().strip(),
+        filepath=filepath,
         embedding_api_key=embedding_api_key,
         embedding_url=embedding_url,
         embedding_interface_format=embedding_interface_format,
@@ -1104,8 +1154,8 @@ def generate_single_chapter_batch(
         max_tokens=finalize_max_tokens,
         timeout=finalize_timeout,
         use_global_system_prompt=None,  # 使用PromptManager配置
-        num_volumes=self.safe_get_int(self.num_volumes_var, 0),  # 新增：传递分卷参数
-        total_chapters=self.safe_get_int(self.num_chapters_var, 0),  # 新增：传递总章节数
+        num_volumes=num_volumes,  # 新增：传递分卷参数
+        total_chapters=total_chapters,  # 新增：传递总章节数
         gui_log_callback=self.safe_log,  # 传入回调
         progress_callback=lambda msg, pct: self.update_chapter_progress(msg, pct)  # 🆕 进度回调
     )
@@ -1122,14 +1172,15 @@ def import_knowledge_handler(self):
         filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
     )
     if selected_file:
+        emb_api_key = self.embedding_api_key_var.get().strip()
+        emb_url = self.embedding_url_var.get().strip()
+        emb_format = self.embedding_interface_format_var.get().strip()
+        emb_model = self.embedding_model_name_var.get().strip()
+        filepath = self.filepath_var.get().strip()
+
         def task():
             self.disable_button_safe(self.btn_import_knowledge)
             try:
-                emb_api_key = self.embedding_api_key_var.get().strip()
-                emb_url = self.embedding_url_var.get().strip()
-                emb_format = self.embedding_interface_format_var.get().strip()
-                emb_model = self.embedding_model_name_var.get().strip()
-
                 # 尝试不同编码读取文件
                 content = None
                 encodings = ['utf-8', 'gbk', 'gb2312', 'ansi']
@@ -1162,7 +1213,7 @@ def import_knowledge_handler(self):
                         embedding_interface_format=emb_format,
                         embedding_model_name=emb_model,
                         file_path=temp_path,
-                        filepath=self.filepath_var.get().strip()
+                        filepath=filepath
                     )
                     self.safe_log("✅ 知识库文件导入完成。")
                 finally:
