@@ -191,7 +191,7 @@ class PromptManager:
                         "description": "生成小说的核心主题、类型和冲突",
                         "file": "custom_prompts/core_seed_prompt.txt",
                         "dependencies": [],
-                        "variables": ["topic", "genre", "number_of_chapters", "word_number", "user_guidance"]
+                        "variables": ["topic", "genre", "number_of_chapters", "word_number"]
                     },
                     "character_dynamics": {
                         "enabled": True,

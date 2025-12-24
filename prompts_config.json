@@ -249,7 +249,7 @@
         "dependencies": []
       },
       "critique": {
-        "enabled": true,
+        "enabled": false,
         "required": false,
         "display_name": "批评家审阅【Plan C】",
         "description": "【Plan C - 默认关闭】对初稿进行批评性分析，指出逻辑和文笔问题。⚠️ 启用后每章增加2次API调用，成本较高",
@@ -264,7 +264,7 @@
         "dependencies": []
       },
       "refine": {
-        "enabled": true,
+        "enabled": false,
         "required": false,
         "display_name": "作家重写【Plan C】",
         "description": "【Plan C - 默认关闭】根据批评意见重写章节，需与批评家模块同时启用才能生效",
