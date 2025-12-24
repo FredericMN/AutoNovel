@@ -696,15 +696,14 @@ A: 确保 Ollama 服务运行后，配置如下：
 {
   "api_key": "ollama",
   "base_url": "http://localhost:11434/v1",
-  "model_name": "mxbai-embed-large",
+  "model_name": "qwen3-embedding:0.6b",
   "interface_format": "OpenAI"
 }
 ```
 
 macOS/Linux 可先安装并启动 Ollama（`ollama serve` 或启动桌面 App），然后执行：
 ```bash
-ollama pull llama3:8b
-ollama pull mxbai-embed-large
+ollama pull qwen3-embedding:0.6b
 ```
 
 ### 功能相关
